@@ -39,29 +39,33 @@ def normalizeToken(token):
             return token
 
 
-def normalizeTweet(tweet, tokenizer=TweetTokenizer()):
+def normalizeTweet(tweet, tokenizer=TweetTokenizer(),
+                   return_tokens=False):
     tokens = tokenizer.tokenize(tweet.replace("’", "'").replace("…", "..."))
     normTweet = " ".join([normalizeToken(token) for token in tokens])
 
     normTweet = normTweet.replace("cannot ", "can not ")\
-        .replace("n't ", " n't ")\
-        .replace("n 't ", " n't ")\
-        .replace("ca n't", "can't")\
-        .replace("ai n't", "ain't")
+        .replace("n't ", " not ")\
+        .replace("n 't ", " not ")\
+        .replace("ca n't", "can not")\
+        .replace("ai n't", "is not")
     normTweet = normTweet.replace("'m ", " 'm ")\
-        .replace("'re ", " 're ")\
+        .replace("'re ", " are ")\
         .replace("'s ", " 's ")\
-        .replace("'ll ", " 'll ")\
+        .replace("'ll ", " will ")\
         .replace("'d ", " 'd ")\
-        .replace("'ve ", " 've ")
+        .replace("'ve ", " have ")
     normTweet = normTweet.replace(" p . m .", "  p.m.")\
-        .replace(" p . m ", " p.m ")\
-        .replace(" a . m .", " a.m.")\
-        .replace(" a . m ", " a.m ")
+        .replace(" p . m ", " pm ")\
+        .replace(" a . m .", " am.")\
+        .replace(" a . m ", " am ")
 
     normTweet = re.sub(r",([0-9]{2,4}) , ([0-9]{2,4})", r",\1,\2", normTweet)
     normTweet = re.sub(r"([0-9]{1,3}) / ([0-9]{2,4})", r"\1/\2", normTweet)
     normTweet = re.sub(r"([0-9]{1,3})- ([0-9]{2,4})", r"\1-\2", normTweet)
+
+    if return_tokens:
+        return normTweet.split()
 
     return " ".join(normTweet.split())
 

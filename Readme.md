@@ -9,6 +9,7 @@ Problem with tweets are the availability of limited context. To increase context
     
     
 * Utilize global and local context: global from token graph, local from tweet token relation
+* Parameter priority: argparse > config > default
     
 ## Approach:
     1. Construct a joint token graph (G) using S and T data with domain information
@@ -34,17 +35,18 @@ Problem with tweets are the availability of limited context. To increase context
 
 ### Tasks (Minimal):
 
-    1. Tokenize tweets
-    2. Generate graph based on co-occurrance of tokens within a tweet
-    3. Mark each token with it's domain 
+    - [x] 1. Tokenize tweets (:heavy_check_mark:)
+    - [x] 2. Generate graph based on co-occurrance of tokens within a tweet (&#9744;)
+    - [x] 3. Mark each token with it's domain count (&#9745;)
+    - [] 4. Aggregate codes in main()
 
 ### Tasks (Preferred):
 
-    1. Lemmatize tokens
-    2. Correct Spelling
-    3. Edges based on token occurrance within a Sliding window
-    4. Expand URLs and add words from the URLs
-    5. Calculate edge weights
-    6. Use BERTweet to generate token embeddings
-    7. Replace numbers with #D
-    8. Search and replace phone numbers
+    - [] 1. Lemmatize tokens
+    - [] 2. Correct Spelling
+    - [] 3. Edges based on token occurrance within a Sliding window
+    - [] 4. Expand URLs and add words from the URLs
+    - [] 5. Calculate edge weights
+    - [] 6. Use BERTweet to generate token embeddings
+    - [] 7. Replace numbers with #D
+    - [] 8. Search and replace phone numbers

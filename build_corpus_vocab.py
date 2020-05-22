@@ -20,7 +20,7 @@ __license__     : "This source code is licensed under the MIT-style license
 from collections import Counter
 
 
-def build_coupus(txts: list, corpus: list = None):
+def build_corpus(txts: list, corpus: list = None):
     if corpus is None:
         corpus = []
     for txt in txts:
@@ -125,14 +125,14 @@ if __name__ == "__main__":
 
     txts = [t1_toks, t2_toks]
 
-    corpus1, vocab1 = build_coupus(txts)
+    corpus1, vocab1 = build_corpus(txts)
 
     print(corpus1, vocab1)
 
     t3 = "#India dispatched 100,000 bottles of"
     t3_toks = normalizeTweet(t3)
 
-    corpus3, vocab3 = build_coupus([t3_toks], corpus1)
+    corpus3, vocab3 = build_corpus([t3_toks], corpus1)
 
     print(corpus3, vocab3)
     _test_Vocabulary()

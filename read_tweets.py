@@ -23,7 +23,7 @@ import pandas as pd
 
 def read_tweet_csv(data_dir='/home/sam/Datasets/disaster_tweets',
                    data_file='fire16_labeled_train.csv', index_col=0,
-                   header=True):
+                   header=0):
     """ Reads csv file as DF.
 
     :param header:
