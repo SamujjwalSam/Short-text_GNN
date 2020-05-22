@@ -21,3 +21,4 @@ Problem with tweets are the availability of limited context. To increase context
     3. Edges based on token occurrance within a Sliding window
     4. Expand URLs and add words from the URLs
     5. Calculate edge weights
+    6. Use BERTweet to generate token embeddings
