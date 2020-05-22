@@ -22,3 +22,5 @@ Problem with tweets are the availability of limited context. To increase context
     4. Expand URLs and add words from the URLs
     5. Calculate edge weights
     6. Use BERTweet to generate token embeddings
+    7. Replace numbers with #D
+    8. Search and replace phone numbers

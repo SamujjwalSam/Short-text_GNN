@@ -22,4 +22,4 @@ import pandas as pd
 from pathlib import Path
 
 
-from tweet_tokenizer import normalizeTweet
+from tweet_normalizer import normalizeTweet

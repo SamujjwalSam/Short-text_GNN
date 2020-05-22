@@ -63,7 +63,7 @@ def normalizeTweet(tweet, tokenizer=TweetTokenizer()):
     normTweet = re.sub(r"([0-9]{1,3}) / ([0-9]{2,4})", r"\1/\2", normTweet)
     normTweet = re.sub(r"([0-9]{1,3})- ([0-9]{2,4})", r"\1-\2", normTweet)
 
-    return normTweet.split()
+    return " ".join(normTweet.split())
 
 
 if __name__ == "__main__":
