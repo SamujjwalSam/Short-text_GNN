@@ -32,7 +32,84 @@ def build_coupus(txts: list, corpus: list = None):
     return corpus, vocab_stat
 
 
+class Vocabulary:
+    """
+    Taken from: https://www.kdnuggets.com/2019/11/create-vocabulary-nlp-tasks-python.html
+
+    """
+
+    PAD_token = 0   # Used for padding short sentences
+    SOS_token = 1   # Start-of-sentence token
+    EOS_token = 2   # End-of-sentence token
+
+    def __init__(self, name):
+        self.name = name
+        self.word2index = {}
+        self.word2count = {}
+        self.index2word = {Vocabulary.PAD_token: "PAD",
+                           Vocabulary.SOS_token: "SOS",
+                           Vocabulary.EOS_token: "EOS"}
+        self.num_words = 3
+        self.num_sentences = 0
+        self.longest_sentence = 0
+
+    def add_word(self, word):
+        if word not in self.word2index:
+            # First entry of word into vocabulary
+            self.word2index[word] = self.num_words
+            self.word2count[word] = 1
+            self.index2word[self.num_words] = word
+            self.num_words += 1
+        else:
+            # Word exists; increase word count
+            self.word2count[word] += 1
+
+    def add_sentence(self, sentence):
+        sentence_len = 0
+        for word in sentence.split(' '):
+            sentence_len += 1
+            self.add_word(word)
+        if sentence_len > self.longest_sentence:
+            # This is the longest sentence
+            self.longest_sentence = sentence_len
+        # Count the number of sentences
+        self.num_sentences += 1
+
+    def to_word(self, index):
+        return self.index2word[index]
+
+    def to_index(self, word):
+        return self.word2index[word]
+
+
+def _test_Vocabulary():
+    voc = Vocabulary('test')
+    print(voc)
+    corpus = ['This is the first sentence.',
+              'This is the second.',
+              'There is no sentence in this corpus longer than this one.',
+              'My dog is named Patrick.']
+    # print(corpus)
+    for sent in corpus:
+        voc.add_sentence(sent)
+
+    print('Token 4 corresponds to token:', voc.to_word(4))
+    print('Token "this" corresponds to index:', voc.to_index('this'))
+    for word in range(voc.num_words):
+        print(voc.to_word(word))
+
+    sent_tkns = []
+    sent_idxs = []
+    for word in corpus[3].split(' '):
+        sent_tkns.append(word)
+        sent_idxs.append(voc.to_index(word))
+    print(sent_tkns)
+    print(sent_idxs)
+
+
 if __name__ == "__main__":
+    from tweet_normalizer import normalizeTweet
+
     t1 = "SC has first two presumptive cases of coronavirus, DHEC confirms "\
          "https://postandcourier.com/health/covid19/sc-has-first-two"\
          "-presumptive-cases-of-coronavirus-dhec-confirms/article_bddfe4ae"\
@@ -42,8 +119,6 @@ if __name__ == "__main__":
     t2 = "#India dispatched 100,000 bottles of #RailNeer water 959-5085116"\
          " to quake-hit #Nepal on Saturday night. http://t.co/HXkVtw9hRo "\
          "#nepal via @oneindia"
-
-    from tweet_tokenizer import normalizeTweet
 
     t1_toks = normalizeTweet(t1)
     t2_toks = normalizeTweet(t2)
@@ -60,3 +135,6 @@ if __name__ == "__main__":
     corpus3, vocab3 = build_coupus([t3_toks], corpus1)
 
     print(corpus3, vocab3)
+    _test_Vocabulary()
+
+
