@@ -21,7 +21,16 @@ import networkx as nx
 import matplotlib.pyplot as plt
 
 
-def generate_token_graph(vocab: dict, corpus: list, G=None):
+def generate_token_graph(vocab: dict, corpus: list, G:nx.Graph=None):
+    """ Given a corpus create a token Graph.
+
+    Append to graph G if provided.
+
+    :param vocab:
+    :param corpus:
+    :param G:
+    :return:
+    """
     if G is None:
         G = nx.Graph()
 
@@ -47,13 +56,13 @@ def generate_token_graph(vocab: dict, corpus: list, G=None):
     return G
 
 
-def get_subgraph(G, nodes):
+def get_subgraph(G:nx.Graph, nodes:list):
     H = nx.subgraph(G, nodes)
 
     return H
 
 
-def plot_graph(G):
+def plot_graph(G:nx.Graph):
     plt.subplot(121)
     nx.draw(G, with_labels=True, font_weight='bold')
     # plt.subplot(122)
@@ -61,6 +70,31 @@ def plot_graph(G):
     # plt.show()
     plt.show()
     plt.savefig("H.png")
+
+
+def add_sample_edges(txt:list, H:nx.Graph):
+    """ For a given input text sample and it's neighbors in token graph.
+    Connect nodes present in sample text with edge and calculate edge weight.
+
+    :param txt:
+    :param H:
+    """
+    pass
+
+
+def generate_sample_subgraph(txts:list, G:nx.Graph):
+    """ Given a sample texts, generate subgraph keeping the sample texts
+     connected.
+
+    :param txts:
+    :param G:
+    """
+    txts_subgraphs = {}
+    for i, txt in enumerate(txts):
+        # nodes_list = []
+        # for token in txt:
+        txts_subgraphs[i] = G.subgraph(txt)
+        txts_subgraphs[i] = add_sample_edges(txt, txts_subgraphs[i])
 
 
 if __name__ == "__main__":
