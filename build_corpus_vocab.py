@@ -21,6 +21,13 @@ from collections import Counter
 
 
 def build_corpus(txts: list, corpus: list = None):
+    """Generates corpus (list of str) and vocab with occurrence count (dict of
+     set of unique tokens).
+
+    :param txts:
+    :param corpus:
+    :return:
+    """
     if corpus is None:
         corpus = []
     for txt in txts:

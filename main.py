@@ -23,7 +23,7 @@ from config import configuration as cfg, platform as plat, username as user
 from read_tweets import read_tweet_csv
 from tweet_normalizer import normalizeTweet
 from build_corpus_vocab import build_corpus
-from generate_graph import generate_token_graph, get_subgraph, plot_graph
+from generate_graph import generate_token_graph, get_subgraph, plot_graph, generate_sample_subgraph
 from Logger.logger import logger
 
 
@@ -55,11 +55,15 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     G = generate_token_graph(vocab, txts_toks)
     logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))
 
+    txts_embs = create_node_embddings(txts_toks)
+
     H = get_subgraph(G, ['b', 'c'])
     logger.info("Fetching subgraph: [{}]".format(H.nodes))
     # print(H.nodes)
     plot_graph(H)
     print("Successfully printed.")
+
+    txts_subgraphs = generate_sample_subgraph(txts_toks, G)
 
 
 if __name__ == "__main__":
