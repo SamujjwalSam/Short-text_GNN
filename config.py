@@ -33,23 +33,10 @@ seed = 0
 global configuration
 configuration = {
     "data":         {
-        "dataset_name": "fire16_labeled",
+        "dataset_name": "fire16_labeled_sample",
         "val_split":    0.1,
         "test_split":   0.3,
         "show_stat":    False
-    },
-
-    "xc_datasets":  {
-        "Wiki10-31K":         "html",
-        "Wiki10-31K_onehot":  "html",
-        "Wiki10-31K_fixed5":  "html",
-        "Wiki10-31K_pointer": "html",
-        "AmazonCat-14K":      "json",
-        "Amazon-3M":          "json",
-        "Delicious-T140":     "html",
-        "AmazonCat-13K":      "txt",
-        "Amazon-670K":        "txt",
-        "EurLex":             "uniq"
     },
 
     "model":        {
@@ -154,22 +141,6 @@ configuration = {
             }
         }
     },
-
-    "html_parser":  {
-        "alt_text":               True,
-        "ignore_table":           True,
-        "decode_errors":          "ignore",
-        "default_alt":            "<IMG>",
-        "ignore_link":            True,
-        "reference_links":        True,
-        "bypass_tables":          True,
-        "ignore_emphasis":        True,
-        "unicode_snob":           True,
-        "no_automatic_links":     True,
-        "no_skip_internal_links": True,
-        "single_line_break":      True,
-        "escape_all":             True
-    }
 }
 
 

@@ -25,8 +25,6 @@ def generate_token_graph(vocab: dict, corpus: list, G=None):
     if G is None:
         G = nx.Graph()
 
-    G.add_nodes_from(vocab.items())
-
     # for token, freq in vocab.items():
     #     G.add_node(token, s=freq[0], t=freq[1])
 
@@ -56,7 +54,6 @@ def get_subgraph(G, nodes):
 
 
 def plot_graph(G):
-    # plt.subplot("This")
     plt.subplot(121)
     nx.draw(G, with_labels=True, font_weight='bold')
     # plt.subplot(122)

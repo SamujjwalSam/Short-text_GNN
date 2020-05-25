@@ -24,6 +24,7 @@ from read_tweets import read_tweet_csv
 from tweet_normalizer import normalizeTweet
 from build_corpus_vocab import build_corpus
 from generate_graph import generate_token_graph, get_subgraph, plot_graph
+from Logger.logger import logger
 
 
 def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
@@ -32,18 +33,31 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     #         'This is the second.',
     #         'There is no sentence in this corpus longer than this one.',
     #         'My dog is named Patrick.']
-    txts_df = read_tweet_csv(data_dir, data_name+".csv")
+    ## Read source data
+    s_lab_df = read_tweet_csv(data_dir, data_name+".csv")
+    s_unlab_df = read_tweet_csv(data_dir, data_name+".csv")
+
+    ## Read target data
+    t_unlab_df = read_tweet_csv(data_dir, data_name+".csv")
+
+    logger.info("Dataset size: [{}]".format(s_lab_df.shape))
+    logger.info("Few dataset samples: \n[{}]".format(s_lab_df.head()))
 
     txts_toks = []
-    for txt in txts_df.tweets:
+    for txt in s_lab_df.tweets:
         txts_toks.append(normalizeTweet(txt, return_tokens=True))
 
     corpus, vocab = build_corpus(txts_toks)
 
+    logger.info("Number of tokens in corpus: [{}]".format(len(corpus)))
+    logger.info("Vocab size: [{}]".format(len(vocab)))
+
     G = generate_token_graph(vocab, txts_toks)
-    print(G.nodes)
-    H = get_subgraph(G, ['This', 'is'])
-    print(H.nodes)
+    logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))
+
+    H = get_subgraph(G, ['b', 'c'])
+    logger.info("Fetching subgraph: [{}]".format(H.nodes))
+    # print(H.nodes)
     plot_graph(H)
     print("Successfully printed.")
 
