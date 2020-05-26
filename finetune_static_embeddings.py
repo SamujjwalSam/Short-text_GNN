@@ -1,14 +1,14 @@
 # coding=utf-8
 # !/usr/bin/python3.6  # Please use python 3.6
 """
-__synopsis__    : Generate token graph
-__description__ : Details and usage.
+__synopsis__    : Trains static embeddings like Glove
+__description__ : Useful for oov tokens
 __project__     : Tweet_GNN_inductive
 __classes__     : Tweet_GNN_inductive
 __variables__   :
 __methods__     :
-__author__      :
-https://towardsdatascience.com/fine-tune-glove-embeddings-using-mittens
+__author__      : https://towardsdatascience.com/fine-tune-glove-embeddings
+-using-mittens
 -89b5f3fe4c39
 __version__     : ":  "
 __date__        : "07/05/20"
@@ -21,10 +21,12 @@ import pickle
 from os.path import join
 from collections import Counter
 from nltk.corpus import brown
-from mittens import GloVe, Mittens
+from mittens import Mittens
 from sklearn.feature_extraction import stop_words
 from sklearn.feature_extraction.text import CountVectorizer
 
+dataset_dir = '/home/sam/Datasets/disaster_tweets'
+dataset_name = 'fire16_labeled_train'
 embedding_dir = '/home/sam/Embeddings'
 embedding_file = 'glove.6B.100d'
 
@@ -100,9 +102,15 @@ def get_rareoov(xdict, val):
     return [k for (k, v) in Counter(xdict).items() if v <= val]
 
 
-def calculate_cooccurrence_mat(corp_vocab, doc):
+def calculate_cooccurrence_mat(oov_vocab, doc):
+    """ Calculates token co-occurrence matrix for oov tokens.
+
+    :param oov_vocab:
+    :param doc:
+    :return:
+    """
     ## Get oov token freq in corpus:
-    cv = CountVectorizer(ngram_range=(1, 1), vocabulary=corp_vocab)
+    cv = CountVectorizer(ngram_range=(1, 1), vocabulary=oov_vocab)
     X = cv.fit_transform(doc)
 
     ## X.T * X converts doc-token matrix to token-token matrix:
@@ -112,7 +120,8 @@ def calculate_cooccurrence_mat(corp_vocab, doc):
     return coocc_ar
 
 
-def train_model(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=1000):
+def train_model(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=1000,
+    glove_oov_save_path=None):
     mittens_model = Mittens(n=emb_dim, max_iter=max_iter)
 
     new_embeddings = mittens_model.fit(
@@ -121,7 +130,10 @@ def train_model(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=1000):
         initial_embedding_dict=pre_glove)
 
     newglove = dict(zip(oov_vocabs, new_embeddings))
-    f = open("repo_glove.pkl", "wb")
+    if glove_oov_save_path is None:
+        glove_oov_save_path = join(dataset_dir, embedding_file + dataset_name +
+                              '_oov.pkl')
+    f = open(glove_oov_save_path, "wb")
     pickle.dump(newglove, f)
     f.close()
 

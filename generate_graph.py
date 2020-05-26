@@ -21,7 +21,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 
 
-def generate_token_graph(vocab: dict, corpus: list, G:nx.Graph=None):
+def generate_token_graph(vocab: dict, corpus: list, G: nx.Graph = None):
     """ Given a corpus create a token Graph.
 
     Append to graph G if provided.
@@ -56,45 +56,49 @@ def generate_token_graph(vocab: dict, corpus: list, G:nx.Graph=None):
     return G
 
 
-def get_subgraph(G:nx.Graph, nodes:list):
+def get_subgraph(G: nx.Graph, nodes: list):
     H = nx.subgraph(G, nodes)
 
     return H
 
 
-def plot_graph(G:nx.Graph):
+def plot_graph(G: nx.Graph, plot_name='H.png'):
     plt.subplot(121)
     nx.draw(G, with_labels=True, font_weight='bold')
     # plt.subplot(122)
     # nx.draw_shell(G, with_labels=True, font_weight='bold')
     # plt.show()
     plt.show()
-    plt.savefig("H.png")
+    plt.savefig(plot_name)
 
 
-def add_sample_edges(txt:list, H:nx.Graph):
-    """ For a given input text sample and it's neighbors in token graph.
-    Connect nodes present in sample text with edge and calculate edge weight.
-
-    :param txt:
-    :param H:
-    """
-    pass
+def gen_sample_subgraph(txt: list, H: nx.Graph, s_weight: float = 1.0):
+    # H = G.subgraph(txt)
+    for i, token1 in enumerate(txt):
+        for token2 in txt[i + 1:]:
+            H.add_edge(token1, token2, cooccure=s_weight)
+    return H
 
 
-def generate_sample_subgraph(txts:list, G:nx.Graph):
+def generate_sample_subgraphs(txts: list, G: nx.Graph, s_weight: float = 1.):
     """ Given a sample texts, generate subgraph keeping the sample texts
      connected.
 
-    :param txts:
-    :param G:
+    :param s_weight: Weight for edges in sample text.
+    :param txts: List of texts, each containing list of tokens(nodes).
+    :param G: Token graph
     """
     txts_subgraphs = {}
     for i, txt in enumerate(txts):
-        # nodes_list = []
-        # for token in txt:
-        txts_subgraphs[i] = G.subgraph(txt)
-        txts_subgraphs[i] = add_sample_edges(txt, txts_subgraphs[i])
+        H = G.subgraph(txt)
+        ## Add sample edges
+        H = gen_sample_subgraph(txt, H, s_weight)
+        # for i, token1 in enumerate(txt):
+        #     for token2 in txt[i + 1:]:
+        #         H.add_edge(token1, token2, cooccure=s_weight)
+
+        txts_subgraphs[i] = H
+    return txts_subgraphs
 
 
 if __name__ == "__main__":
@@ -115,7 +119,9 @@ if __name__ == "__main__":
 
     G = generate_token_graph(vocab, txts_toks)
     print(G.nodes)
-    H = get_subgraph(G, ['This', 'is'])
-    print(H.nodes)
-    plot_graph(H)
+    txt = ['This', 'is', 'first', 'sam']
+    H = G.subgraph(txt).copy()
+    txt_h = gen_sample_subgraph(txt, H)
+    print(txt_h.nodes)
+    plot_graph(txt_h)
     print("Successfully printed.")

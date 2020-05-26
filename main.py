@@ -23,7 +23,9 @@ from config import configuration as cfg, platform as plat, username as user
 from read_tweets import read_tweet_csv
 from tweet_normalizer import normalizeTweet
 from build_corpus_vocab import build_corpus
-from generate_graph import generate_token_graph, get_subgraph, plot_graph, generate_sample_subgraph
+from generate_graph import generate_token_graph, get_subgraph, plot_graph,\
+    generate_sample_subgraphs
+from finetune_static_embeddings import glove2dict
 from Logger.logger import logger
 
 
@@ -38,6 +40,7 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     s_unlab_df = read_tweet_csv(data_dir, data_name+".csv")
 
     ## Read target data
+    t_lab_df = read_tweet_csv(data_dir, data_name+".csv")
     t_unlab_df = read_tweet_csv(data_dir, data_name+".csv")
 
     logger.info("Dataset size: [{}]".format(s_lab_df.shape))
@@ -57,13 +60,13 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
 
     txts_embs = create_node_embddings(txts_toks)
 
-    H = get_subgraph(G, ['b', 'c'])
+    H = generate_sample_subgraphs(G, ['b', 'c'])
     logger.info("Fetching subgraph: [{}]".format(H.nodes))
     # print(H.nodes)
     plot_graph(H)
     print("Successfully printed.")
 
-    txts_subgraphs = generate_sample_subgraph(txts_toks, G)
+    txts_subgraphs = generate_sample_subgraphs(txts_toks, G)
 
 
 if __name__ == "__main__":
