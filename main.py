@@ -24,7 +24,7 @@ from read_tweets import read_tweet_csv
 from tweet_normalizer import normalizeTweet
 from build_corpus_vocab import build_corpus
 from generate_graph import generate_token_graph, get_subgraph, plot_graph,\
-    generate_sample_subgraphs
+    generate_sample_subgraphs, generate_token_graph_window
 from finetune_static_embeddings import glove2dict
 from Logger.logger import logger
 
@@ -55,7 +55,7 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     logger.info("Number of tokens in corpus: [{}]".format(len(corpus)))
     logger.info("Vocab size: [{}]".format(len(vocab)))
 
-    G = generate_token_graph(vocab, txts_toks)
+    G = generate_token_graph_window(txts_toks)
     logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))
 
     txts_embs = create_node_embddings(txts_toks)
