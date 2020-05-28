@@ -7,8 +7,11 @@ Problem with tweets are the availability of limited context. To increase context
  has two attributes containing information if it occurs in S or T or both.
     
     
-* Utilize global and local context: global from token graph, local from tweet token relation
-* Parameter priority: argparse > config > default
+* Utilize global and local context: global from token graph, local from tweet token relation:
+    Capture global context from token graph and local context from GNN.
+    
+* Parameter priority: 
+    argparse > config > default
     
 ## Approach:
     1 Preprocess the token graph to generate domain invariant token representation
