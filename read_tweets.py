@@ -20,6 +20,8 @@ __license__     : "This source code is licensed under the MIT-style license
 from pathlib import Path
 import pandas as pd
 
+from Logger.logger import logger
+
 
 def read_tweet_csv(data_dir='/home/sam/Datasets/disaster_tweets',
                    data_file='fire16_labeled_train.csv', index_col=0,
@@ -37,10 +39,17 @@ def read_tweet_csv(data_dir='/home/sam/Datasets/disaster_tweets',
         raise FileNotFoundError("Directory [{}] not found.".format(data_dir))
 
     data_file = data_dir / data_file
+    logger.info(f"Reading csv file from [{data_file}]")
     if not data_file.exists():
         raise FileNotFoundError("File [{}] not found.".format(data_file))
 
-    df = pd.read_csv(data_file, index_col=index_col, header=header)
+    df = pd.read_csv(data_file, index_col=index_col, header=header,
+                     encoding='utf-8',
+                     # engine='python',
+                     lineterminator='\n')
     # df.head()
+
+    logger.info("Dataset size: [{}]".format(df.shape))
+    logger.info("Few dataset samples: \n[{}]".format(df.head()))
 
     return df

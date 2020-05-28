@@ -20,6 +20,18 @@ __license__     : "This source code is licensed under the MIT-style license
 import networkx as nx
 import matplotlib.pyplot as plt
 
+from Logger.logger import logger
+
+
+def plot_graph(G: nx.Graph, plot_name='H.png'):
+    plt.subplot(121)
+    nx.draw(G, with_labels=True, font_weight='bold')
+    # plt.subplot(122)
+    # nx.draw_shell(G, with_labels=True, font_weight='bold')
+    # plt.show()
+    plt.show()
+    plt.savefig(plot_name)
+
 
 def find_cooccurrences(txt_window):
     edges = {}
@@ -40,7 +52,7 @@ def generate_token_graph_window(corpus: list, G: nx.Graph = None,
     Append to graph G if provided.
 
     :param window_size: Sliding window size
-    :param corpus:
+    :param corpus: List of list of str.
     :param G:
     :return:
     """
@@ -61,7 +73,7 @@ def generate_token_graph_window(corpus: list, G: nx.Graph = None,
         slide = txt_len - window_size + 1
 
         for k in range(slide):
-            txt_window = txt[j:j+window_size]
+            txt_window = txt[j:j + window_size]
             ## Co-occurrence in tweet:
             sample_edges[i].append(find_cooccurrences(txt_window))
             j = j + 1
@@ -75,64 +87,44 @@ def generate_token_graph_window(corpus: list, G: nx.Graph = None,
     return G
 
 
-# def generate_token_graph(corpus: list, G: nx.Graph = None,
-#                          window_size: int = 2):
-#     """ Given a corpus create a token Graph.
-#
-#     Append to graph G if provided.
-#
-#     :param corpus:
-#     :param G:
-#     :return:
-#     """
-#     if G is None:
-#         G = nx.Graph()
-#
-#     # for token, freq in vocab.items():
-#     #     G.add_node(token, s=freq[0], t=freq[1])
-#
-#     edges = {}
-#     for txt in corpus:
-#         # txt_len = len(txt)
-#         # if window_size
-#         ## Co-occurrence in tweet:
-#         for i, token1 in enumerate(txt):
-#             for token2 in txt[i + 1:]:
-#                 ## Should we create self loop if a word occurs in 2 places in
-#                 # a single tweet?
-#                 # if token1 == token2:
-#                 #     continue
-#                 try:
-#                     edges[(token1, token2)] += 1
-#                 except KeyError as e:
-#                     edges[(token1, token2)] = 1
-#
-#     for nodes, cooccure in edges.items():
-#         G.add_edge(nodes[0], nodes[1], cooccure=cooccure)
-#
-#     return G
+def get_k_hop_subgraph(G: nx.Graph, txt: list,
+                       # edge_attr: str = 'cooccure',
+                       s_weight: float = 1.,
+                       ):
+    oov_nodes = []
+    all_neighbors = []
+    for pos, token in enumerate(txt):
+        try:
+            for tok in G.neighbors(token):
+                all_neighbors.append(tok)
+        except nx.exception.NetworkXError or nx.exception.NodeNotFound:
+            logger.warn(f"Token [{token}] not present in graph.")
+            oov_nodes.append((pos, token))
+
+    G_sub = gen_sample_subgraph(all_neighbors, G)
+
+    if oov_nodes:
+        ## Add oov tokens to graph and connect it to other nodes.
+        for pos, token in oov_nodes:
+            if pos == 0:  ## if first token is oov
+                G_sub.add_edge(txt[pos], txt[pos+1], weight=s_weight)
+            elif pos == len(txt):  ## if last token if oov
+                G_sub.add_edge(txt[pos-1], txt[pos], weight=s_weight)
+            else:  ## Connect to previous and next node with oov node
+                G_sub.add_edge(txt[pos-1], txt[pos], weight=s_weight)
+                G_sub.add_edge(txt[pos], txt[pos+1], weight=s_weight)
+
+    return G_sub
 
 
-def get_subgraph(G: nx.Graph, nodes: list):
-    H = nx.subgraph(G, nodes)
+def ego_graph_nbunch_window(G: nx.Graph, nbunch: list,
+                            edge_attr: str = 'cooccure',
+                            s_weight: float = 1.,
+                            ):
+    """ Ego_graph for a bunch of nodes, adds edges among them. connects nodes
+     in nbunch with original edge weight if exists, s_weight if not.
 
-    return H
-
-
-def plot_graph(G: nx.Graph, plot_name='H.png'):
-    plt.subplot(121)
-    nx.draw(G, with_labels=True, font_weight='bold')
-    # plt.subplot(122)
-    # nx.draw_shell(G, with_labels=True, font_weight='bold')
-    # plt.show()
-    plt.show()
-    plt.savefig(plot_name)
-
-
-def ego_graph_nbunch(G: nx.Graph, nbunch: list, edge_attr: str = 'cooccure',
-                     s_weight: float = 1.):
-    """ Ego_graph for a bunch of nodes. connects nodes in nbunch with original
-     edge weight if exists, s_weight if not.
+     Here, window_size is always 2.
 
     :param G:
     :param nbunch:
@@ -140,33 +132,42 @@ def ego_graph_nbunch(G: nx.Graph, nbunch: list, edge_attr: str = 'cooccure',
     :param s_weight:
     :return:
     """
-    E = {}
-    for node in nbunch:
-        try:
-            E[node] = nx.ego_graph(G, node)
-        except nx.exception.NodeNotFound as e:
-            print(f"Node [{node}] not found.")
-            continue
 
-    combine = None
-    ## TODO: Sliding window here for sample graphs
-    for i, node1 in enumerate(nbunch):
-        for node2 in nbunch[i + 1:]:
+    if len(nbunch) == 1:
+        combine = nx.ego_graph(G, nbunch[0])
+    else:
+        combine = None
+        for i in range(len(nbunch)):
             try:
-                if combine is None:
-                    combine = nx.compose(E[node1], E[node2])
-                else:
-                    combine = nx.compose(combine, E[node2])
-            except KeyError as e:
+                # node1 = nx.ego_graph(G, nbunch[i-1])
+                node1 = nx.ego_graph(G, nbunch[i])
+                try:  ## Merge 2 ego graphs
+                    if combine is None:  ## New merged graph
+                        combine = node1
+                    else:  ## Merge with existing graph
+                        combine = nx.compose(combine, node1)
+                        try:
+                            ## Copy edge weight if exists
+                            combine[nbunch[i - 1]][nbunch[i]][edge_attr] =\
+                                G[nbunch[i - 1]][nbunch[i]][edge_attr]
+                        except KeyError as e:
+                            ## If edge not exist, add edge with [s_weight].
+                            combine.add_edge(nbunch[i], nbunch[i - 1],
+                                             edge_attr=s_weight)
+                            # combine[node1][node2][edge_attr] = s_weight
+                except KeyError as e:
+                    continue
+            except nx.exception.NodeNotFound as e:
                 continue
+                ## TODO: Ignoring non-existing nodes for now; need to handle
+                ## similar to OOV token
+                # print(f"Node [{nbunch[i]}] not found in G.")
+                # if i > 0:
+                #     G.add_edge(nbunch[i-1], nbunch[i], cooccure=s_weight)
+                #     G.add_edge(nbunch[i], nbunch[i+1], cooccure=s_weight)
+                # else:
+                #     G.add_edge(nbunch[i], nbunch[i+1], cooccure=s_weight)
 
-            try:
-                ## Compy edge weight if exists
-                combine[node1][node2][edge_attr] = G[node1][node2][edge_attr]
-            except KeyError as e:
-                ## If edge not exist, add edge with [s_weight].
-                combine.add_edge(node1, node2, edge_attr=s_weight)
-                # combine[node1][node2][edge_attr] = s_weight
     return combine
 
 
@@ -188,7 +189,8 @@ def generate_sample_subgraphs(txts: list, G: nx.Graph, s_weight: float = 1.):
     """
     txts_subgraphs = {}
     for i, txt in enumerate(txts):
-        H = ego_graph_nbunch(G, txt)
+        # H = ego_graph_nbunch_window(G, txt)
+        H = get_k_hop_subgraph(G, txt)
 
         # for i, txt in enumerate(txts):
         #     H = G.subgraph(txt)
@@ -222,7 +224,7 @@ if __name__ == "__main__":
     print(G.nodes)
 
     ## Testing
-    test_txts = ['There is no sentence',
+    test_txts = ['There sam is no sentence',
                  'My dog is named sam.']
     test_txts_toks = []
     for txt in test_txts:

@@ -34,9 +34,9 @@ def build_corpus(txts: list, corpus: list = None):
         for token in txt:
             corpus.append(token)
 
-    vocab_stat = Counter(corpus)
+    vocab_freq = Counter(corpus)
 
-    return corpus, vocab_stat
+    return corpus, vocab_freq
 
 
 class Vocabulary:

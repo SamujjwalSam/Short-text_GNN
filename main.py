@@ -18,37 +18,46 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import argparse
+import pandas as pd
 
 from config import configuration as cfg, platform as plat, username as user
 from read_tweets import read_tweet_csv
 from tweet_normalizer import normalizeTweet
 from build_corpus_vocab import build_corpus
-from generate_graph import generate_token_graph, get_subgraph, plot_graph,\
-    generate_sample_subgraphs, generate_token_graph_window
+from generate_graph import plot_graph, generate_sample_subgraphs,\
+    generate_token_graph_window
 from finetune_static_embeddings import glove2dict
 from Logger.logger import logger
 
 
+def tokenize_txts(df: pd.DataFrame, txts_toks:list=None):
+    if txts_toks is None:
+        txts_toks = []
+    for txt in df.tweets:
+        txts_toks.append(normalizeTweet(txt, return_tokens=True))
+
+    return txts_toks
+
+
 def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
-         data_name=cfg["data"]["dataset_name"]):
-    # txts = ['This is the first sentence.',
-    #         'This is the second.',
-    #         'There is no sentence in this corpus longer than this one.',
-    #         'My dog is named Patrick.']
+         labelled_source_name=cfg["data"]["source"]['labelled'],
+         unlabelled_source_name=cfg["data"]["source"]['unlabelled'],
+         labelled_target_name=cfg["data"]["target"]['labelled'],
+         unlabelled_target_name=cfg["data"]["target"]['unlabelled'],
+         ):
     ## Read source data
-    s_lab_df = read_tweet_csv(data_dir, data_name+".csv")
-    s_unlab_df = read_tweet_csv(data_dir, data_name+".csv")
+    s_lab_df = read_tweet_csv(data_dir, labelled_source_name+".csv")
+    s_unlab_df = read_tweet_csv(data_dir, unlabelled_source_name+".csv",
+                                )
+    # pd.read_csv(open('test.csv','rU'), encoding='utf-8', engine='c')
 
     ## Read target data
-    t_lab_df = read_tweet_csv(data_dir, data_name+".csv")
-    t_unlab_df = read_tweet_csv(data_dir, data_name+".csv")
+    # t_lab_df = read_tweet_csv(data_dir, labelled_target_name+".csv")
+    t_unlab_df = read_tweet_csv(data_dir, unlabelled_target_name+".csv")
 
-    logger.info("Dataset size: [{}]".format(s_lab_df.shape))
-    logger.info("Few dataset samples: \n[{}]".format(s_lab_df.head()))
-
-    txts_toks = []
-    for txt in s_lab_df.tweets:
-        txts_toks.append(normalizeTweet(txt, return_tokens=True))
+    txts_toks = tokenize_txts(s_lab_df)
+    txts_toks = tokenize_txts(s_unlab_df, txts_toks)
+    txts_toks = tokenize_txts(t_unlab_df, txts_toks)
 
     corpus, vocab = build_corpus(txts_toks)
 
@@ -57,16 +66,16 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
 
     G = generate_token_graph_window(txts_toks)
     logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))
+    logger.info("Degrees of each node in the token graph: [{}]".format(G.degree
+                                                                       ))
 
-    txts_embs = create_node_embddings(txts_toks)
+    # txts_embs = create_node_embddings(txts_toks)
 
-    H = generate_sample_subgraphs(G, ['b', 'c'])
-    logger.info("Fetching subgraph: [{}]".format(H.nodes))
+    txts_subgraphs = generate_sample_subgraphs(G, txts_toks)
+    # logger.info("Fetching subgraph: [{}]".format(txts_subgraphs))
     # print(H.nodes)
-    plot_graph(H)
+    plot_graph(txts_subgraphs[0])
     print("Successfully printed.")
-
-    txts_subgraphs = generate_sample_subgraphs(txts_toks, G)
 
 
 if __name__ == "__main__":
