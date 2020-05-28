@@ -60,7 +60,8 @@ Problem with tweets are the availability of limited context. To increase context
     2. Experiment with k-hops (k=0...n) neighbor in sample graph
     3. Effect of token graph DA preprocessing
 
-### Implementation Tasks:
+### Implementation Tasks: 
+[]=pending, [-]=working, [x]=done
 
     - [x] 1. Tokenize tweets (:heavy_check_mark:)
     - [x] 2. Generate graph based on co-occurrance of tokens within a sliding window (&#9744;)
