@@ -5,15 +5,14 @@ __synopsis__    : Contains system configuration details and other global
 variables.
 
 __description__ : Benefit: We can print the configuration on every run and
-get the hyper-parameter configuration for each run.
+get the hyper-parameter configuration.
 __project__     : MNXC
 __author__      : Samujjwal Ghosh <cs16resch01001@iith.ac.in>
-__version__     : ": 0.1 "
+__version__     : ": 0.3 "
 __date__        : "04-03-2019"
 __copyright__   : "Copyright (c) 2019, All rights reserved."
 __license__     : "This source code is licensed under the MIT-style license
-found in the LICENSE file in the root
-                  directory of this source tree."
+found in the LICENSE file in the root directory of this source tree."
 
 __classes__     : config
 
@@ -88,7 +87,7 @@ configuration = {
         "hid_size":      64,
     },
 
-    "cnn_params":   {
+    "gnn_params":   {
         "padding":     1,
         "stride":      1,
         "kernel_size": 1,

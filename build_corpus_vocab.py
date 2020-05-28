@@ -18,9 +18,27 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 from collections import Counter
+from sklearn.feature_extraction.text import CountVectorizer
+
+from Data_Handler.torchtext_handler import prepare_fields, create_vocab, \
+    create_tabular_dataset, df2iter
 
 
-def build_corpus(txts: list, corpus: list = None):
+def torchtext_corpus(csv_dir, csv_file, embedding_file=None, embedding_dir=None):
+    (TEXT, LABEL), labelled_fields, unlabelled_fields = prepare_fields(
+        text_headers=['tweets'])
+    dataset = create_tabular_dataset(csv_file, csv_dir, unlabelled_fields)
+
+    # TEXT.build_vocab(dataset, min_freq=2,
+    #                  # vectors=embedding_file,
+    #                  # vectors_cache=embedding_dir
+    #                  )
+    create_vocab(dataset, TEXT)
+    iterator = df2iter(dataset, batch_size=32)
+    return dataset, iterator
+
+
+def build_corpus(df, txts: list=None, corpus: list = None):
     """Generates corpus (list of str) and vocab with occurrence count (dict of
      set of unique tokens).
 
@@ -30,7 +48,14 @@ def build_corpus(txts: list, corpus: list = None):
     """
     if corpus is None:
         corpus = []
+
+    vectorizer = CountVectorizer()
+    X = vectorizer.fit_transform(df.tweets)
+    print(X.shape)
+    print(vectorizer.get_feature_names())
+
     for txt in txts:
+        # corpus = corpus + txt
         for token in txt:
             corpus.append(token)
 

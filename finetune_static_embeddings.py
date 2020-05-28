@@ -4,7 +4,7 @@
 __synopsis__    : Trains static embeddings like Glove
 __description__ : Useful for oov tokens
 __project__     : Tweet_GNN_inductive
-__classes__     : Tweet_GNN_inductive
+__classes__     :
 __variables__   :
 __methods__     :
 __author__      : https://towardsdatascience.com/fine-tune-glove-embeddings
@@ -47,9 +47,6 @@ def glove2dict(
         embed = {line[0]: np.array(list(map(float, line[1:])))
                  for line in reader}
     return embed
-
-
-# glove_path = "glove.6B.100d.txt"
 
 
 def process_data(data: list = brown.words()[:2000],
@@ -121,7 +118,7 @@ def calculate_cooccurrence_mat(oov_vocab, doc):
 
 
 def train_model(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=1000,
-    glove_oov_save_path=None):
+                glove_oov_save_path=None):
     mittens_model = Mittens(n=emb_dim, max_iter=max_iter)
 
     new_embeddings = mittens_model.fit(
@@ -132,7 +129,7 @@ def train_model(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=1000,
     newglove = dict(zip(oov_vocabs, new_embeddings))
     if glove_oov_save_path is None:
         glove_oov_save_path = join(dataset_dir, embedding_file + dataset_name +
-                              '_oov.pkl')
+                                   '_oov.pkl')
     f = open(glove_oov_save_path, "wb")
     pickle.dump(newglove, f)
     f.close()

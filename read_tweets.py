@@ -1,10 +1,10 @@
 # coding=utf-8
 # !/usr/bin/python3.6  # Please use python 3.6
 """
-__synopsis__    : Short summary of the script.
+__synopsis__    : Reads CSV file as DF using pandas.
 __description__ : Details and usage.
 __project__     : Tweet_GNN_inductive
-__classes__     : Tweet_GNN_inductive
+__classes__     :
 __variables__   :
 __methods__     :
 __author__      : Samujjwal
@@ -47,7 +47,6 @@ def read_tweet_csv(data_dir='/home/sam/Datasets/disaster_tweets',
                      encoding='utf-8',
                      # engine='python',
                      lineterminator='\n')
-    # df.head()
 
     logger.info("Dataset size: [{}]".format(df.shape))
     logger.info("Few dataset samples: \n[{}]".format(df.head()))

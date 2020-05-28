@@ -19,11 +19,12 @@ __license__     : "This source code is licensed under the MIT-style license
 
 import argparse
 import pandas as pd
+from os.path import join
 
 from config import configuration as cfg, platform as plat, username as user
 from read_tweets import read_tweet_csv
 from tweet_normalizer import normalizeTweet
-from build_corpus_vocab import build_corpus
+from build_corpus_vocab import build_corpus, torchtext_corpus
 from generate_graph import plot_graph, generate_sample_subgraphs,\
     generate_token_graph_window
 from finetune_static_embeddings import glove2dict
@@ -55,23 +56,34 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # t_lab_df = read_tweet_csv(data_dir, labelled_target_name+".csv")
     t_unlab_df = read_tweet_csv(data_dir, unlabelled_target_name+".csv")
 
-    txts_toks = tokenize_txts(s_lab_df)
-    txts_toks = tokenize_txts(s_unlab_df, txts_toks)
-    txts_toks = tokenize_txts(t_unlab_df, txts_toks)
+    # all_toks = []
+    # s_lab_toks = tokenize_txts(s_lab_df)
+    # all_toks = all_toks + s_lab_toks
+    # s_unlab_toks = tokenize_txts(s_unlab_df)
+    # all_toks = all_toks + s_unlab_toks
+    # t_unlab_toks = tokenize_txts(t_unlab_df)
+    # all_toks = all_toks + t_unlab_toks
 
-    corpus, vocab = build_corpus(txts_toks)
+    data_df = s_lab_df.tweets
+    data_df = data_df.append(s_unlab_df.tweets)
+    data_df = data_df.append(t_unlab_df.tweets)
+
+    # corpus, vocab = build_corpus(data_df)
+    data_df.to_csv(join(data_dir, 'all_data.csv'))
+    corpus, vocab = torchtext_corpus(csv_dir=data_dir,
+                                     csv_file='all_data.csv')
 
     logger.info("Number of tokens in corpus: [{}]".format(len(corpus)))
     logger.info("Vocab size: [{}]".format(len(vocab)))
 
-    G = generate_token_graph_window(txts_toks)
+    G = generate_token_graph_window(all_toks)
     logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))
     logger.info("Degrees of each node in the token graph: [{}]".format(G.degree
                                                                        ))
 
     # txts_embs = create_node_embddings(txts_toks)
 
-    txts_subgraphs = generate_sample_subgraphs(G, txts_toks)
+    txts_subgraphs = generate_sample_subgraphs(s_lab_toks, G=G)
     # logger.info("Fetching subgraph: [{}]".format(txts_subgraphs))
     # print(H.nodes)
     plot_graph(txts_subgraphs[0])

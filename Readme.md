@@ -65,7 +65,7 @@ Problem with tweets are the availability of limited context. To increase context
 
     - [x] 1. Tokenize tweets (:heavy_check_mark:)
     - [x] 2. Generate graph based on co-occurrance of tokens within a sliding window (&#9744;)
-    - [x] 3. Mark each token with it's domain count (&#9745;)
+    - [-] 3. Mark each token with it's domain count (&#9745;)
     - [x] 4. Aggregate codes in main()
     - [x] 5. Generate sample graphs 
     - [] 6. Handle oov tokens (during test) as node and as embedding
