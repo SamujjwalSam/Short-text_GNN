@@ -91,6 +91,14 @@ def get_k_hop_subgraph(G: nx.Graph, txt: list,
                        # edge_attr: str = 'cooccure',
                        s_weight: float = 1.,
                        ):
+    """ Generates 0/1-hop subgraph by collecting all the neighbor nodes and
+     getting the induced subgraph.
+
+    :param G:
+    :param txt:
+    :param s_weight: Edge weight for OOV node edges
+    :return:
+    """
     oov_nodes = []
     all_neighbors = []
     for pos, token in enumerate(txt):

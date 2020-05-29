@@ -45,8 +45,9 @@ def read_tweet_csv(data_dir='/home/sam/Datasets/disaster_tweets',
 
     df = pd.read_csv(data_file, index_col=index_col, header=header,
                      encoding='utf-8',
-                     # engine='python',
-                     lineterminator='\n')
+                     engine='python',
+                     # lineterminator='\n'
+                     )
 
     logger.info("Dataset size: [{}]".format(df.shape))
     logger.info("Few dataset samples: \n[{}]".format(df.head()))

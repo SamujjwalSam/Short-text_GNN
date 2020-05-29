@@ -20,13 +20,14 @@ Problem with tweets are the availability of limited context. To increase context
         1.3 H(t+1) will contain information from tokens of both domains, i.e. domain invariant 
     2 Obtain sample text graph:
         2.1 Fetch k-hop neighbor induced subgraph from token graph for token in the sample text
-        2.2 If nodes are disconnected in induced subgraph, connect consecutive token present in sample text with edge weight e
+        2.2 If nodes are disconnected in induced subgraph, connect consecutive token present in sample text with edge
+         weight e
     3. Architecture: 
         3.1 Pass individual sample text graphs through GNNs to generate new token representations
         3.2 Foreach text graph (G_i), use Xi and Ai to get aggregate sample representation: Xi’ = GNN(Xi, Ai)
         3.3 Concatenate Xi” = Xi’ + Xi
         3.4 Pass Xi” through LSTM: Xi’” = LSTM(Xi”)
-        3.4 Forward output of LSTM(Xi’”) to a classifier (C)
+        3.4 Forward output of to a classifier C(Xi’”) to 
 
 ## Ideas:
     1 Construct a joint token graph (G) using S and T data with domain information
@@ -46,6 +47,8 @@ Problem with tweets are the availability of limited context. To increase context
         3.4 H1 now represents sample graph with domain invariant feature
     4 Pass H1 through GNN followed by LSTM such that linguistic features are captured to get f(H1)
     5 Pass f(H1) through an aggregate network g() to 
+    6. Use Domain Specific vectorizer: If a token occurs with high freq in S and not in T or vice versa, That token
+     is informative. Treat domain as class and use class specific features.
 
 ## Baselines:
     * With and without token graph

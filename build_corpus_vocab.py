@@ -20,13 +20,14 @@ __license__     : "This source code is licensed under the MIT-style license
 from collections import Counter
 from sklearn.feature_extraction.text import CountVectorizer
 
-from Data_Handler.torchtext_handler import prepare_fields, create_vocab, \
+from Data_Handler.torchtext_handler import prepare_fields, create_vocab,\
     create_tabular_dataset, df2iter
 
 
-def torchtext_corpus(csv_dir, csv_file, embedding_file=None, embedding_dir=None):
+def torchtext_corpus(csv_dir, csv_file, embedding_file=None,
+                     embedding_dir=None):
     (TEXT, LABEL), labelled_fields, unlabelled_fields = prepare_fields(
-        text_headers=['tweets'])
+        text_headers=['text'])
     dataset = create_tabular_dataset(csv_file, csv_dir, unlabelled_fields)
 
     # TEXT.build_vocab(dataset, min_freq=2,
@@ -35,10 +36,11 @@ def torchtext_corpus(csv_dir, csv_file, embedding_file=None, embedding_dir=None)
     #                  )
     create_vocab(dataset, TEXT)
     iterator = df2iter(dataset, batch_size=32)
-    return dataset, iterator
+
+    return dataset, iterator, corpus, vocob_freq
 
 
-def build_corpus(df, txts: list=None, corpus: list = None):
+def build_corpus(df, txts: list = None, corpus: list = None):
     """Generates corpus (list of str) and vocab with occurrence count (dict of
      set of unique tokens).
 
@@ -66,13 +68,14 @@ def build_corpus(df, txts: list=None, corpus: list = None):
 
 class Vocabulary:
     """
-    Taken from: https://www.kdnuggets.com/2019/11/create-vocabulary-nlp-tasks-python.html
+    Taken from: https://www.kdnuggets.com/2019/11/create-vocabulary-nlp-tasks
+    -python.html
 
     """
 
-    PAD_token = 0   # Used for padding short sentences
-    SOS_token = 1   # Start-of-sentence token
-    EOS_token = 2   # End-of-sentence token
+    PAD_token = 0  # Used for padding short sentences
+    SOS_token = 1  # Start-of-sentence token
+    EOS_token = 2  # End-of-sentence token
 
     def __init__(self, name):
         self.name = name
@@ -168,5 +171,3 @@ if __name__ == "__main__":
 
     print(corpus3, vocab3)
     _test_Vocabulary()
-
-

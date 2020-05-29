@@ -31,7 +31,7 @@ from finetune_static_embeddings import glove2dict
 from Logger.logger import logger
 
 
-def tokenize_txts(df: pd.DataFrame, txts_toks:list=None):
+def tokenize_txts(df: pd.DataFrame, txts_toks: list = None):
     if txts_toks is None:
         txts_toks = []
     for txt in df.tweets:
@@ -47,14 +47,14 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
          unlabelled_target_name=cfg["data"]["target"]['unlabelled'],
          ):
     ## Read source data
-    s_lab_df = read_tweet_csv(data_dir, labelled_source_name+".csv")
-    s_unlab_df = read_tweet_csv(data_dir, unlabelled_source_name+".csv",
+    s_lab_df = read_tweet_csv(data_dir, labelled_source_name + ".csv")
+    s_unlab_df = read_tweet_csv(data_dir, unlabelled_source_name + ".csv",
                                 )
     # pd.read_csv(open('test.csv','rU'), encoding='utf-8', engine='c')
 
     ## Read target data
     # t_lab_df = read_tweet_csv(data_dir, labelled_target_name+".csv")
-    t_unlab_df = read_tweet_csv(data_dir, unlabelled_target_name+".csv")
+    t_unlab_df = read_tweet_csv(data_dir, unlabelled_target_name + ".csv")
 
     # all_toks = []
     # s_lab_toks = tokenize_txts(s_lab_df)
@@ -64,17 +64,25 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # t_unlab_toks = tokenize_txts(t_unlab_df)
     # all_toks = all_toks + t_unlab_toks
 
-    data_df = s_lab_df.tweets
-    data_df = data_df.append(s_unlab_df.tweets)
-    data_df = data_df.append(t_unlab_df.tweets)
+    s_lab_df.rename(columns={'tweets': 'text'}, inplace=True)
+    s_unlab_df.rename(columns={'tweets': 'text'}, inplace=True)
+    t_unlab_df.rename(columns={'tweets': 'text'}, inplace=True)
+
+    data_df = s_lab_df.text
+    data_df = data_df.append(s_unlab_df.text)
+    data_df = data_df.append(t_unlab_df.text)
+
+    # data_df.rename(columns={'tweets': 'text'}, inplace=True)
 
     # corpus, vocab = build_corpus(data_df)
-    data_df.to_csv(join(data_dir, 'all_data.csv'))
-    corpus, vocab = torchtext_corpus(csv_dir=data_dir,
-                                     csv_file='all_data.csv')
+    combined_data_name = unlabelled_source_name + "_" +\
+                         unlabelled_target_name + "_combined.csv"
+    data_df.to_csv(join(data_dir, combined_data_name))
+    dataset, iterator, corpus, vocob_freq = torchtext_corpus(
+        csv_dir=data_dir, csv_file=combined_data_name)
 
     logger.info("Number of tokens in corpus: [{}]".format(len(corpus)))
-    logger.info("Vocab size: [{}]".format(len(vocab)))
+    logger.info("Vocab size: [{}]".format(len(vocob_freq)))
 
     G = generate_token_graph_window(all_toks)
     logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))

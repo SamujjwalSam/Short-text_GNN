@@ -53,10 +53,10 @@ def prepare_fields(text_headers=None, label_headers=None, tokenizer='spacy',
     IDS = data.LabelField(batch_first=batch_first, use_vocab=False,
                           sequential=False)
 
-    labelled_fields = [("id", None)]
-    # labelled_fields = [("ids", IDS)]
-    unlabelled_fields = [("id", None)]
-    # unlabelled_fields = [("ids", IDS)]
+    # labelled_fields = [("id", None)]
+    labelled_fields = [("ids", IDS)]
+    # unlabelled_fields = [("id", None)]
+    unlabelled_fields = [("ids", IDS)]
 
     for header in text_headers:
         labelled_fields.append((header, TEXT))
