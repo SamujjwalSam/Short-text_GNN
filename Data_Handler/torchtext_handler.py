@@ -96,27 +96,29 @@ def create_tabular_dataset(csv_file, data_dir, fields=None, skip_header=True):
     return data_table
 
 
-def create_vocab(dataset, TEXT, LABEL=None, embedding_file=None,
+def create_vocab(dataset, TEXT_field, LABEL_field=None, embedding_file=None,
                  embedding_dir=None, min_freq=2, show_vocab_details=True):
     if embedding_file is not None:
         # initialize embeddings (Glove)
-        TEXT.build_vocab(dataset, min_freq=min_freq, vectors=embedding_file,
-                         vectors_cache=embedding_dir)
+        TEXT_field.build_vocab(dataset, min_freq=min_freq,
+                               vectors=embedding_file,
+                               vectors_cache=embedding_dir)
     else:
-        TEXT.build_vocab(dataset, min_freq=min_freq)
+        TEXT_field.build_vocab(dataset, min_freq=min_freq)
 
-    if LABEL:
-        LABEL.build_vocab(dataset)
+    if LABEL_field:
+        LABEL_field.build_vocab(dataset)
         # No. of unique tokens in label
-        logger.info("Size of LABEL vocabulary: {}".format(len(LABEL.vocab)))
+        logger.info("Size of LABEL vocabulary: {}".format(len(
+            LABEL_field.vocab)))
 
     if show_vocab_details:
         # No. of unique tokens in text
-        logger.info("Size of TEXT vocabulary: {}".format(len(TEXT.vocab)))
+        logger.info("Size of TEXT vocabulary: {}".format(len(TEXT_field.vocab)))
 
         # Commonly used tokens
         logger.info("10 most common tokens in vocabulary: {}".format(
-            TEXT.vocab.freqs.most_common(10)))
+            TEXT_field.vocab.freqs.most_common(10)))
 
 
 def df2iter(datatable, batch_size=None, batch_sizes=(32, 64, 64),):

@@ -91,10 +91,9 @@ Problem with tweets are the availability of limited context. To increase context
         - [] 4.3. Concatenate GNN representation with GCN representation
     - [] 5. LSTM for classification
 
-### Tasks (Preferred):
+### Text Processing Tasks:
 
     - [] 1. Lemmatize tokens
     - [] 2. Correct Spelling
     - [] 3. Search and replace phone numbers
     - [] 4. Replace numbers with #D
-    - [] 5. Calculate edge weights: more weightage to target co-occurrence

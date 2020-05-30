@@ -18,26 +18,33 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 from collections import Counter
+from functools import partial
 from sklearn.feature_extraction.text import CountVectorizer
 
+from tweet_normalizer import normalizeTweet
 from Data_Handler.torchtext_handler import prepare_fields, create_vocab,\
     create_tabular_dataset, df2iter
 
 
 def torchtext_corpus(csv_dir, csv_file, embedding_file=None,
-                     embedding_dir=None):
+                     embedding_dir=None, return_iter=False):
+    ## Create tokenizer:
+    tokenizer = partial(normalizeTweet, return_tokens=True)
+
     (TEXT, LABEL), labelled_fields, unlabelled_fields = prepare_fields(
-        text_headers=['text'])
+        text_headers=['text'], tokenizer=tokenizer)
+
+    ## Create dataset from saved csv file:
     dataset = create_tabular_dataset(csv_file, csv_dir, unlabelled_fields)
 
-    # TEXT.build_vocab(dataset, min_freq=2,
-    #                  # vectors=embedding_file,
-    #                  # vectors_cache=embedding_dir
-    #                  )
-    create_vocab(dataset, TEXT)
-    iterator = df2iter(dataset, batch_size=32)
+    ## Create vocabulary and mappings:
+    create_vocab(dataset, TEXT, embedding_file=embedding_file,
+                 embedding_dir=embedding_dir)
+    if return_iter:
+        iterator = df2iter(dataset, batch_size=128)
 
-    return dataset, iterator, corpus, vocob_freq
+        return dataset, iterator, TEXT
+    return dataset, TEXT
 
 
 def build_corpus(df, txts: list = None, corpus: list = None):
@@ -52,7 +59,7 @@ def build_corpus(df, txts: list = None, corpus: list = None):
         corpus = []
 
     vectorizer = CountVectorizer()
-    X = vectorizer.fit_transform(df.tweets)
+    X = vectorizer.fit_transform(df.text)
     print(X.shape)
     print(vectorizer.get_feature_names())
 

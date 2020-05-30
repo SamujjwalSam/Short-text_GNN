@@ -26,7 +26,7 @@ from read_tweets import read_tweet_csv
 from tweet_normalizer import normalizeTweet
 from build_corpus_vocab import build_corpus, torchtext_corpus
 from generate_graph import plot_graph, generate_sample_subgraphs,\
-    generate_token_graph_window
+    generate_window_token_graph_torch
 from finetune_static_embeddings import glove2dict
 from Logger.logger import logger
 
@@ -65,33 +65,47 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # all_toks = all_toks + t_unlab_toks
 
     s_lab_df.rename(columns={'tweets': 'text'}, inplace=True)
+    s_lab_df['domain'] = 0
+    s_lab_df['labelled'] = True
+
     s_unlab_df.rename(columns={'tweets': 'text'}, inplace=True)
+    s_unlab_df['domain'] = 0
+    s_unlab_df['labelled'] = False
+
+    ## Prepare source data
+    S_df = s_lab_df[['text', 'domain', 'labelled']]
+    S_df = S_df.append(s_unlab_df[['text', 'domain', 'labelled']])
+
+    S_data_name = unlabelled_source_name + "_data.csv"
+    S_df.to_csv(join(data_dir, S_data_name))
+    S_dataset, S_fields = torchtext_corpus(
+        csv_dir=data_dir, csv_file=S_data_name)
+
+    # logger.info("Number of tokens in corpus: [{}]".format(len(corpus)))
+    logger.info("Vocab size: [{}]".format(len(S_fields.vocab.freqs)))
+
+    ## Create token graph G using source data:
+    G = generate_window_token_graph_torch(S_dataset, edge_attr='s_co')
+
+    ## Prepare target data
     t_unlab_df.rename(columns={'tweets': 'text'}, inplace=True)
+    t_unlab_df['domain'] = 1
+    t_unlab_df['labelled'] = False
 
-    data_df = s_lab_df.text
-    data_df = data_df.append(s_unlab_df.text)
-    data_df = data_df.append(t_unlab_df.text)
+    T_data_name = unlabelled_target_name + "_data.csv"
+    t_unlab_df.to_csv(join(data_dir, T_data_name))
+    T_dataset, T_fields = torchtext_corpus(
+        csv_dir=data_dir, csv_file=S_data_name)
 
-    # data_df.rename(columns={'tweets': 'text'}, inplace=True)
+    ## Add nodes and edges to the token graph generated using source data:
+    G = generate_window_token_graph_torch(T_dataset, G, edge_attr='t_co')
 
-    # corpus, vocab = build_corpus(data_df)
-    combined_data_name = unlabelled_source_name + "_" +\
-                         unlabelled_target_name + "_combined.csv"
-    data_df.to_csv(join(data_dir, combined_data_name))
-    dataset, iterator, corpus, vocob_freq = torchtext_corpus(
-        csv_dir=data_dir, csv_file=combined_data_name)
-
-    logger.info("Number of tokens in corpus: [{}]".format(len(corpus)))
-    logger.info("Vocab size: [{}]".format(len(vocob_freq)))
-
-    G = generate_token_graph_window(all_toks)
     logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))
-    logger.info("Degrees of each node in the token graph: [{}]".format(G.degree
-                                                                       ))
+    logger.info("Degree of nodes in the token graph: [{}]".format(G.degree))
 
     # txts_embs = create_node_embddings(txts_toks)
 
-    txts_subgraphs = generate_sample_subgraphs(s_lab_toks, G=G)
+    txts_subgraphs = generate_sample_subgraphs(s_lab_df.text.to_list(), G=G)
     # logger.info("Fetching subgraph: [{}]".format(txts_subgraphs))
     # print(H.nodes)
     plot_graph(txts_subgraphs[0])
