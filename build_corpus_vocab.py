@@ -22,17 +22,18 @@ from functools import partial
 from sklearn.feature_extraction.text import CountVectorizer
 
 from tweet_normalizer import normalizeTweet
-from Data_Handler.torchtext_handler import prepare_fields, create_vocab,\
+from Data_Handlers.torchtext_handler import prepare_fields, create_vocab,\
     create_tabular_dataset, df2iter
 
 
 def torchtext_corpus(csv_dir, csv_file, embedding_file=None,
-                     embedding_dir=None, return_iter=False):
+                     embedding_dir=None, return_iter=False,
+                     text_headers=['text']):
     ## Create tokenizer:
     tokenizer = partial(normalizeTweet, return_tokens=True)
 
     (TEXT, LABEL), labelled_fields, unlabelled_fields = prepare_fields(
-        text_headers=['text'], tokenizer=tokenizer)
+        text_headers=text_headers, tokenizer=tokenizer)
 
     ## Create dataset from saved csv file:
     dataset = create_tabular_dataset(csv_file, csv_dir, unlabelled_fields)

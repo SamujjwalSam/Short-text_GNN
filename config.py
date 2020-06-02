@@ -33,13 +33,13 @@ global configuration
 configuration = {
     "data":         {
         "source":  {
-            'labelled':   'fire16_labeled',
-            'unlabelled': 'fire16_unlabeled'
+            'labelled':   'fire16_labeled_sample',
+            'unlabelled': 'fire16_labeled_sample'
         },
         "target":  {
-            'labelled':   'smerp17_labeled',
-            'unlabelled': 'smerp17_unlabeled'},
-        "dataset_name": "fire16_labeled",
+            'labelled':   'fire16_labeled_sample',
+            'unlabelled': 'fire16_labeled_sample'},
+        # "dataset_name": "fire16_labeled",
         "val_split":    0.1,
         "test_split":   0.3,
         "show_stat":    False
@@ -77,6 +77,11 @@ configuration = {
         },
         "view_grads":           False,
         "view_train_precision": True
+    },
+
+    "pretrain": {
+        'pretrain_file': 'glove.6B.100d',
+        'emb_dim': 100,
     },
 
     "lstm_params":  {

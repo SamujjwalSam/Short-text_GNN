@@ -8,8 +8,7 @@ __classes__     :
 __variables__   :
 __methods__     :
 __author__      : https://towardsdatascience.com/fine-tune-glove-embeddings
--using-mittens
--89b5f3fe4c39
+-using-mittens-89b5f3fe4c39
 __version__     : ":  "
 __date__        : "07/05/20"
 __last_modified__:
@@ -17,6 +16,7 @@ __last_modified__:
 
 import csv
 import numpy as np
+import pandas as pd
 import pickle
 from os.path import join
 from collections import Counter
@@ -25,22 +25,21 @@ from mittens import Mittens
 from sklearn.feature_extraction import stop_words
 from sklearn.feature_extraction.text import CountVectorizer
 
-dataset_dir = '/home/sam/Datasets/disaster_tweets'
-dataset_name = 'fire16_labeled_train'
-embedding_dir = '/home/sam/Embeddings'
-embedding_file = 'glove.6B.100d'
+from config import configuration as cfg, platform as plat, username as user
 
 
-def glove2dict(
-        glove_filename: str = join(embedding_dir, embedding_file + ".txt")):
+def glove2dict(embedding_dir=cfg["paths"]["pretrain_dir"][plat][user],
+               embedding_file=cfg["pretrain"]["pretrain_file"]):
     """Loads Glove vectors and return dict.
 
     # get it from https://nlp.stanford.edu/projects/glove
 
+    :param embedding_file:
+    :param embedding_dir:
     :param glove_filename:
     :return:
     """
-    # glove_filename = join(embedding_dir, embedding_file + ".txt")
+    glove_filename = join(embedding_dir, embedding_file + ".txt")
 
     with open(glove_filename, encoding='utf-8') as f:
         reader = csv.reader(f, delimiter=' ', quoting=csv.QUOTE_NONE)
@@ -99,16 +98,16 @@ def get_rareoov(xdict, val):
     return [k for (k, v) in Counter(xdict).items() if v <= val]
 
 
-def calculate_cooccurrence_mat(oov_vocab, doc):
+def calculate_cooccurrence_mat(oov_vocab: list, corpus_str: list):
     """ Calculates token co-occurrence matrix for oov tokens.
 
     :param oov_vocab:
-    :param doc:
+    :param corpus_str:
     :return:
     """
     ## Get oov token freq in corpus:
     cv = CountVectorizer(ngram_range=(1, 1), vocabulary=oov_vocab)
-    X = cv.fit_transform(doc)
+    X = cv.fit_transform(corpus_str)
 
     ## X.T * X converts doc-token matrix to token-token matrix:
     Xc = (X.T * X)
@@ -117,8 +116,12 @@ def calculate_cooccurrence_mat(oov_vocab, doc):
     return coocc_ar
 
 
-def train_model(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=1000,
-                glove_oov_save_path=None):
+def train_model(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=100,
+                glove_oov_save_path=None,
+                dataset_dir=cfg["paths"]["dataset_dir"][plat][user],
+                embedding_file=cfg["pretrain"]["pretrain_file"],
+                dataset_name=cfg["data"]["source"]['labelled']
+                             + cfg["data"]["target"]['labelled']):
     mittens_model = Mittens(n=emb_dim, max_iter=max_iter)
 
     new_embeddings = mittens_model.fit(
@@ -139,7 +142,8 @@ def train_model(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=1000,
 
 def main():
     glove_embs = glove2dict()
-    oov_vocabs, corpus = process_data(glove_embs=glove_embs)
+    oov_vocabs, corpus = process_data(brown.words()[:2000],
+                                      glove_embs=glove_embs)
     coo_mat = calculate_cooccurrence_mat(oov_vocabs, corpus)
     new_glove_embs = train_model(coo_mat, oov_vocabs, glove_embs)
     return new_glove_embs
