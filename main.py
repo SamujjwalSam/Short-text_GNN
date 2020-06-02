@@ -18,19 +18,21 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import torch
-import argparse
 import pandas as pd
 import networkx as nx
 from os.path import join
+from nltk.corpus import brown
 
 from config import configuration as cfg, platform as plat, username as user
-from read_tweets import read_tweet_csv
+from File_Handlers.csv_handler import read_tweet_csv
+from File_Handlers.json_handler import save_json
+from File_Handlers.pkl_handler import save_pickle
 from tweet_normalizer import normalizeTweet
-from build_corpus_vocab import build_corpus, torchtext_corpus
-from generate_graph import plot_graph, generate_sample_subgraphs,\
-    generate_window_token_graph_torch
-from finetune_static_embeddings import glove2dict
+from build_corpus_vocab import torchtext_corpus
+from generate_graph import create_src_tokengraph, create_tgt_tokengraph
 from Layers.GCN_forward import GCN_forward
+from finetune_static_embeddings import glove2dict, get_rareoov, process_data,\
+    calculate_cooccurrence_mat, train_model, preprocess_and_find_oov
 from Logger.logger import logger
 
 
@@ -41,6 +43,15 @@ def tokenize_txts(df: pd.DataFrame, txts_toks: list = None):
         txts_toks.append(normalizeTweet(txt, return_tokens=True))
 
     return txts_toks
+
+
+def merge_dicts(*dict_args):
+    """ Given any number of dicts, shallow copy and merge into a new dict,
+    precedence goes to key value pairs in latter dicts. """
+    result = {}
+    for dictionary in dict_args:
+        result.update(dictionary)
+    return result
 
 
 def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
@@ -73,10 +84,15 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
         csv_dir=data_dir, csv_file=S_data_name)
 
     # logger.info("Number of tokens in corpus: [{}]".format(len(corpus)))
-    logger.info("Vocab size: [{}]".format(len(S_fields.vocab.freqs)))
+    logger.info("Source vocab size: [{}]".format(len(S_fields.vocab.freqs)))
+
+    ## Save embedding with OOV tokens:
+    # save_pickle(glove_embs, pkl_file_name=cfg["pretrain"]["pretrain_file"] +
+    #               labelled_source_name + '_' + labelled_target_name,
+    #           pkl_file_path=cfg["paths"]["pretrain_dir"][plat][user])
 
     ## Create token graph G using source data:
-    G = generate_window_token_graph_torch(S_dataset, edge_attr='s_co')
+    G = create_src_tokengraph(S_dataset, S_fields)
 
     ## Read target data
     t_unlab_df = read_tweet_csv(data_dir, unlabelled_target_name + ".csv")
@@ -91,13 +107,28 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     t_unlab_df.to_csv(join(data_dir, T_data_name))
     t_unlab_df = None
 
-    T_dataset, T_fields = torchtext_corpus(
-        csv_dir=data_dir, csv_file=T_data_name)
+    T_dataset, T_fields = torchtext_corpus(csv_dir=data_dir,
+                                           csv_file=T_data_name)
+    logger.info("Target vocab size: [{}]".format(len(T_fields.vocab.freqs)))
 
     ## Add nodes and edges to the token graph generated using source data:
-    G = generate_window_token_graph_torch(T_dataset, G, edge_attr='t_co')
+    G = create_tgt_tokengraph(T_dataset, T_fields, S_fields, G,)
 
     logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))
+
+    ## Generate embeddings for OOV tokens:
+    glove_embs = glove2dict()
+
+    ## Create embeddings for OOV tokens
+    # oov_vocabs, corpus = process_data(brown.words()[:2000],
+    #                                   glove_embs=glove_embs)
+    oov_vocabs, corpus = preprocess_and_find_oov(dataset,
+                                                 glove_embs=glove_embs)
+    coo_mat = calculate_cooccurrence_mat(oov_vocabs, corpus)
+    new_glove_embs = train_model(coo_mat, oov_vocabs, glove_embs)
+
+    glove_embs = merge_dicts(glove_embs, new_glove_embs)
+
     # logger.info("Degree of nodes in the token graph: [{}]".format(G.degree))
 
     # txts_embs = create_node_embddings(txts_toks)

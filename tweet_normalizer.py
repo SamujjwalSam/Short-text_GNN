@@ -113,8 +113,8 @@ def normalizeToken(token):
             return token
 
 
-def normalizeTweet(tweet, tokenizer=TweetTokenizer(),
-                   return_tokens=False):
+def normalizeTweet(tweet, tokenizer=TweetTokenizer(), return_tokens=False):
+    # tweet2, _ = find_numbers(tweet)
     tokens = tokenizer.tokenize(tweet.replace("’", "'").replace("…", "..."))
     normTweet = " ".join([normalizeToken(token) for token in tokens])
 
