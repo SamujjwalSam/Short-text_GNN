@@ -151,6 +151,27 @@ def df2iter(datatable, batch_size=None, batch_sizes=(32, 64, 64),):
     return iterator
 
 
+class MultiIterator:
+    """https://github.com/pytorch/text/issues/375"""
+    def __init__(self, iter_list):
+        """MultiIterator to chain multiple iterators into one.
+
+        Parameters
+        ----------
+        iter_list : [list]
+            Sequence of torchtext iterators.
+        """
+        self.iters = iter_list
+
+    def __iter__(self):
+        for it in self.iters:
+            for batch in it:
+                yield batch
+
+    def __len__(self):
+        return sum(len(it) for it in self.iters)
+
+
 def torchtext_batch2multilabel(batch, label_cols=None, n_classes=7):
     """ Returns labels for a TorchText batch.
 
