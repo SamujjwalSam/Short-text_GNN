@@ -121,7 +121,7 @@ def create_vocab(dataset, TEXT_field, LABEL_field=None, embedding_file=None,
             TEXT_field.vocab.freqs.most_common(10)))
 
 
-def dataset2iter(datatable, batch_size=None, batch_sizes=(32, 64, 64),
+def dataset2iter(datasets: tuple, batch_size=None, batch_sizes=(32, 64, 64),
                  shuffle=True):
     """
     Converts DataFrame to TorchText iterator.
@@ -131,23 +131,24 @@ def dataset2iter(datatable, batch_size=None, batch_sizes=(32, 64, 64),
     """
     # data_df.to_csv(save_path, header=headers)
 
-    # datatable = create_tabular_dataset(save_path, fields)
+    # datasets = create_tabular_dataset(save_path, fields)
 
     if batch_size:
         iterator = data.Iterator.splits(
-            (datatable),
-            batch_size=batch_size,
-            shuffle=shuffle,
+            datasets, batch_size=batch_size, shuffle=shuffle, sort=False,
+            repeat=False, device=device)
             # batch_sizes=batch_sizes,
             # sort_key=lambda x: len(x.text),
             # sort_within_batch=True,
-            device=device)
+
     else:
         iterator = data.Iterator.splits(
-            (datatable),
+            datasets,
             # batch_size=batch_size,
             batch_sizes=batch_sizes,
             shuffle=shuffle,
+            sort=False,
+            repeat=False,
             # sort_key=lambda x: len(x.text),
             # sort_within_batch=True,
             device=device)
@@ -163,7 +164,7 @@ def dataset2bucket_iter(datatable, batch_size=None, batch_sizes=(32, 64, 64), ):
     """
     # data_df.to_csv(save_path, header=headers)
 
-    # datatable = create_tabular_dataset(save_path, fields)
+    # datasets = create_tabular_dataset(save_path, fields)
 
     if batch_size:
         iterator = data.BucketIterator.splits(
@@ -186,6 +187,7 @@ def dataset2bucket_iter(datatable, batch_size=None, batch_sizes=(32, 64, 64), ):
 
 class MultiIterator:
     """https://github.com/pytorch/text/issues/375"""
+
     def __init__(self, iter_list):
         """MultiIterator to chain multiple iterators into one.
 
