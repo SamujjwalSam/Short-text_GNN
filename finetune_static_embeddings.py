@@ -48,9 +48,59 @@ def glove2dict(embedding_dir=cfg["paths"]["pretrain_dir"][plat][user],
     return embed
 
 
-def process_data(data: list = brown.words()[:2000],
-                 glove_embs: dict = None,
-                 stopwords: list = None,
+def preprocess_and_find_oov(iter, glove_embs: dict = None,
+                            stopwords: list = None,
+                            ):
+    """ Process and prepare data by removing stopwords, finding oovs and
+     creating corpus.
+
+    :param glove_embs: Original glove embeddings in key:value format.
+    :param iter: Iterator for dataset of tokenized sentences.
+    :param stopwords:
+    :param glove_path: Full path to glove file.
+    :param remove_rare_oov: Boolean to signify if tokens with very less freq
+     should be removed?
+
+    :return:
+    """
+    if stopwords is None:
+        stopwords = list(stop_words.ENGLISH_STOP_WORDS)
+    if glove_embs is None:
+        glove_embs = glove2dict()
+
+    ## Tokens other than stopwords:
+    nonstop_tokens = []
+    corpus = []
+    for txt in iter:
+        corpus.append(' '.join(txt.text))
+        for token in txt.text:
+            if token.lower() not in stopwords:
+                nonstop_tokens.append(token.lower())
+
+    ## Tokens (repeated) not present in glove:
+    oov = set(nonstop_tokens) - set(glove_embs.keys())
+    # oov = [token for token in nonstop_tokens if token not in
+    # glove_embs.keys()]
+
+    ## Unique oov tokens
+    # oov_vocabs = list(set(oov))
+
+    ## List of all the tokens in a str within a list as a large document
+    # corpus_str = [' '.join(nonstop_tokens)]
+
+    ## Remove rare oov words to reduce vocab size
+    # if remove_rare_oov:
+    #     oov_rare = get_rareoov(oov, 1)
+    #     oov_vocabs = list(set(oov) - set(oov_rare))
+    #     tokens = [token for token in nonstop_tokens if token not in
+    #               oov_rare]
+    #     corpus_str = [' '.join(tokens)]
+
+    return oov, corpus
+
+
+def process_data(data: list, glove_embs: dict = None,
+                 stopwords: list = stop_words.ENGLISH_STOP_WORDS,
                  remove_rare_oov: bool = False):
     """ Process and prepare data by removing stopwords, finding oovs and
      creating corpus.
