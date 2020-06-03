@@ -83,15 +83,12 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     s_unlab_df.to_csv(join(data_dir, S_data_name))
     s_unlab_df = None
 
-    S_dataset, S_fields, S_iter = torchtext_corpus(csv_dir=data_dir,
-                                                   csv_file=S_data_name,
-                                                   return_iter=True)
+    S_dataset, S_fields = torchtext_corpus(csv_dir=data_dir,
+                                           csv_file=S_data_name,
+                                           )
 
     # logger.info("Number of tokens in corpus: [{}]".format(len(corpus)))
     logger.info("Source vocab size: [{}]".format(len(S_fields.vocab.freqs)))
-
-    ## Create token graph G using source data:
-    G = create_src_tokengraph(S_dataset, S_fields)
 
     ## Read target data
     t_unlab_df = read_tweet_csv(data_dir, unlabelled_target_name + ".csv")
@@ -106,17 +103,14 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     t_unlab_df.to_csv(join(data_dir, T_data_name))
     t_unlab_df = None
 
-    T_dataset, T_fields, T_iter = torchtext_corpus(csv_dir=data_dir,
-                                                   csv_file=T_data_name,
-                                                   return_iter=True)
+    T_dataset, T_fields = torchtext_corpus(csv_dir=data_dir,
+                                           csv_file=T_data_name,
+                                           )
     logger.info("Target vocab size: [{}]".format(len(T_fields.vocab.freqs)))
 
-    ## Add nodes and edges to the token graph generated using source data:
-    G = create_tgt_tokengraph(T_dataset, T_fields, S_fields, G, )
-
-    logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))
-
     ## Combine S and T dataset iterators to find OOVs:
+    S_iter, T_iter = dataset2iter((S_dataset, T_dataset), batch_size=1)
+    # S_iter2 = dataset2iter(S_dataset, batch_size=1)
     combined_iter = MultiIterator([S_iter, T_iter])
 
     ## Generate embeddings for OOV tokens:
@@ -130,6 +124,7 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     ## Create new embeddings for OOV tokens:
     new_glove_embs = train_model(coo_mat, oov_vocabs, glove_embs)
     glove_embs = merge_dicts(glove_embs, new_glove_embs)
+    ## TODO: Generate <UNK> embedding from low freq tokens:
 
     ## Save embedding with OOV tokens:
     save_pickle(glove_embs, pkl_file_name=cfg["pretrain"]["pretrain_file"] +
@@ -137,9 +132,17 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
                                           labelled_target_name,
                 pkl_file_path=cfg["paths"]["pretrain_dir"][plat][user])
 
-    ## Add embeddings to token graph:
+    ## Create token graph G using source data:
+    G = create_src_tokengraph(S_dataset, S_fields)
+
+    ## Add nodes and edges to the token graph generated using source data:
+    G = create_tgt_tokengraph(T_dataset, T_fields, S_fields, G)
+
+    logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))
 
     ## Calculate edge weights from cooccurrence stats:
+
+    ## Get adjacency matrix and node embeddings in same order:
 
     ## Construct tweet subgraph:
     txts_subgraphs = generate_sample_subgraphs(s_lab_df.text.to_list(), G=G)

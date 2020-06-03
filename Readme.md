@@ -1,4 +1,4 @@
-# Domain Adaptation based tweet classification using Graph Neural Networks
+# Domain Invariant Short-text Classification Framework using Graph Neural Network
 
 Problem with tweets are the availability of limited context. To increase context, generate a large graph using labelled 
  and unlabelled data from source domain (S) and unlabelled data from target domain (T). Each node in the graph is a 

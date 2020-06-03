@@ -17,6 +17,7 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
+# import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 
@@ -90,6 +91,15 @@ def create_src_tokengraph(dataset, field, G: nx.Graph = None,
 
     ## Add token's id as node to the graph
     for token_txt, token_id in field.vocab.stoi.items():
+        # try:
+        #     token_emb = glove_embs[token_txt]
+        # except KeyError:
+        #     emb_shape = glove_embs[list(glove_embs.keys())[0]].shape
+        #     glove_embs['<UNK>'] = np.random.uniform(low=0.5, high=0.5,
+        #                                             size=emb_shape)
+        #     token_emb = glove_embs['<UNK>']
+        # G.add_node(token_id, node_txt=token_txt, s_co=field.vocab.freqs[
+        #     token_txt], t_co=0, emb=token_emb)
         G.add_node(token_id, node_txt=token_txt, s_co=field.vocab.freqs[
             token_txt], t_co=0)
 
@@ -143,12 +153,18 @@ def create_tgt_tokengraph(dataset, t_field, s_field, G: nx.Graph = None,
                                   'create G.')
 
     ## Add token's id (from s_field) as node id to the graph
-    for token, freq in t_field.vocab.freqs.items():
+    for token_txt, freq in t_field.vocab.freqs.items():
         try:  ## Just add t_co value if node exists in G
-            G.node[s_field.vocab.stoi[token]]['t_co'] = freq
+            G.node[s_field.vocab.stoi[token_txt]]['t_co'] = freq
         except KeyError:  ## Create new node with s_co = 0 if node not in G
-            token_id = t_field.vocab.stoi[token]
-            G.add_node(token_id, node_txt=token, s_co=0, t_co=freq)
+            token_id = t_field.vocab.stoi[token_txt]
+            # try:
+            #     token_emb = glove_embs[token_txt]
+            # except KeyError:
+            #     token_emb = glove_embs['<unk>']
+            # G.add_node(token_id, node_txt=token_txt, s_co=0, t_co=freq,
+            #            emb=token_emb)
+            G.add_node(token_id, node_txt=token_txt, s_co=0, t_co=freq)
 
     for txt_obj in dataset.examples:
         j = 0
@@ -279,27 +295,33 @@ def generate_window_token_graph(corpus: list, G: nx.Graph = None,
     return G
 
 
-def get_k_hop_subgraph(G: nx.Graph, txt: list,
-                       # edge_attr: str = 'cooccure',
+def get_k_hop_subgraph(G: nx.Graph, txt: list, hop: int = 0,
                        s_weight: float = 1.,
                        ):
-    """ Generates 0/1-hop subgraph by collecting all the neighbor nodes and
-     getting the induced subgraph.
+    """ Generates 0/1-hop subgraph of a tweet by collecting all the neighbor
+    nodes and getting the induced subgraph.
 
+    :param hop: Hop count
     :param G:
-    :param txt:
+    :param txt: list of str
     :param s_weight: Edge weight for OOV node edges
     :return:
     """
     oov_nodes = []
     all_neighbors = []
     for pos, token in enumerate(txt):
-        try:
-            for tok in G.neighbors(token):
-                all_neighbors.append(tok)
-        except nx.exception.NetworkXError or nx.exception.NodeNotFound:
-            logger.warn(f"Token [{token}] not present in graph.")
-            oov_nodes.append((pos, token))
+        if hop == 0:
+            all_neighbors.append(token)
+        elif hop == 1:
+            ## For each token, collect all the neighbors from G:
+            try:
+                for tok in G.neighbors(token):
+                    all_neighbors.append(tok)
+            except nx.exception.NetworkXError or nx.exception.NodeNotFound:
+                logger.warn(f"Token [{token}] not present in graph.")
+                oov_nodes.append((pos, token))
+        else:
+            raise NotImplementedError("Only 0 or 1 hop is supported.")
 
     G_sub = gen_sample_subgraph(all_neighbors, G)
 
@@ -332,7 +354,6 @@ def ego_graph_nbunch_window(G: nx.Graph, nbunch: list,
     :param s_weight:
     :return:
     """
-
     if len(nbunch) == 1:
         combine = nx.ego_graph(G, nbunch[0])
     else:
