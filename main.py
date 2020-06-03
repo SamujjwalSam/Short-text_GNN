@@ -29,7 +29,10 @@ from File_Handlers.json_handler import save_json
 from File_Handlers.pkl_handler import save_pickle
 from tweet_normalizer import normalizeTweet
 from build_corpus_vocab import torchtext_corpus
-from generate_graph import create_src_tokengraph, create_tgt_tokengraph
+from Data_Handlers.torchtext_handler import dataset2iter, MultiIterator
+from generate_graph import create_src_tokengraph, create_tgt_tokengraph,\
+    get_k_hop_subgraph, generate_sample_subgraphs, plot_graph,\
+    plot_weighted_graph
 from Layers.GCN_forward import GCN_forward
 from finetune_static_embeddings import glove2dict, get_rareoov, process_data,\
     calculate_cooccurrence_mat, train_model, preprocess_and_find_oov
@@ -80,16 +83,12 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     s_unlab_df.to_csv(join(data_dir, S_data_name))
     s_unlab_df = None
 
-    S_dataset, S_fields = torchtext_corpus(
-        csv_dir=data_dir, csv_file=S_data_name)
+    S_dataset, S_fields, S_iter = torchtext_corpus(csv_dir=data_dir,
+                                                   csv_file=S_data_name,
+                                                   return_iter=True)
 
     # logger.info("Number of tokens in corpus: [{}]".format(len(corpus)))
     logger.info("Source vocab size: [{}]".format(len(S_fields.vocab.freqs)))
-
-    ## Save embedding with OOV tokens:
-    # save_pickle(glove_embs, pkl_file_name=cfg["pretrain"]["pretrain_file"] +
-    #               labelled_source_name + '_' + labelled_target_name,
-    #           pkl_file_path=cfg["paths"]["pretrain_dir"][plat][user])
 
     ## Create token graph G using source data:
     G = create_src_tokengraph(S_dataset, S_fields)
@@ -107,36 +106,46 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     t_unlab_df.to_csv(join(data_dir, T_data_name))
     t_unlab_df = None
 
-    T_dataset, T_fields = torchtext_corpus(csv_dir=data_dir,
-                                           csv_file=T_data_name)
+    T_dataset, T_fields, T_iter = torchtext_corpus(csv_dir=data_dir,
+                                                   csv_file=T_data_name,
+                                                   return_iter=True)
     logger.info("Target vocab size: [{}]".format(len(T_fields.vocab.freqs)))
 
     ## Add nodes and edges to the token graph generated using source data:
-    G = create_tgt_tokengraph(T_dataset, T_fields, S_fields, G,)
+    G = create_tgt_tokengraph(T_dataset, T_fields, S_fields, G, )
 
     logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))
+
+    ## Combine S and T dataset iterators to find OOVs:
+    combined_iter = MultiIterator([S_iter, T_iter])
 
     ## Generate embeddings for OOV tokens:
     glove_embs = glove2dict()
 
-    ## Create embeddings for OOV tokens
-    # oov_vocabs, corpus = process_data(brown.words()[:2000],
-    #                                   glove_embs=glove_embs)
-    oov_vocabs, corpus = preprocess_and_find_oov(dataset,
+    ## Create combined dataset to get all OOVs:
+    oov_vocabs, corpus = preprocess_and_find_oov(combined_iter,
                                                  glove_embs=glove_embs)
     coo_mat = calculate_cooccurrence_mat(oov_vocabs, corpus)
-    new_glove_embs = train_model(coo_mat, oov_vocabs, glove_embs)
 
+    ## Create new embeddings for OOV tokens:
+    new_glove_embs = train_model(coo_mat, oov_vocabs, glove_embs)
     glove_embs = merge_dicts(glove_embs, new_glove_embs)
 
-    # logger.info("Degree of nodes in the token graph: [{}]".format(G.degree))
+    ## Save embedding with OOV tokens:
+    save_pickle(glove_embs, pkl_file_name=cfg["pretrain"]["pretrain_file"] +
+                                          labelled_source_name + '_' +
+                                          labelled_target_name,
+                pkl_file_path=cfg["paths"]["pretrain_dir"][plat][user])
 
-    # txts_embs = create_node_embddings(txts_toks)
+    ## Add embeddings to token graph:
 
-    # txts_subgraphs = generate_sample_subgraphs(s_lab_df.text.to_list(), G=G)
-    # logger.info("Fetching subgraph: [{}]".format(txts_subgraphs))
-    # print(H.nodes)
-    # plot_graph(txts_subgraphs[0])
+    ## Calculate edge weights from cooccurrence stats:
+
+    ## Construct tweet subgraph:
+    txts_subgraphs = generate_sample_subgraphs(s_lab_df.text.to_list(), G=G)
+    logger.info("Fetching subgraph: [{}]".format(txts_subgraphs))
+    print(txts_subgraphs[0].nodes)
+    plot_graph(txts_subgraphs[0])
 
     # Adj = G.adjacency()
     # Adj = nx.adjacency_matrix(G)

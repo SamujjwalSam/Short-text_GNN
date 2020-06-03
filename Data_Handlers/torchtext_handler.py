@@ -121,7 +121,40 @@ def create_vocab(dataset, TEXT_field, LABEL_field=None, embedding_file=None,
             TEXT_field.vocab.freqs.most_common(10)))
 
 
-def df2iter(datatable, batch_size=None, batch_sizes=(32, 64, 64),):
+def dataset2iter(datatable, batch_size=None, batch_sizes=(32, 64, 64),
+                 shuffle=True):
+    """
+    Converts DataFrame to TorchText iterator.
+
+    Returns:
+
+    """
+    # data_df.to_csv(save_path, header=headers)
+
+    # datatable = create_tabular_dataset(save_path, fields)
+
+    if batch_size:
+        iterator = data.Iterator.splits(
+            (datatable),
+            batch_size=batch_size,
+            shuffle=shuffle,
+            # batch_sizes=batch_sizes,
+            # sort_key=lambda x: len(x.text),
+            # sort_within_batch=True,
+            device=device)
+    else:
+        iterator = data.Iterator.splits(
+            (datatable),
+            # batch_size=batch_size,
+            batch_sizes=batch_sizes,
+            shuffle=shuffle,
+            # sort_key=lambda x: len(x.text),
+            # sort_within_batch=True,
+            device=device)
+    return iterator
+
+
+def dataset2bucket_iter(datatable, batch_size=None, batch_sizes=(32, 64, 64), ):
     """
     Converts DataFrame to TorchText iterator.
 
