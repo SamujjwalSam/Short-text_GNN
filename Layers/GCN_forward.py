@@ -19,29 +19,34 @@ __license__     : "This source code is licensed under the MIT-style license
 
 import torch
 import numpy as np
+import scipy.sparse as sp
 
 
-def GCN_forward(A_torch, X):
+def GCN_forward(adj, X, forward=2):
     """ Forward pass of GCN.
 
-    :param A_torch: Adjacency matrix (#tokens x #tokens)
+    :param forward: Number of times GCN multiplication should be applied
+    :param adj: Adjacency matrix (#tokens x #tokens)
     :param X: Feature representation (#tokens x emb_dim)
     :return: X' (#tokens x emb_dim)
     """
-    if isinstance(A_torch, np.matrix):
-        A_torch = torch.from_numpy(A_torch)
+    if isinstance(adj, np.matrix):
+        adj = torch.from_numpy(adj)
+    if isinstance(adj, sp.csr_matrix):
+        adj = adj.todense()
+        adj = torch.from_numpy(adj)
+        # adj = torch.sparse.LongTensor(
+        #     torch.LongTensor([adj.row.tolist(), adj.col.tolist()]),
+        #     torch.LongTensor(adj.data.astype(np.float32)))
 
-    # I = torch.eye(*A_torch.shape)
-    I = torch.eye(*A_torch.shape).type(torch.FloatTensor)
-    A_hat = A_torch + I
-    D = A_hat.sum(dim=0)  ## TODO: Values does not contain degree
-    ## instead cooccurrence
+    I = torch.eye(*adj.shape).type(torch.FloatTensor)
+    A_hat = adj + I
+    D = A_hat.sum(dim=0)
     D_inv = D ** -0.5
     D_inv = torch.diag(D_inv).type(torch.FloatTensor)
     A_hat = D_inv * A_hat * D_inv
-    # A_hat = torch.tensor(A_hat)
 
-    # X = X.double()
+    for i in range(forward):
+        X = torch.spmm(A_hat, X.float())
 
-    output = torch.spmm(A_hat, X.double())
-    return output
+    return X
