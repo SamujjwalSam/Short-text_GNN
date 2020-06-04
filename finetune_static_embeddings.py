@@ -48,7 +48,7 @@ def glove2dict(embedding_dir=cfg["paths"]["pretrain_dir"][plat][user],
     return embed
 
 
-def preprocess_and_find_oov(iter, glove_embs: dict = None,
+def preprocess_and_find_oov(datasets:tuple, glove_embs: dict = None,
                             stopwords: list = None,
                             ):
     """ Process and prepare data by removing stopwords, finding oovs and
@@ -71,11 +71,12 @@ def preprocess_and_find_oov(iter, glove_embs: dict = None,
     ## Tokens other than stopwords:
     nonstop_tokens = []
     corpus = []
-    for txt in iter:
-        corpus.append(' '.join(txt.text))
-        for token in txt.text:
-            if token.lower() not in stopwords:
-                nonstop_tokens.append(token.lower())
+    for dataset in datasets:
+        for txt in dataset.examples:
+            corpus.append(' '.join(txt.text))
+            for token in txt.text:
+                if token.lower() not in stopwords:
+                    nonstop_tokens.append(token.lower())
 
     ## Tokens (repeated) not present in glove:
     oov = set(nonstop_tokens) - set(glove_embs.keys())
