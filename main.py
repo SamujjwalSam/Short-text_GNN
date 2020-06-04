@@ -32,7 +32,7 @@ from build_corpus_vocab import torchtext_corpus
 from Data_Handlers.torchtext_handler import dataset2iter, MultiIterator
 from generate_graph import create_src_tokengraph, create_tgt_tokengraph,\
     get_k_hop_subgraph, generate_sample_subgraphs, plot_graph,\
-    plot_weighted_graph
+    plot_weighted_graph, get_node_features
 from Layers.GCN_forward import GCN_forward
 from finetune_static_embeddings import glove2dict, get_rareoov, process_data,\
     calculate_cooccurrence_mat, train_model, preprocess_and_find_oov
@@ -109,15 +109,14 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     logger.info("Target vocab size: [{}]".format(len(T_fields.vocab.freqs)))
 
     ## Combine S and T dataset iterators to find OOVs:
-    S_iter, T_iter = dataset2iter((S_dataset, T_dataset), batch_size=1)
-    # S_iter2 = dataset2iter(S_dataset, batch_size=1)
-    combined_iter = MultiIterator([S_iter, T_iter])
+    # S_iter, T_iter = dataset2iter((S_dataset, T_dataset), batch_size=1)
+    # combined_iter = MultiIterator([S_iter, T_iter])
 
     ## Generate embeddings for OOV tokens:
     glove_embs = glove2dict()
 
     ## Create combined dataset to get all OOVs:
-    oov_vocabs, corpus = preprocess_and_find_oov(combined_iter,
+    oov_vocabs, corpus = preprocess_and_find_oov((S_dataset, T_dataset),
                                                  glove_embs=glove_embs)
     coo_mat = calculate_cooccurrence_mat(oov_vocabs, corpus)
 
@@ -136,26 +135,26 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     G = create_src_tokengraph(S_dataset, S_fields)
 
     ## Add nodes and edges to the token graph generated using source data:
-    G = create_tgt_tokengraph(T_dataset, T_fields, S_fields, G)
+    G, combined_i2s = create_tgt_tokengraph(T_dataset, T_fields, S_fields, G)
 
     logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))
 
     ## Calculate edge weights from cooccurrence stats:
 
     ## Get adjacency matrix and node embeddings in same order:
+    ## TODO: Values does not contain degree instead cooccurrence
+    adj = nx.adjacency_matrix(G, nodelist=G.nodes,
+                              # weight='weight'
+                              )
+    # adj_np = nx.to_numpy_matrix(G)
+    X = get_node_features(glove_embs, combined_i2s, G.nodes)
+    X_hat = GCN_forward(adj, X)
 
     ## Construct tweet subgraph:
     txts_subgraphs = generate_sample_subgraphs(s_lab_df.text.to_list(), G=G)
     logger.info("Fetching subgraph: [{}]".format(txts_subgraphs))
     print(txts_subgraphs[0].nodes)
     plot_graph(txts_subgraphs[0])
-
-    # Adj = G.adjacency()
-    # Adj = nx.adjacency_matrix(G)
-    Adj = nx.to_numpy_matrix(G)
-    X = torch.rand(Adj.shape[0], 50)
-
-    X_hat = GCN_forward(Adj, X)
 
     logger.info("Execution complete.")
 
