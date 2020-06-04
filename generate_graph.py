@@ -17,11 +17,34 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
-# import numpy as np
+import torch
+import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 
 from Logger.logger import logger
+
+
+def get_node_features(embs, combined_i2s, node_list: list):
+    """ Generates embeddings in node_list order.
+
+    :param combined_i2s: Combined map of id to text for S and T.
+    :param embs:
+    :param node_list:
+    :return:
+    """
+    emb_shape = embs[list(embs.keys())[0]].shape
+    embs['<unk>'] = np.random.normal(size=emb_shape)
+    embs['<pad>'] = np.zeros(emb_shape)
+
+    ordered_node_embs = []
+    for node in node_list:
+        ordered_node_embs.append(embs[combined_i2s[node].lower()])
+
+    ordered_node_embs = np.stack(ordered_node_embs)
+    ordered_node_embs = torch.from_numpy(ordered_node_embs)
+
+    return ordered_node_embs
 
 
 def plot_weighted_graph(G, val=2):
@@ -133,7 +156,8 @@ def create_tgt_tokengraph(dataset, t_field, s_field, G: nx.Graph = None,
     """ Given a target dataset adds new nodes (occurs only in target domain)
     to existing token Graph. Update t_co count if node already exists.
 
-     Use source vocab (s_field) for text to id mapping.
+     Use source vocab [s_field] for text to id mapping if exists, else use
+      [t_field].
 
      NOTE: This should be called only after create_src_tokengraph() was called
      to create G.
@@ -152,12 +176,14 @@ def create_tgt_tokengraph(dataset, t_field, s_field, G: nx.Graph = None,
                                   'create_src_tokengraph() was called to '
                                   'create G.')
 
+    combined_i2s = s_field.vocab.itos
     ## Add token's id (from s_field) as node id to the graph
     for token_txt, freq in t_field.vocab.freqs.items():
         try:  ## Just add t_co value if node exists in G
             G.node[s_field.vocab.stoi[token_txt]]['t_co'] = freq
         except KeyError:  ## Create new node with s_co = 0 if node not in G
             token_id = t_field.vocab.stoi[token_txt]
+            combined_i2s[token_id] = token_txt
             # try:
             #     token_emb = glove_embs[token_txt]
             # except KeyError:
@@ -198,7 +224,7 @@ def create_tgt_tokengraph(dataset, t_field, s_field, G: nx.Graph = None,
                     G.add_edge(token1_id, token2_id, s_pair=0, t_pair=wt)
             j = j + 1
 
-    return G
+    return G, combined_i2s
 
 
 def generate_window_token_graph_torch2(dataset, G: nx.Graph = None,
