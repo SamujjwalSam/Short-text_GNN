@@ -49,17 +49,16 @@ def glove2dict(embedding_dir=cfg["paths"]["pretrain_dir"][plat][user],
 
 
 def preprocess_and_find_oov(datasets:tuple, glove_embs: dict = None,
-                            stopwords: list = None,
+                            stopwords: list = None, oov_min_freq: int = 1,
                             ):
     """ Process and prepare data by removing stopwords, finding oovs and
      creating corpus.
 
+    :param datasets:
+    :param oov_min_freq: Count of min freq oov token which should be removed
     :param glove_embs: Original glove embeddings in key:value format.
-    :param iter: Iterator for dataset of tokenized sentences.
     :param stopwords:
-    :param glove_path: Full path to glove file.
-    :param remove_rare_oov: Boolean to signify if tokens with very less freq
-     should be removed?
+    :param glove_embs: glove embeddings
 
     :return:
     """
@@ -72,32 +71,38 @@ def preprocess_and_find_oov(datasets:tuple, glove_embs: dict = None,
     nonstop_tokens = []
     corpus = []
     for dataset in datasets:
-        for txt in dataset.examples:
-            corpus.append(' '.join(txt.text))
-            for token in txt.text:
+        for example in dataset.examples:
+            corpus.append(' '.join(example.text))
+            for token in example.text:
                 if token.lower() not in stopwords:
                     nonstop_tokens.append(token.lower())
 
     ## Tokens (repeated) not present in glove:
-    oov = set(nonstop_tokens) - set(glove_embs.keys())
-    # oov = [token for token in nonstop_tokens if token not in
-    # glove_embs.keys()]
+    oov = [token for token in nonstop_tokens if token not in glove_embs.keys()]
+    # oov = set(nonstop_tokens) - set(glove_embs.keys())
 
     ## Unique oov tokens
-    # oov_vocabs = list(set(oov))
-
-    ## List of all the tokens in a str within a list as a large document
-    # corpus_str = [' '.join(nonstop_tokens)]
+    oov_set = set(oov)
+    oov_vocab = Counter(oov)
 
     ## Remove rare oov words to reduce vocab size
-    # if remove_rare_oov:
-    #     oov_rare = get_rareoov(oov, 1)
-    #     oov_vocabs = list(set(oov) - set(oov_rare))
-    #     tokens = [token for token in nonstop_tokens if token not in
-    #               oov_rare]
-    #     corpus_str = [' '.join(tokens)]
+    if oov_min_freq:
+        oov_rare = [k for (k, v) in oov_vocab.items() if v <= oov_min_freq]
+        oov_set = list(oov_set - set(oov_rare))
+        # nonstop_tokens = [token for token in nonstop_tokens if token not in
+        #                   oov_rare]
+        # corpus_str = [' '.join(tokens)]
+        corpus_rare = []
+        for dataset in datasets:
+            for example in dataset.examples:
+                example_toks = []
+                # corpus.append(' '.join(example.text))
+                for token in example.text:
+                    if token.lower() not in set(oov_rare):
+                        example_toks.append(token)
+                corpus_rare.append(' '.join(example_toks))
 
-    return oov, corpus
+    return oov_set, corpus
 
 
 def process_data(data: list, glove_embs: dict = None,
@@ -167,7 +172,7 @@ def calculate_cooccurrence_mat(oov_vocab: list, corpus_str: list):
     return coocc_ar
 
 
-def train_model(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=100,
+def train_model(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=1000,
                 glove_oov_save_path=None,
                 dataset_dir=cfg["paths"]["dataset_dir"][plat][user],
                 embedding_file=cfg["pretrain"]["pretrain_file"],
