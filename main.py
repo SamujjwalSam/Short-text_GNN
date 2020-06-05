@@ -22,6 +22,7 @@ import pandas as pd
 import networkx as nx
 from os.path import join
 from nltk.corpus import brown
+from collections import OrderedDict
 
 from config import configuration as cfg, platform as plat, username as user
 from File_Handlers.csv_handler import read_tweet_csv
@@ -32,7 +33,7 @@ from build_corpus_vocab import torchtext_corpus
 from Data_Handlers.torchtext_handler import dataset2iter, MultiIterator
 from generate_graph import create_src_tokengraph, create_tgt_tokengraph,\
     get_k_hop_subgraph, generate_sample_subgraphs, plot_graph,\
-    plot_weighted_graph, get_node_features
+    plot_weighted_graph, get_node_features, add_edge_weights
 from Layers.GCN_forward import GCN_forward
 from finetune_static_embeddings import glove2dict, get_rareoov, process_data,\
     calculate_cooccurrence_mat, train_model, preprocess_and_find_oov
@@ -55,6 +56,18 @@ def merge_dicts(*dict_args):
     for dictionary in dict_args:
         result.update(dictionary)
     return result
+
+
+def map_nodetxt2GCNvec(G, node_list, X, return_numpy=True):
+    GCNvec_dict = OrderedDict()
+    for i, node in enumerate(node_list):
+        node_txt = G.node[node]['node_txt']
+        if return_numpy:
+            GCNvec_dict[node_txt] = X[i].numpy()
+        else:
+            GCNvec_dict[node_txt] = X[i].numpy()
+
+    return GCNvec_dict
 
 
 def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
@@ -140,21 +153,32 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))
 
     ## Calculate edge weights from cooccurrence stats:
+    G = add_edge_weights(G)
 
     ## Get adjacency matrix and node embeddings in same order:
     ## TODO: Values does not contain degree instead cooccurrence
-    adj = nx.adjacency_matrix(G, nodelist=G.nodes,
-                              # weight='weight'
+    node_list = G.nodes
+    adj = nx.adjacency_matrix(G, nodelist=node_list,
+                              weight='weight'
                               )
     # adj_np = nx.to_numpy_matrix(G)
     X = get_node_features(glove_embs, combined_i2s, G.nodes)
     X_hat = GCN_forward(adj, X)
 
+    ## Create text to GCN forward vectors:
+    X_dict = map_nodetxt2GCNvec(G, node_list, X_hat)
+
+    ## Save GCN forwarded vectors for future use:
+    # save_pickle(X_dict, pkl_file_name='X_dict.t', pkl_file_path=data_dir)
+    torch.save(X_dict, join(data_dir, 'X_dict.pt'))
+    # X_dict = torch.load(join(data_dir, 'X_dict.pt'))
+
     ## Construct tweet subgraph:
-    txts_subgraphs = generate_sample_subgraphs(s_lab_df.text.to_list(), G=G)
-    logger.info("Fetching subgraph: [{}]".format(txts_subgraphs))
-    print(txts_subgraphs[0].nodes)
-    plot_graph(txts_subgraphs[0])
+    # S_iter, T_iter = dataset2iter((S_dataset, T_dataset), batch_size=1)
+    # txts_subgraphs = generate_sample_subgraphs(s_lab_df.text.to_list(), G=G)
+    # logger.info("Fetching subgraph: [{}]".format(txts_subgraphs))
+    # print(txts_subgraphs[0].nodes)
+    # plot_graph(txts_subgraphs[0])
 
     logger.info("Execution complete.")
 
