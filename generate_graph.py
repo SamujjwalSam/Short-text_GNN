@@ -25,6 +25,19 @@ import matplotlib.pyplot as plt
 from Logger.logger import logger
 
 
+def add_edge_weights(G, alpha: float = 0.6):
+    for edge in G.edges:
+        cooccure_dict = G.get_edge_data(edge[0], edge[1])
+        c1 = (cooccure_dict['s_pair'] / (G.node[edge[0]]['s_co'] + G.node[
+            edge[1]]['s_co']))
+        c2 = (cooccure_dict['t_pair'] / (G.node[edge[0]]['t_co'] + G.node[
+            edge[1]]['t_co']))
+        wt = ((1 - alpha) * c1) + (alpha * c2)
+        G[edge[0]][edge[1]]['weight'] = wt
+
+    return G
+
+
 def get_node_features(embs, combined_i2s, node_list: list):
     """ Generates embeddings in node_list order.
 

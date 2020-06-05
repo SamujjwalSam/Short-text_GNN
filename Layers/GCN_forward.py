@@ -47,6 +47,7 @@ def GCN_forward(adj, X, forward=2):
     A_hat = D_inv * A_hat * D_inv
 
     for i in range(forward):
-        X = torch.spmm(A_hat, X.float())
+        # X = torch.spmm(A_hat, X.float())
+        X = torch.spmm(A_hat, X)
 
     return X

@@ -33,12 +33,12 @@ global configuration
 configuration = {
     "data":         {
         "source":  {
-            'labelled':   'fire16_labeled_sample',
-            'unlabelled': 'fire16_labeled_sample'
+            'labelled':   'fire16_labeled',
+            'unlabelled': 'fire16_unlabeled'
         },
         "target":  {
-            'labelled':   'fire16_labeled_sample',
-            'unlabelled': 'fire16_labeled_sample'},
+            'labelled':   'smerp17_labeled',
+            'unlabelled': 'smerp17_unlabeled'},
         # "dataset_name": "fire16_labeled",
         "val_split":    0.1,
         "test_split":   0.3,
