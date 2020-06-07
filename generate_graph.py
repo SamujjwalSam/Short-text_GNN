@@ -52,7 +52,7 @@ def get_node_features(embs, combined_i2s, node_list: list):
 
     ordered_node_embs = []
     for node in node_list:
-        ordered_node_embs.append(embs[combined_i2s[node].lower()])
+        ordered_node_embs.append(embs[combined_i2s[node]])
 
     ordered_node_embs = np.stack(ordered_node_embs)
     ordered_node_embs = torch.from_numpy(ordered_node_embs)
@@ -107,7 +107,7 @@ def find_cooccurrences(txt_window):
     return edges
 
 
-def create_src_tokengraph(dataset, field, G: nx.Graph = None,
+def create_src_tokengraph(dataset, vocab, G: nx.Graph = None,
                           window_size: int = 2):
     """ Given a corpus create a token Graph.
 
@@ -118,7 +118,7 @@ def create_src_tokengraph(dataset, field, G: nx.Graph = None,
     :param window_size: Sliding window size
     :param G:
     :param dataset: TorchText dataset
-    :param field: TorchText field containing vocab.
+    :param vocab: TorchText field containing vocab.
     :return:
     """
     ## Create graph if not exist:
@@ -126,7 +126,7 @@ def create_src_tokengraph(dataset, field, G: nx.Graph = None,
         G = nx.Graph()
 
     ## Add token's id as node to the graph
-    for token_txt, token_id in field.vocab.stoi.items():
+    for token_txt, token_id in vocab['str2idx_map'].items():
         # try:
         #     token_emb = glove_embs[token_txt]
         # except KeyError:
@@ -136,26 +136,27 @@ def create_src_tokengraph(dataset, field, G: nx.Graph = None,
         #     token_emb = glove_embs['<UNK>']
         # G.add_node(token_id, node_txt=token_txt, s_co=field.vocab.freqs[
         #     token_txt], t_co=0, emb=token_emb)
-        G.add_node(token_id, node_txt=token_txt, s_co=field.vocab.freqs[
+        G.add_node(token_id, node_txt=token_txt, s_co=vocab['freqs'][
             token_txt], t_co=0)
 
-    for txt_obj in dataset.examples:
+    ## Add edges based on token co-occurrence within a sliding window:
+    for txt_toks in dataset:
         j = 0
-        txt_len = len(txt_obj.text)
+        txt_len = len(txt_toks)
         if window_size is None or window_size > txt_len:
             window_size = txt_len
 
         slide = txt_len - window_size + 1
 
         for k in range(slide):
-            txt_window = txt_obj.text[j:j + window_size]
+            txt_window = txt_toks[j:j + window_size]
             ## Co-occurrence in tweet:
             occurrences = find_cooccurrences(txt_window)
 
             ## Add edges with attribute:
             for token_pair, wt in occurrences.items():
-                node1 = field.vocab.stoi[token_pair[0]]
-                node2 = field.vocab.stoi[token_pair[1]]
+                node1 = vocab['str2idx_map'][token_pair[0]]
+                node2 = vocab['str2idx_map'][token_pair[1]]
                 if G.has_edge(node1, node2):
                     wt = G.get_edge_data(node1, node2)['s_pair'] + wt
                 G.add_edge(node1, node2, s_pair=wt, t_pair=0)
@@ -164,13 +165,13 @@ def create_src_tokengraph(dataset, field, G: nx.Graph = None,
     return G
 
 
-def create_tgt_tokengraph(dataset, t_field, s_field, G: nx.Graph = None,
+def create_tgt_tokengraph(dataset, t_vocab, s_vocab, G: nx.Graph = None,
                           window_size: int = 2):
     """ Given a target dataset adds new nodes (occurs only in target domain)
     to existing token Graph. Update t_co count if node already exists.
 
-     Use source vocab [s_field] for text to id mapping if exists, else use
-      [t_field].
+     Use source vocab [s_vocab] for text to id mapping if exists, else use
+      [t_vocab].
 
      NOTE: This should be called only after create_src_tokengraph() was called
      to create G.
@@ -189,32 +190,41 @@ def create_tgt_tokengraph(dataset, t_field, s_field, G: nx.Graph = None,
                                   'create_src_tokengraph() was called to '
                                   'create G.')
 
-    combined_i2s = s_field.vocab.itos
-    ## Add token's id (from s_field) as node id to the graph
-    for token_txt, freq in t_field.vocab.freqs.items():
-        try:  ## Just add t_co value if node exists in G
-            G.node[s_field.vocab.stoi[token_txt]]['t_co'] = freq
-        except KeyError:  ## Create new node with s_co = 0 if node not in G
-            token_id = t_field.vocab.stoi[token_txt]
-            combined_i2s[token_id] = token_txt
+    combined_s2i = s_vocab['str2idx_map']
+    combined_i2s = s_vocab['idx2str_list']
+    t_idx_start = len(s_vocab['str2idx_map']) + 1
+    ## Add token's id (from s_vocab) as node id to the graph
+    for token_str, token_id in t_vocab['str2idx_map'].items():
+        if s_vocab['str2idx_map'][token_str] == 0 and token_str != '<unk>':
+            # token_id = t_vocab.vocab.stoi[token_str]
+            combined_s2i[token_str] = t_idx_start
+            # combined_i2s[t_idx_start] = token_str
+            combined_i2s.append(token_str)
             # try:
-            #     token_emb = glove_embs[token_txt]
+            #     token_emb = glove_embs[token_str]
             # except KeyError:
             #     token_emb = glove_embs['<unk>']
-            # G.add_node(token_id, node_txt=token_txt, s_co=0, t_co=freq,
+            # G.add_node(token_id, node_txt=token_str, s_co=0, t_co=token_id,
             #            emb=token_emb)
-            G.add_node(token_id, node_txt=token_txt, s_co=0, t_co=freq)
+            G.add_node(t_idx_start, node_txt=token_str, s_co=0,
+                       t_co=t_vocab['freqs'][token_str])
+            t_idx_start = t_idx_start + 1
+        # try:  ## Just add t_co value if node exists in G
+        # except KeyError:  ## Create new node with s_co = 0 if node not in G
+        else:
+            G.node[s_vocab['str2idx_map'][token_str]]['t_co'] =\
+                t_vocab['freqs'][token_str]
 
-    for txt_obj in dataset.examples:
+    for txt_toks in dataset:
         j = 0
-        txt_len = len(txt_obj.text)
+        txt_len = len(txt_toks)
         if window_size is None or window_size > txt_len:
             window_size = txt_len
 
         slide = txt_len - window_size + 1
 
         for k in range(slide):
-            txt_window = txt_obj.text[j:j + window_size]
+            txt_window = txt_toks[j:j + window_size]
             ## Co-occurrence in tweet:
             occurrences = find_cooccurrences(txt_window)
 
@@ -222,22 +232,91 @@ def create_tgt_tokengraph(dataset, t_field, s_field, G: nx.Graph = None,
             for token_pair, wt in occurrences.items():
                 ## Get token ids from source if exists else from target
                 try:
-                    token1_id = s_field.vocab.stoi[token_pair[0]]
+                    token1_id = s_vocab['str2idx_map'][token_pair[0]]
                 except KeyError:
-                    token1_id = t_field.vocab.stoi[token_pair[0]]
+                    token1_id = t_vocab['str2idx_map'][token_pair[0]]
                 try:
-                    token2_id = s_field.vocab.stoi[token_pair[1]]
+                    token2_id = s_vocab['str2idx_map'][token_pair[1]]
                 except KeyError:
-                    token2_id = t_field.vocab.stoi[token_pair[1]]
+                    token2_id = t_vocab['str2idx_map'][token_pair[1]]
 
                 if G.has_edge(token1_id, token2_id):
-                    ##  Add value to existing if edge exists:
+                    ##  Add value to existing edge if exists:
                     G[token1_id][token2_id]['t_pair'] += wt
-                else:  ## Add new edge if edge not exists and make s_pair = 0
+                else:  ## Add new edge if not exists and make s_pair = 0
                     G.add_edge(token1_id, token2_id, s_pair=0, t_pair=wt)
             j = j + 1
 
-    return G, combined_i2s
+    return G, combined_s2i
+
+
+def create_tokengraph(datasets, c_vocab, s_vocab, t_vocab, G: nx.Graph = None,
+                      window_size: int = 2):
+    """ Given a target dataset adds new nodes (occurs only in target domain)
+    to existing token Graph. Update t_co count if node already exists.
+
+     Use source vocab [s_vocab] for text to id mapping if exists, else use
+      [t_vocab].
+
+     NOTE: This should be called only after create_src_tokengraph() was called
+     to create G.
+
+    :param edge_attr: Name of the edge attribute, should match with param name
+     when calling add_edge().
+    :param window_size: Sliding window size
+    :param G:
+    :param datasets: TorchText dataset
+    :param field: TorchText field containing vocab.
+    :return:
+    """
+    ## Create graph if not exist:
+    if G is None:
+        G = nx.Graph()
+
+    ## Add token's id as node to the graph
+    for token_txt, token_id in c_vocab['str2idx_map'].items():
+        G.add_node(token_id, node_txt=token_txt, s_co=s_vocab['freqs'][
+            token_txt], t_co=t_vocab['freqs'][token_txt])
+
+    ## Add edges based on token co-occurrence within sliding window:
+    for i, dataset in enumerate(datasets):
+        for txt_toks in dataset:
+            j = 0
+            txt_len = len(txt_toks)
+            if window_size is None or window_size > txt_len:
+                window_size = txt_len
+
+            slide = txt_len - window_size + 1
+
+            for k in range(slide):
+                txt_window = txt_toks[j:j + window_size]
+                ## Co-occurrence in tweet:
+                occurrences = find_cooccurrences(txt_window)
+
+                ## Add edges with attribute:
+                for token_pair, freq in occurrences.items():
+                    ## Get token ids from source if exists else from target
+                    token1_id = c_vocab['str2idx_map'][token_pair[0]]
+                    token2_id = c_vocab['str2idx_map'][token_pair[1]]
+
+                    if i == 0:
+                        if G.has_edge(token1_id, token2_id):
+                            ##  Add value to existing edge if exists:
+                            G[token1_id][token2_id]['s_pair'] += freq
+                        else:  ## Add new edge if not exists and make s_pair = 0
+                            G.add_edge(token1_id, token2_id, s_pair=freq,
+                                       t_pair=0)
+                    else:
+                        if G.has_edge(token1_id, token2_id):
+                            ##  Add value to existing edge if exists:
+                            G[token1_id][token2_id]['t_pair'] += freq
+                        else:  ## Add new edge if not exists and make s_pair = 0
+                            G.add_edge(token1_id, token2_id, s_pair=0,
+                                       t_pair=freq)
+
+                j = j + 1
+
+    return G
 
 
 def generate_window_token_graph_torch2(dataset, G: nx.Graph = None,
