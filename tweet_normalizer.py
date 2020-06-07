@@ -87,7 +87,7 @@ def find_numbers(text, replace=True,
 
 
 def normalizeToken(token):
-    token_lower = token.lower()
+    token_lower = token
     # token_lower2, _ = find_numbers(token_lower)
 
     ## Replace token with acronym:
@@ -113,10 +113,14 @@ def normalizeToken(token):
             return token
 
 
-def normalizeTweet(tweet, tokenizer=TweetTokenizer(), return_tokens=False):
+def normalizeTweet(tweet, tokenizer=TweetTokenizer(), return_tokens=False,
+                   lower_case=True):
     # tweet2, _ = find_numbers(tweet)
     tokens = tokenizer.tokenize(tweet.replace("’", "'").replace("…", "..."))
     normTweet = " ".join([normalizeToken(token) for token in tokens])
+
+    if lower_case:
+        normTweet = normTweet.lower()
 
     normTweet = normTweet.replace("cannot ", "can not ")\
         .replace("n't ", " not ")\
