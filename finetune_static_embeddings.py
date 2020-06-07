@@ -125,15 +125,21 @@ def preprocess_and_find_oov(datasets: tuple, common_vocab=None,
     corpus = [[], []]
     corpus_toks = [[], []]
     for i, dataset in enumerate(datasets):
-        for example in dataset.examples:
+        for j, example in enumerate(dataset.examples):
             example_toks = []
             for token in example.text:
                 try:  ## Ignore low freq OOV tokens:
-                    low_freqs[token]
+                    low_oov_freqs[token]
                 except KeyError:
                     example_toks.append(token)
-            corpus[i].append(' '.join(example_toks))
-            corpus_toks[i].append(example_toks)
+
+            ## Ignore samples if no token left after cleaning:
+            if len(example_toks) > 0:
+                corpus[i].append(' '.join(example_toks))
+                corpus_toks[i].append(example_toks)
+            else:
+                logger.warning(f'Dataset [{i}] sample [{j}] has no token left'
+                               f' after cleaning: [{example.text}]')
 
     return high_oov_freqs, low_glove_freqs, corpus, corpus_toks
 

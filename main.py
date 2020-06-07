@@ -203,7 +203,6 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     high_oov_freqs, low_glove_freqs, corpus, corpus_toks =\
         preprocess_and_find_oov((S_dataset, T_dataset), c_vocab,
                                 glove_embs=glove_embs, )
-    high_oov_tokens_list = list(high_oov_freqs.keys())
 
     # ## Create token graph G using source data:
     # G = create_src_tokengraph(corpus_toks[0], S_vocab)
@@ -213,12 +212,15 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     G = create_tokengraph(corpus_toks, c_vocab, S_vocab, T_vocab)
 
     logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))
-
-    oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens_list, corpus)
+    logger.info("Number of edges in the token graph: [{}]".format(len(G.edges)))
 
     ## Create new embeddings for OOV tokens:
+    high_oov_tokens_list = list(high_oov_freqs.keys())
+    c_corpus = corpus[0] + corpus[1]
+    oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens_list, c_corpus)
     oov_embs = train_model(oov_mat_coo, high_oov_tokens_list, glove_embs)
     glove_embs = merge_dicts(glove_embs, oov_embs)
+
     ## TODO: Generate <UNK> embedding from low freq tokens:
     ## Save embedding with OOV tokens:
     # save_pickle(glove_embs, pkl_file_name=cfg["pretrain"]["pretrain_file"] +
@@ -233,13 +235,12 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     G = add_edge_weights(G)
 
     ## Get adjacency matrix and node embeddings in same order:
-    ## TODO: Values does not contain degree instead cooccurrence
     node_list = G.nodes
     adj = nx.adjacency_matrix(G, nodelist=node_list,
                               weight='weight'
                               )
     # adj_np = nx.to_numpy_matrix(G)
-    X = get_node_features(glove_embs, c_i2s, G.nodes)
+    X = get_node_features(glove_embs, c_vocab['idx2str_list'], G.nodes)
     X_hat = GCN_forward(adj, X)
 
     ## Create text to GCN forward vectors:

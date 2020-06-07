@@ -283,11 +283,7 @@ def create_tokengraph(datasets, c_vocab, s_vocab, t_vocab, G: nx.Graph = None,
         for txt_toks in dataset:
             j = 0
             txt_len = len(txt_toks)
-            if window_size is None or window_size > txt_len:
-                window_size = txt_len
-
             slide = txt_len - window_size + 1
-
             for k in range(slide):
                 txt_window = txt_toks[j:j + window_size]
                 ## Co-occurrence in tweet:
@@ -306,13 +302,16 @@ def create_tokengraph(datasets, c_vocab, s_vocab, t_vocab, G: nx.Graph = None,
                         else:  ## Add new edge if not exists and make s_pair = 0
                             G.add_edge(token1_id, token2_id, s_pair=freq,
                                        t_pair=0)
-                    else:
+                    elif i == 1:
                         if G.has_edge(token1_id, token2_id):
                             ##  Add value to existing edge if exists:
                             G[token1_id][token2_id]['t_pair'] += freq
                         else:  ## Add new edge if not exists and make s_pair = 0
                             G.add_edge(token1_id, token2_id, s_pair=0,
                                        t_pair=freq)
+                    else:
+                        raise Exception(f"Unknown number [{i}] of datasets"
+                                        f" provided.")
 
                 j = j + 1
 
