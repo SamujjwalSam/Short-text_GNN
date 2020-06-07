@@ -19,6 +19,7 @@ __license__     : "This source code is licensed under the MIT-style license
 
 from collections import Counter
 from functools import partial
+from sklearn.feature_extraction import stop_words
 from sklearn.feature_extraction.text import CountVectorizer
 
 from tweet_normalizer import normalizeTweet
@@ -81,48 +82,67 @@ class Vocabulary:
 
     """
 
-    PAD_token = 0  # Used for padding short sentences
-    SOS_token = 1  # Start-of-sentence token
-    EOS_token = 2  # End-of-sentence token
+    UNK_token = 0  # Used for unknown tokens
+    PAD_token = 1  # Used for padding short sentences
+    SOS_token = 2  # Start-of-sentence token
+    EOS_token = 3  # End-of-sentence token
+    HASH_token = 4  # Used for #hashtags in tweets
+    USER_token = 5  # Used for @user in tweets
 
-    def __init__(self, name):
+    def __init__(self, name='vocab', tokenizer=None, stopwords: list = None):
         self.name = name
-        self.word2index = {}
-        self.word2count = {}
-        self.index2word = {Vocabulary.PAD_token: "PAD",
-                           Vocabulary.SOS_token: "SOS",
-                           Vocabulary.EOS_token: "EOS"}
-        self.num_words = 3
+        self.token2index = {}
+        self.token2count = {}
+        self.index2token = {
+            Vocabulary.UNK_token: "<UNK>",
+            Vocabulary.PAD_token: "<PAD>",
+            Vocabulary.SOS_token: "SOS",
+            Vocabulary.EOS_token: "EOS",
+            Vocabulary.HASH_token: "#HASH",
+            Vocabulary.USER_token: "@USER",
+        }
+        self.examples = {}
+        self.num_tokens = 6
         self.num_sentences = 0
         self.longest_sentence = 0
+        self.shortest_sentence = 0
+        if stopwords is None:
+            stopwords = list(stop_words.ENGLISH_STOP_WORDS)
+        if tokenizer is None:
+            ## Create tokenizer:
+            self.tokenizer = partial(normalizeTweet, return_tokens=True)
 
-    def add_word(self, word):
-        if word not in self.word2index:
-            # First entry of word into vocabulary
-            self.word2index[word] = self.num_words
-            self.word2count[word] = 1
-            self.index2word[self.num_words] = word
-            self.num_words += 1
+    def add_token(self, token):
+        if token not in self.token2index:
+            # First entry of token into vocabulary
+            self.token2index[token] = self.num_tokens
+            self.token2count[token] = 1
+            self.index2token[self.num_tokens] = token
+            self.num_tokens += 1
         else:
-            # Word exists; increase word count
-            self.word2count[word] += 1
+            # token exists; increase token count
+            self.token2count[token] += 1
 
     def add_sentence(self, sentence):
         sentence_len = 0
-        for word in sentence.split(' '):
+        tokens = self.tokenizer(sentence)
+        for token in tokens:
             sentence_len += 1
-            self.add_word(word)
+            self.add_token(token)
         if sentence_len > self.longest_sentence:
             # This is the longest sentence
             self.longest_sentence = sentence_len
+        if sentence_len < self.shortest_sentence:
+            # This is the shortest sentence
+            self.shortest_sentence = sentence_len
         # Count the number of sentences
         self.num_sentences += 1
 
-    def to_word(self, index):
-        return self.index2word[index]
+    def to_token(self, index):
+        return self.index2token[index]
 
-    def to_index(self, word):
-        return self.word2index[word]
+    def to_index(self, token):
+        return self.token2index[token]
 
 
 def _test_Vocabulary():
@@ -136,16 +156,16 @@ def _test_Vocabulary():
     for sent in corpus:
         voc.add_sentence(sent)
 
-    print('Token 4 corresponds to token:', voc.to_word(4))
+    print('Token 4 corresponds to token:', voc.to_token(4))
     print('Token "this" corresponds to index:', voc.to_index('this'))
-    for word in range(voc.num_words):
-        print(voc.to_word(word))
+    for token in range(voc.num_tokens):
+        print(voc.to_token(token))
 
     sent_tkns = []
     sent_idxs = []
-    for word in corpus[3].split(' '):
-        sent_tkns.append(word)
-        sent_idxs.append(voc.to_index(word))
+    for token in corpus[3].split(' '):
+        sent_tkns.append(token)
+        sent_idxs.append(voc.to_index(token))
     print(sent_tkns)
     print(sent_idxs)
 
