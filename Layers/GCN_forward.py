@@ -22,6 +22,18 @@ import numpy as np
 import scipy.sparse as sp
 
 
+def sp_sparse2torch_sparse(M):
+    if not isinstance(M, sp.coo_matrix):
+        M = M.tocoo()
+
+    M = torch.sparse.FloatTensor(
+        torch.LongTensor(np.vstack((M.row, M.col))),
+        torch.FloatTensor(M.data),
+        torch.Size(M.shape))
+
+    return M
+
+
 def GCN_forward(adj, X, forward=2):
     """ Forward pass of GCN.
 
@@ -30,35 +42,29 @@ def GCN_forward(adj, X, forward=2):
     :param X: Feature representation (#tokens x emb_dim)
     :return: X' (#tokens x emb_dim)
     """
-    if isinstance(adj, np.matrix):
-        adj = torch.from_numpy(adj)
     if isinstance(adj, sp.csr_matrix):
-        # adj = adj.todense()
-        # adj = torch.from_numpy(adj)
+        adj = sp_sparse2torch_sparse(adj)
 
-        adj = adj.tocoo()
-
-        adj = torch.sparse.FloatTensor(
-            torch.LongTensor(np.vstack((adj.row, adj.col))),
-            torch.FloatTensor(adj.data),
-            torch.Size(adj.shape))
-
-    sp_eye = sp.eye(*adj.shape).tocoo()
-    I = torch.sparse.FloatTensor(
-        torch.LongTensor(np.vstack((sp_eye.row, sp_eye.col))),
-        torch.FloatTensor(sp_eye.data),
-        torch.Size(adj.shape))
+    sp_eye = sp.eye(*adj.shape)
+    I = sp_sparse2torch_sparse(sp_eye)
 
     # I = torch.eye(*adj.shape).type(torch.FloatTensor)
     A_hat = adj + I
     # D = A_hat.sum(dim=0)
     D = torch.sparse.sum(A_hat, dim=0)
     D_inv = D ** -0.5
-    D_inv = torch.diag(D_inv).type(torch.FloatTensor)
-    A_hat = D_inv * A_hat * D_inv
+
+    D_inv_np = D_inv.to_dense().numpy()
+    D_inv_sp = sp.diags(D_inv_np)
+    D_inv_t = sp_sparse2torch_sparse(D_inv_sp)
+
+    # D_inv = torch.diag(D_inv).type(torch.FloatTensor)
+    A_hat = D_inv_t * A_hat * D_inv_t
 
     for i in range(forward):
-        # X = torch.spmm(A_hat, X.float())
-        X = torch.spmm(A_hat, X)
+        if X.dtype == torch.float64:
+            X = torch.spmm(A_hat, X.float())
+        else:
+            X = torch.spmm(A_hat, X)
 
     return X
