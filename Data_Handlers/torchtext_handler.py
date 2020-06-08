@@ -26,7 +26,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def prepare_fields(text_headers=None, label_headers=None, tokenizer='spacy',
-                   batch_first=True, include_lengths=True, n_classes=7):
+                   batch_first=True, include_lengths=True, n_classes=4):
     """ Generates fields present on the dataset.
 
     Args:
@@ -43,7 +43,6 @@ def prepare_fields(text_headers=None, label_headers=None, tokenizer='spacy',
     if text_headers is None:
         text_headers = ['text']
     if label_headers is None:
-        # label_headers = ['0', '1', '2', '3', '4', '5', '6']
         label_headers = [str(cls) for cls in range(n_classes)]
 
     TEXT = data.Field(tokenize=tokenizer, batch_first=batch_first,
@@ -155,7 +154,7 @@ def dataset2iter(datasets: tuple, batch_size=None, batch_sizes=(32, 64, 64),
     return iterator
 
 
-def dataset2bucket_iter(datatable, batch_size=None, batch_sizes=(32, 64, 64), ):
+def dataset2bucket_iter(datasets: tuple, batch_size=None, batch_sizes=(32, 64, 64), ):
     """
     Converts DataFrame to TorchText iterator.
 
@@ -168,7 +167,7 @@ def dataset2bucket_iter(datatable, batch_size=None, batch_sizes=(32, 64, 64), ):
 
     if batch_size:
         iterator = data.BucketIterator.splits(
-            (datatable),
+            datasets,
             batch_size=batch_size,
             # batch_sizes=batch_sizes,
             sort_key=lambda x: len(x.text),
@@ -176,7 +175,7 @@ def dataset2bucket_iter(datatable, batch_size=None, batch_sizes=(32, 64, 64), ):
             device=device)
     else:
         iterator = data.BucketIterator.splits(
-            (datatable),
+            datasets,
             # batch_size=batch_size,
             batch_sizes=batch_sizes,
             sort_key=lambda x: len(x.text),
