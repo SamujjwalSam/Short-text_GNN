@@ -29,9 +29,9 @@ def add_edge_weights(G, alpha: float = 0.6):
     for edge in G.edges:
         cooccure_dict = G.get_edge_data(edge[0], edge[1])
         c1 = (cooccure_dict['s_pair'] / (G.node[edge[0]]['s_co'] + G.node[
-            edge[1]]['s_co']))
+            edge[1]]['s_co'] + 1))
         c2 = (cooccure_dict['t_pair'] / (G.node[edge[0]]['t_co'] + G.node[
-            edge[1]]['t_co']))
+            edge[1]]['t_co'] + 1))
         wt = ((1 - alpha) * c1) + (alpha * c2)
         G[edge[0]][edge[1]]['weight'] = wt
 

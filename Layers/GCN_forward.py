@@ -33,15 +33,26 @@ def GCN_forward(adj, X, forward=2):
     if isinstance(adj, np.matrix):
         adj = torch.from_numpy(adj)
     if isinstance(adj, sp.csr_matrix):
-        adj = adj.todense()
-        adj = torch.from_numpy(adj)
-        # adj = torch.sparse.LongTensor(
-        #     torch.LongTensor([adj.row.tolist(), adj.col.tolist()]),
-        #     torch.LongTensor(adj.data.astype(np.float32)))
+        # adj = adj.todense()
+        # adj = torch.from_numpy(adj)
 
-    I = torch.eye(*adj.shape).type(torch.FloatTensor)
+        adj = adj.tocoo()
+
+        adj = torch.sparse.FloatTensor(
+            torch.LongTensor(np.vstack((adj.row, adj.col))),
+            torch.FloatTensor(adj.data),
+            torch.Size(adj.shape))
+
+    sp_eye = sp.eye(*adj.shape).tocoo()
+    I = torch.sparse.FloatTensor(
+        torch.LongTensor(np.vstack((sp_eye.row, sp_eye.col))),
+        torch.FloatTensor(sp_eye.data),
+        torch.Size(adj.shape))
+
+    # I = torch.eye(*adj.shape).type(torch.FloatTensor)
     A_hat = adj + I
-    D = A_hat.sum(dim=0)
+    # D = A_hat.sum(dim=0)
+    D = torch.sparse.sum(A_hat, dim=0)
     D_inv = D ** -0.5
     D_inv = torch.diag(D_inv).type(torch.FloatTensor)
     A_hat = D_inv * A_hat * D_inv

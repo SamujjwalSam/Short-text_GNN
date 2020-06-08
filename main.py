@@ -177,6 +177,8 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
                   + "_data.csv"
     c_df.to_csv(join(data_dir, c_data_name))
 
+    s_unlab_df = None
+    t_unlab_df = None
     c_df = None
 
     C_dataset, C_fields = torchtext_corpus(csv_dir=data_dir,
