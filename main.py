@@ -23,13 +23,17 @@ import networkx as nx
 from os.path import join
 from nltk.corpus import brown
 from collections import OrderedDict
+from json import dumps
 
+from Utils.utils import count_parameters, logit2label, calculate_performance
+from Layers.BiLSTM_Classifier import BiLSTM_Classifier
 from config import configuration as cfg, platform as plat, username as user
 from File_Handlers.csv_handler import read_tweet_csv
 from File_Handlers.json_handler import save_json
 from File_Handlers.pkl_handler import save_pickle
+from Data_Handlers.torchtext_handler import dataset2bucket_iter
 from tweet_normalizer import normalizeTweet
-from build_corpus_vocab import torchtext_corpus
+from build_corpus_vocab import get_dataset_fields
 from Data_Handlers.torchtext_handler import dataset2iter, MultiIterator
 from generate_graph import create_src_tokengraph, create_tgt_tokengraph,\
     get_k_hop_subgraph, generate_sample_subgraphs, plot_graph,\
@@ -37,6 +41,7 @@ from generate_graph import create_src_tokengraph, create_tgt_tokengraph,\
 from Layers.GCN_forward import GCN_forward
 from finetune_static_embeddings import glove2dict, get_rareoov, process_data,\
     calculate_cooccurrence_mat, train_model, preprocess_and_find_oov
+from Trainer.Training import trainer, training, predict_with_label
 from Logger.logger import logger
 
 
@@ -58,14 +63,18 @@ def merge_dicts(*dict_args):
     return result
 
 
-def map_nodetxt2GCNvec(G, node_list, X, return_numpy=True):
+def map_nodetxt2GCNvec(G, node_list, X, return_format='list'):
     GCNvec_dict = OrderedDict()
     for i, node in enumerate(node_list):
         node_txt = G.node[node]['node_txt']
-        if return_numpy:
+        if return_format == 'numpy':
             GCNvec_dict[node_txt] = X[i].numpy()
+        elif return_format == 'list':
+            GCNvec_dict[node_txt] = X[i].tolist()
+        elif return_format == 'pytorch':
+            GCNvec_dict[node_txt] = X[i]
         else:
-            GCNvec_dict[node_txt] = X[i].numpy()
+            raise NotImplementedError(f'Unknown format: [{return_format}].')
 
     return GCNvec_dict
 
@@ -114,6 +123,8 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
          labelled_target_name=cfg["data"]["target"]['labelled'],
          unlabelled_target_name=cfg["data"]["target"]['unlabelled'],
          ):
+
+    classify()
     ## Read source data
     s_lab_df = read_tweet_csv(data_dir, labelled_source_name + ".csv")
     s_unlab_df = read_tweet_csv(data_dir, unlabelled_source_name + ".csv")
@@ -132,9 +143,8 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     S_data_name = unlabelled_source_name + "_data.csv"
     s_unlab_df.to_csv(join(data_dir, S_data_name))
 
-    S_dataset, S_fields = torchtext_corpus(csv_dir=data_dir,
-                                           csv_file=S_data_name,
-                                           )
+    S_dataset, (S_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
+                                                      csv_file=S_data_name, )
 
     S_vocab = {
         'freqs':        S_fields.vocab.freqs,
@@ -157,9 +167,9 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     T_data_name = unlabelled_target_name + "_data.csv"
     t_unlab_df.to_csv(join(data_dir, T_data_name))
 
-    T_dataset, T_fields = torchtext_corpus(csv_dir=data_dir,
-                                           csv_file=T_data_name,
-                                           )
+    T_dataset, (T_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
+                                                      csv_file=T_data_name,
+                                                      )
     logger.info("Target vocab size: [{}]".format(len(T_fields.vocab)))
 
     T_vocab = {
@@ -181,9 +191,8 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     t_unlab_df = None
     c_df = None
 
-    C_dataset, C_fields = torchtext_corpus(csv_dir=data_dir,
-                                           csv_file=c_data_name,
-                                           )
+    C_dataset, (C_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
+                                                      csv_file=c_data_name, )
 
     c_vocab = {
         'freqs':        C_fields.vocab.freqs,
@@ -195,8 +204,7 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # c_vocab = get_c_vocab(S_vocab, T_vocab)
     # S_iter, T_iter = dataset2iter((S_dataset, T_dataset), batch_size=1)
     # c_iter = MultiIterator([S_iter, T_iter])
-    logger.info("Combined vocab size: [{}]".format(len(c_vocab[
-                                                           'str2idx_map'])))
+    logger.info("Combined vocab size: [{}]".format(len(c_vocab['str2idx_map'])))
 
     ## Generate embeddings for OOV tokens:
     glove_embs = glove2dict()
@@ -238,12 +246,12 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
 
     ## Get adjacency matrix and node embeddings in same order:
     node_list = G.nodes
-    adj = nx.adjacency_matrix(G, nodelist=node_list,
-                              weight='weight'
-                              )
+    adj = nx.adjacency_matrix(G, nodelist=node_list, weight='weight')
     # adj_np = nx.to_numpy_matrix(G)
     X = get_node_features(glove_embs, c_vocab['idx2str_list'], G.nodes)
     X_hat = GCN_forward(adj, X)
+
+    classify()
 
     ## Create text to GCN forward vectors:
     X_dict = map_nodetxt2GCNvec(G, node_list, X_hat)
@@ -252,8 +260,8 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # save_pickle(X_dict, pkl_file_name='X_dict.t', pkl_file_path=data_dir)
     torch.save(X_dict, join(data_dir, 'X_dict.pt'))
     # X_dict = torch.load(join(data_dir, 'X_dict.pt'))
-    save_glove(glove_embs, glove_dir=cfg["paths"]["pretrain_dir"][plat][user],
-               glove_file='oov_glove.txt')
+    # save_glove(glove_embs, glove_dir=cfg["paths"]["pretrain_dir"][plat][user],
+    #            glove_file='oov_glove.txt')
 
     ## Construct tweet subgraph:
     # S_iter, T_iter = dataset2iter((S_dataset, T_dataset), batch_size=1)
@@ -263,6 +271,106 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # plot_graph(txts_subgraphs[0])
 
     logger.info("Execution complete.")
+
+
+n_classes = 4
+
+
+def classify(data_dir=cfg["paths"]["dataset_dir"][plat][user],
+             labelled_source_name=cfg["data"]["source"]['labelled'],
+             labelled_target_name=cfg["data"]["target"]['labelled'],
+             show_vocab_details=True):
+    ## Classify tweets with new embeddings:
+    s_lab_df = read_tweet_csv(data_dir, labelled_source_name + ".csv")
+    S_lab_data_name = labelled_source_name + "_data.csv"
+    s_lab_df.to_csv(join(data_dir, S_lab_data_name))
+
+    S_dataset, (S_fields, LABEL) = get_dataset_fields(
+        csv_dir=data_dir, csv_file=S_lab_data_name,
+        embedding_dir=cfg["paths"]["pretrain_dir"][plat][user],
+        embedding_file=cfg["pretrain"]["pretrain_file"])
+
+    if show_vocab_details:
+        # No. of unique tokens in text
+        logger.info("Size of Source TEXT vocabulary: {}".format(len(
+            S_fields.vocab)))
+
+        # Commonly used words
+        logger.info("10 most common tokens in vocabulary: {}".format(
+            S_fields.vocab.freqs.most_common(10)))
+
+    t_lab_df = read_tweet_csv(data_dir, labelled_target_name + ".csv")
+    T_lab_data_name = labelled_source_name + "_data.csv"
+    t_lab_df.to_csv(join(data_dir, T_lab_data_name))
+
+    T_dataset, (T_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
+                                                      csv_file=T_lab_data_name,
+                                                      init_vocab=False)
+
+    # check whether cuda is available
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    train_iter, val_iter = dataset2bucket_iter((S_dataset, T_dataset),
+                                               batch_sizes=(32, 64))
+
+    size_of_vocab = len(S_fields.vocab)
+    embedding_dim = 100
+    num_hidden_nodes = 64
+    num_output_nodes = n_classes
+    num_layers = 2
+    dropout = 0.2
+
+    # instantiate the model
+    model = BiLSTM_Classifier(size_of_vocab, num_hidden_nodes, num_output_nodes,
+                              embedding_dim, num_layers, dropout=dropout)
+
+    # architecture
+    logger.info(model)
+
+    # No. of trianable parameters
+    count_parameters(model)
+
+    # Initialize the pretrained embedding
+    pretrained_embeddings = S_fields.vocab.vectors
+    model.embedding.weight.data.copy_(pretrained_embeddings)
+
+    logger.debug(pretrained_embeddings.shape)
+
+    # label_cols = ("0", "1", "2", "3", "4", "5", "6")
+    label_cols = [str(cls) for cls in range(n_classes)]
+
+    model_best, val_preds_trues_best, val_preds_trues_all, losses = trainer(
+        model, train_iter, val_iter, N_EPOCHS=2)
+
+
+def get_supervised_result(model, train_iterator, val_iterator, test_iterator,
+                          EPOCHS=5, cls_thresh=None):
+    """ Train and Predict on full supervised mode.
+
+    Returns:
+
+    """
+
+    model_best, val_preds_trues_best, val_preds_trues_all, losses = trainer(
+        model, train_iterator, val_iterator, N_EPOCHS=EPOCHS)
+
+    # logger.debug(losses)
+
+    # evaluate the model
+    test_loss, test_preds_trues = predict_with_label(model_best, test_iterator)
+
+    if cls_thresh is None:
+        cls_thresh = [0.5] * n_classes
+
+    predicted_labels = logit2label(
+        pd.DataFrame(test_preds_trues['preds'].numpy()), cls_thresh,
+        drop_irrelevant=False)
+
+    result = calculate_performance(test_preds_trues['trues'].numpy(),
+                                   predicted_labels)
+
+    logger.info("Supervised result: {}".format(dumps(result, indent=4)))
+    return result, model_best
 
 
 def save_glove(glove_embs, glove_dir=cfg["paths"]["pretrain_dir"][plat][user],

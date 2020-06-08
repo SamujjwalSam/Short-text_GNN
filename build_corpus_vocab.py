@@ -27,9 +27,9 @@ from Data_Handlers.torchtext_handler import prepare_fields, create_vocab,\
     create_tabular_dataset, dataset2iter
 
 
-def torchtext_corpus(csv_dir, csv_file, embedding_file=None,
-                     embedding_dir=None, return_iter=False,
-                     text_headers=['text'], batch_size=1):
+def get_dataset_fields(csv_dir, csv_file, embedding_file=None,
+                       embedding_dir=None, return_iter=False,
+                       text_headers=['text'], batch_size=1, init_vocab=True):
     ## Create tokenizer:
     tokenizer = partial(normalizeTweet, return_tokens=True)
 
@@ -40,13 +40,14 @@ def torchtext_corpus(csv_dir, csv_file, embedding_file=None,
     dataset = create_tabular_dataset(csv_file, csv_dir, unlabelled_fields)
 
     ## Create vocabulary and mappings:
-    create_vocab(dataset, TEXT, embedding_file=embedding_file,
-                 embedding_dir=embedding_dir)
+    if init_vocab:
+        create_vocab(dataset, TEXT, LABEL, embedding_file=embedding_file,
+                     embedding_dir=embedding_dir)
     if return_iter:
         iterator = dataset2iter(dataset, batch_size=batch_size)
 
-        return dataset, TEXT, iterator
-    return dataset, TEXT
+        return dataset, (TEXT, LABEL), iterator
+    return dataset, (TEXT, LABEL)
 
 
 def build_corpus(df, txts: list = None, corpus: list = None):
