@@ -25,11 +25,12 @@ from nltk.corpus import brown
 from collections import OrderedDict
 from json import dumps
 
-from Utils.utils import count_parameters, logit2label, calculate_performance
+from Utils.utils import count_parameters, logit2label, calculate_performance,\
+    json_keys2df
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
 from config import configuration as cfg, platform as plat, username as user
 from File_Handlers.csv_handler import read_tweet_csv
-from File_Handlers.json_handler import save_json
+from File_Handlers.json_handler import save_json, read_labelled_json
 from File_Handlers.pkl_handler import save_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
 from tweet_normalizer import normalizeTweet
@@ -42,6 +43,7 @@ from Layers.GCN_forward import GCN_forward
 from finetune_static_embeddings import glove2dict, get_rareoov, process_data,\
     calculate_cooccurrence_mat, train_model, preprocess_and_find_oov
 from Trainer.Training import trainer, training, predict_with_label
+from Class_mapper.FIRE16_SMERP17_map import labels_mapper
 from Logger.logger import logger
 
 
@@ -123,17 +125,19 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
          labelled_target_name=cfg["data"]["target"]['labelled'],
          unlabelled_target_name=cfg["data"]["target"]['unlabelled'],
          ):
-
     classify()
-    ## Read source data
-    s_lab_df = read_tweet_csv(data_dir, labelled_source_name + ".csv")
-    s_unlab_df = read_tweet_csv(data_dir, unlabelled_source_name + ".csv")
 
-    s_lab_df.rename(columns={'tweets': 'text'}, inplace=True)
+    ## Read source data
+    s_lab_df = read_labelled_json(data_dir, labelled_source_name)
+
+    s_unlab_df = json_keys2df(['text'], json_filename=unlabelled_source_name,
+                              dataset_dir=data_dir)
+
+    # s_lab_df.rename(columns={'tweets': 'text'}, inplace=True)
     s_lab_df['domain'] = 0
     s_lab_df['labelled'] = True
 
-    s_unlab_df.rename(columns={'tweets': 'text'}, inplace=True)
+    # s_unlab_df.rename(columns={'tweets': 'text'}, inplace=True)
     s_unlab_df['domain'] = 0
     s_unlab_df['labelled'] = False
 
@@ -180,8 +184,6 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
 
     ## Create combined data:
     c_df = s_unlab_df.append(t_unlab_df)
-    # s_unlab_df = None
-    # t_unlab_df = None
 
     c_data_name = unlabelled_source_name + '_' + unlabelled_target_name\
                   + "_data.csv"
@@ -233,12 +235,12 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
 
     ## TODO: Generate <UNK> embedding from low freq tokens:
     ## Save embedding with OOV tokens:
-    # save_pickle(glove_embs, pkl_file_name=cfg["pretrain"]["pretrain_file"] +
-    #                                       labelled_source_name + '_' +
-    #                                       labelled_target_name,
-    #             pkl_file_path=cfg["paths"]["pretrain_dir"][plat][user])
+    # save_pickle(glove_embs, pkl_file_name=cfg["embeddings"]["embedding_file"] +
+    #                                       labelled_source_filename + '_' +
+    #                                       labelled_target_filename,
+    #             pkl_file_path=cfg["paths"]["embedding_dir"][plat][user])
 
-    # save_glove(glove_embs, glove_dir=cfg["paths"]["pretrain_dir"][plat][user],
+    # save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
     #            glove_file='oov_glove.txt')
 
     ## Calculate edge weights from cooccurrence stats:
@@ -251,8 +253,6 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     X = get_node_features(glove_embs, c_vocab['idx2str_list'], G.nodes)
     X_hat = GCN_forward(adj, X)
 
-    classify()
-
     ## Create text to GCN forward vectors:
     X_dict = map_nodetxt2GCNvec(G, node_list, X_hat)
 
@@ -260,7 +260,7 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # save_pickle(X_dict, pkl_file_name='X_dict.t', pkl_file_path=data_dir)
     torch.save(X_dict, join(data_dir, 'X_dict.pt'))
     # X_dict = torch.load(join(data_dir, 'X_dict.pt'))
-    # save_glove(glove_embs, glove_dir=cfg["paths"]["pretrain_dir"][plat][user],
+    # save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
     #            glove_file='oov_glove.txt')
 
     ## Construct tweet subgraph:
@@ -277,35 +277,26 @@ n_classes = 4
 
 
 def classify(data_dir=cfg["paths"]["dataset_dir"][plat][user],
-             labelled_source_name=cfg["data"]["source"]['labelled'],
-             labelled_target_name=cfg["data"]["target"]['labelled'],
-             show_vocab_details=True):
-    ## Classify tweets with new embeddings:
-    s_lab_df = read_tweet_csv(data_dir, labelled_source_name + ".csv")
-    S_lab_data_name = labelled_source_name + "_data.csv"
+             labelled_source_filename=cfg["data"]["source"]['labelled'],
+             labelled_target_filename=cfg["data"]["target"]['labelled'],
+             ):
+    ## Prepare labelled source data:
+    s_lab_df = read_labelled_json(data_dir, labelled_source_filename)
+    s_lab_df = labels_mapper(s_lab_df)
+    S_lab_data_name = labelled_source_filename + "_4class_data.csv"
     s_lab_df.to_csv(join(data_dir, S_lab_data_name))
 
-    S_dataset, (S_fields, LABEL) = get_dataset_fields(
-        csv_dir=data_dir, csv_file=S_lab_data_name,
-        embedding_dir=cfg["paths"]["pretrain_dir"][plat][user],
-        embedding_file=cfg["pretrain"]["pretrain_file"])
+    S_dataset, (S_fields, S_LABEL) = get_dataset_fields(
+        csv_dir=data_dir, csv_file=S_lab_data_name, min_freq=1,
+        labelled_data=True)
 
-    if show_vocab_details:
-        # No. of unique tokens in text
-        logger.info("Size of Source TEXT vocabulary: {}".format(len(
-            S_fields.vocab)))
-
-        # Commonly used words
-        logger.info("10 most common tokens in vocabulary: {}".format(
-            S_fields.vocab.freqs.most_common(10)))
-
-    t_lab_df = read_tweet_csv(data_dir, labelled_target_name + ".csv")
-    T_lab_data_name = labelled_source_name + "_data.csv"
+    ## Prepare labelled target data:
+    t_lab_df = read_labelled_json(data_dir, labelled_target_filename)
+    T_lab_data_name = labelled_target_filename + "_4class_data.csv"
     t_lab_df.to_csv(join(data_dir, T_lab_data_name))
-
-    T_dataset, (T_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
-                                                      csv_file=T_lab_data_name,
-                                                      init_vocab=False)
+    T_dataset, (T_fields, T_LABEL) = get_dataset_fields(
+        csv_dir=data_dir, csv_file=T_lab_data_name, #init_vocab=True,
+        labelled_data=True)
 
     # check whether cuda is available
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -373,7 +364,7 @@ def get_supervised_result(model, train_iterator, val_iterator, test_iterator,
     return result, model_best
 
 
-def save_glove(glove_embs, glove_dir=cfg["paths"]["pretrain_dir"][plat][user],
+def save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
                glove_file='oov_glove.txt'):
     with open(join(glove_dir, glove_file), 'w', encoding='UTF-8') as glove_f:
         for token, vec in glove_embs.items():

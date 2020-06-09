@@ -67,7 +67,7 @@ def training(model, iterator, optimizer, criterion):
     # set the model in training phase
     model.train()
 
-    for batch in iterator:
+    for i, batch in enumerate(iterator):
         # resets the gradients after every batch
         optimizer.zero_grad()
 
@@ -92,6 +92,7 @@ def training(model, iterator, optimizer, criterion):
 
         # loss and accuracy
         epoch_loss += loss.item()
+        # logger.info(f"Train batch [{i}] loss: [{loss.item()}]")
 
     stores['preds'] = torch.cat(stores['preds'])
     stores['trues'] = torch.cat(stores['trues'])
@@ -124,7 +125,7 @@ def predict_with_label(model, iterator, criterion=None):
 
     # deactivates autograd
     with torch.no_grad():
-        for batch in iterator:
+        for i, batch in enumerate(iterator):
             # retrieve text and no. of words
             text, text_lengths = batch.text
 
