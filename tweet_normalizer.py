@@ -159,9 +159,7 @@ if __name__ == "__main__":
          "-5fd3-11ea-9ce4-5f495366cee6.html?utm_medium=social&utm_source="\
          "twitter&utm_campaign=user-share… via @postandcourier"
 
-    t2 = "$ #India dispatched 100,000 bottles of #RailNeer water 959-5085116"\
-         " to quake-hit #Nepal on Saturday night. http://t.co/HXkVtw9hRo "\
-         "#nepal via @oneindia"
+    t2 = "Here is a list of some of the groups soliciting donations for relief efforts in #Nepal #earthquake\nhttp://t.co/ujtFuZAiY9\n@SunnyLeone"
 
     # print(normalizeTweet(t1))
     print(normalizeTweet(t2))

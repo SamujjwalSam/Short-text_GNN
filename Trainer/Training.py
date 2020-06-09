@@ -152,7 +152,7 @@ def predict_with_label(model, iterator, criterion=None):
 
 
 def trainer(model, train_iterator, val_iterator, N_EPOCHS=5, optimizer=None,
-            criterion=None, best_val_loss=float('inf')):
+            criterion=None, best_val_loss=float('inf'), lr=0.001):
     """ Trains the model.
 
     :param model:
@@ -165,7 +165,7 @@ def trainer(model, train_iterator, val_iterator, N_EPOCHS=5, optimizer=None,
     :return:
     """
     if optimizer is None:
-        optimizer = optim.Adam(model.parameters())
+        optimizer = optim.Adam(model.parameters(), lr=lr)
 
     if criterion is None:
         criterion = nn.BCEWithLogitsLoss().to(device)

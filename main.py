@@ -65,10 +65,20 @@ def merge_dicts(*dict_args):
     return result
 
 
-def map_nodetxt2GCNvec(G, node_list, X, return_format='list'):
+def map_nodetxt2GCNvec(G, node_list, X, return_format='pytorch'):
+    """ Creates a dict from token (node) to it's vectors.
+
+    :param G:
+    :param node_list:
+    :param X:
+    :param return_format:
+    :return:
+    """
     GCNvec_dict = OrderedDict()
+    stoi_dict = OrderedDict()
     for i, node in enumerate(node_list):
         node_txt = G.node[node]['node_txt']
+        stoi_dict[node_txt] = node
         if return_format == 'numpy':
             GCNvec_dict[node_txt] = X[i].numpy()
         elif return_format == 'list':
@@ -78,7 +88,7 @@ def map_nodetxt2GCNvec(G, node_list, X, return_format='list'):
         else:
             raise NotImplementedError(f'Unknown format: [{return_format}].')
 
-    return GCNvec_dict
+    return GCNvec_dict, stoi_dict
 
 
 def get_c_vocab(S_vocab, T_vocab, ignore_lower_freq=2):
@@ -124,8 +134,10 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
          unlabelled_source_name=cfg["data"]["source"]['unlabelled'],
          labelled_target_name=cfg["data"]["target"]['labelled'],
          unlabelled_target_name=cfg["data"]["target"]['unlabelled'],
+         mittens_iter=200, gcn_hops=3, epoch=20, num_layers=1,
+         num_hidden_nodes=100, dropout=0.2, lr=0.001
          ):
-    classify()
+    # classify()
 
     ## Read source data
     s_lab_df = read_labelled_json(data_dir, labelled_source_name)
@@ -230,7 +242,8 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     high_oov_tokens_list = list(high_oov_freqs.keys())
     c_corpus = corpus[0] + corpus[1]
     oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens_list, c_corpus)
-    oov_embs = train_model(oov_mat_coo, high_oov_tokens_list, glove_embs)
+    oov_embs = train_model(oov_mat_coo, high_oov_tokens_list, glove_embs,
+                           max_iter=mittens_iter)
     glove_embs = merge_dicts(glove_embs, oov_embs)
 
     ## TODO: Generate <UNK> embedding from low freq tokens:
@@ -251,10 +264,10 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     adj = nx.adjacency_matrix(G, nodelist=node_list, weight='weight')
     # adj_np = nx.to_numpy_matrix(G)
     X = get_node_features(glove_embs, c_vocab['idx2str_list'], G.nodes)
-    X_hat = GCN_forward(adj, X)
+    X_hat = GCN_forward(adj, X, forward=gcn_hops)
 
     ## Create text to GCN forward vectors:
-    X_dict = map_nodetxt2GCNvec(G, node_list, X_hat)
+    X_dict, s2i_dict = map_nodetxt2GCNvec(G, node_list, X_hat)
 
     ## Save GCN forwarded vectors for future use:
     # save_pickle(X_dict, pkl_file_name='X_dict.t', pkl_file_path=data_dir)
@@ -262,6 +275,9 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # X_dict = torch.load(join(data_dir, 'X_dict.pt'))
     # save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
     #            glove_file='oov_glove.txt')
+
+    classify(stoi=s2i_dict, vectors=X_hat, epoch=epoch, num_layers=num_layers,
+             num_hidden_nodes=num_hidden_nodes, dropout=dropout, lr=lr)
 
     ## Construct tweet subgraph:
     # S_iter, T_iter = dataset2iter((S_dataset, T_dataset), batch_size=1)
@@ -276,26 +292,35 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
 n_classes = 4
 
 
-def classify(data_dir=cfg["paths"]["dataset_dir"][plat][user],
+def classify(stoi=None, vectors=None, dim=100,
+             data_dir=cfg["paths"]["dataset_dir"][plat][user],
              labelled_source_filename=cfg["data"]["source"]['labelled'],
              labelled_target_filename=cfg["data"]["target"]['labelled'],
-             ):
+             cls_thresh=None, epoch=20, num_layers=2, num_hidden_nodes=64,
+             dropout=0.2, default_thresh=0.5, lr=0.001):
     ## Prepare labelled source data:
     s_lab_df = read_labelled_json(data_dir, labelled_source_filename)
     s_lab_df = labels_mapper(s_lab_df)
     S_lab_data_name = labelled_source_filename + "_4class_data.csv"
     s_lab_df.to_csv(join(data_dir, S_lab_data_name))
 
-    S_dataset, (S_fields, S_LABEL) = get_dataset_fields(
-        csv_dir=data_dir, csv_file=S_lab_data_name, min_freq=1,
-        labelled_data=True)
+    if stoi is None:
+        S_dataset, (S_fields, S_LABEL) = get_dataset_fields(
+            csv_dir=data_dir, csv_file=S_lab_data_name, min_freq=1,
+            labelled_data=True)
+    else:
+        S_dataset, (S_fields, S_LABEL) = get_dataset_fields(
+            csv_dir=data_dir, csv_file=S_lab_data_name, min_freq=1,
+            labelled_data=True, embedding_file=None,
+            embedding_dir=None)
+        S_fields.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
 
     ## Prepare labelled target data:
     t_lab_df = read_labelled_json(data_dir, labelled_target_filename)
     T_lab_data_name = labelled_target_filename + "_4class_data.csv"
     t_lab_df.to_csv(join(data_dir, T_lab_data_name))
     T_dataset, (T_fields, T_LABEL) = get_dataset_fields(
-        csv_dir=data_dir, csv_file=T_lab_data_name, #init_vocab=True,
+        csv_dir=data_dir, csv_file=T_lab_data_name,  # init_vocab=True,
         labelled_data=True)
 
     # check whether cuda is available
@@ -306,10 +331,7 @@ def classify(data_dir=cfg["paths"]["dataset_dir"][plat][user],
 
     size_of_vocab = len(S_fields.vocab)
     embedding_dim = 100
-    num_hidden_nodes = 64
     num_output_nodes = n_classes
-    num_layers = 2
-    dropout = 0.2
 
     # instantiate the model
     model = BiLSTM_Classifier(size_of_vocab, num_hidden_nodes, num_output_nodes,
@@ -328,10 +350,22 @@ def classify(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     logger.debug(pretrained_embeddings.shape)
 
     # label_cols = ("0", "1", "2", "3", "4", "5", "6")
-    label_cols = [str(cls) for cls in range(n_classes)]
+    # label_cols = [str(cls) for cls in range(n_classes)]
 
     model_best, val_preds_trues_best, val_preds_trues_all, losses = trainer(
-        model, train_iter, val_iter, N_EPOCHS=2)
+        model, train_iter, val_iter, N_EPOCHS=epoch, lr=lr)
+
+    if cls_thresh is None:
+        cls_thresh = [default_thresh] * n_classes
+
+    predicted_labels = logit2label(
+        pd.DataFrame(val_preds_trues_best['preds'].numpy()), cls_thresh,
+        drop_irrelevant=False)
+
+    result = calculate_performance(val_preds_trues_best['trues'].numpy(),
+                                   predicted_labels)
+
+    logger.info("Supervised result: {}".format(dumps(result, indent=4)))
 
 
 def get_supervised_result(model, train_iterator, val_iterator, test_iterator,
@@ -373,4 +407,17 @@ def save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
 
 
 if __name__ == "__main__":
-    main()
+    main(mittens_iter=200, gcn_hops=1, epoch=20, num_layers=1,
+         num_hidden_nodes=100, dropout=0.2)
+    main(mittens_iter=200, gcn_hops=1, epoch=20, num_layers=1,
+         num_hidden_nodes=100, dropout=0.2, lr=1e-4)
+    main(mittens_iter=1000, gcn_hops=3, epoch=10, num_layers=1,
+         num_hidden_nodes=100, dropout=0.2, lr=1e-4)
+    main(mittens_iter=1000, gcn_hops=3, epoch=10, num_layers=1,
+         num_hidden_nodes=100, dropout=0.2, lr=1e-4)
+    main(mittens_iter=500, gcn_hops=3, epoch=20, num_layers=2,
+         num_hidden_nodes=100, dropout=0.4, lr=1e-3)
+    main(mittens_iter=500, gcn_hops=3, epoch=20, num_layers=3,
+         num_hidden_nodes=120, dropout=0.5, lr=1e-4)
+    main(mittens_iter=500, gcn_hops=5, epoch=10, num_layers=3,
+         num_hidden_nodes=50, dropout=0.4, lr=1e-5)

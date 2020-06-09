@@ -138,8 +138,9 @@ def preprocess_and_find_oov(datasets: tuple, common_vocab=None,
                 corpus[i].append(' '.join(example_toks))
                 corpus_toks[i].append(example_toks)
             else:
-                logger.warning(f'Dataset [{i}] sample [{j}] has no token left'
-                               f' after cleaning: [{example.text}]')
+                pass
+                # logger.warning(f'Dataset [{i}] sample [{j}] has no token left'
+                #                f' after cleaning: [{example.text}]')
 
     return high_oov_freqs, low_glove_freqs, corpus, corpus_toks
 
