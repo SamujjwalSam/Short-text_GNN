@@ -29,8 +29,8 @@ from config import configuration as cfg, platform as plat, username as user
 from Logger.logger import logger
 
 
-def glove2dict(embedding_dir=cfg["paths"]["pretrain_dir"][plat][user],
-               embedding_file=cfg["pretrain"]["pretrain_file"]):
+def glove2dict(embedding_dir=cfg["paths"]["embedding_dir"][plat][user],
+               embedding_file=cfg["embeddings"]["embedding_file"]):
     """Loads Glove vectors and return dict.
 
     # get it from https://nlp.stanford.edu/projects/glove
@@ -214,7 +214,7 @@ def calculate_cooccurrence_mat(oov_vocab: list, corpus_str: list):
 def train_model(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=1000,
                 glove_oov_save_path=None,
                 dataset_dir=cfg["paths"]["dataset_dir"][plat][user],
-                embedding_file=cfg["pretrain"]["pretrain_file"],
+                embedding_file=cfg["embeddings"]["embedding_file"],
                 dataset_name=cfg["data"]["source"]['labelled']
                              + cfg["data"]["target"]['labelled']):
     mittens_model = Mittens(n=emb_dim, max_iter=max_iter)

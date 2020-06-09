@@ -50,7 +50,7 @@ def is_float(w):
 
 
 def find_numbers(text, replace=True,
-                 numexp = re.compile(r'(?:(?:\d+,?)+(?:\.?\d+)?)')):
+                 numexp=re.compile(r'(?:(?:\d+,?)+(?:\.?\d+)?)')):
     """
 
     :param text: strings that contains digit and words
@@ -97,9 +97,9 @@ def normalizeToken(token):
         pass
 
     if token.startswith("@"):
-        return "@USER"
+        return "@USER " + token[1:]
     elif token.startswith("#"):
-        return "#HASH "+token[1:]
+        return "#HASH " + token[1:]
     elif token_lower.startswith("http") or token_lower.startswith("www"):
         return "HTTPURL"
     elif len(token) == 1:
@@ -114,13 +114,17 @@ def normalizeToken(token):
 
 
 def normalizeTweet(tweet, tokenizer=TweetTokenizer(), return_tokens=False,
-                   lower_case=True):
+                   lower_case=True, remove_linebreaks=True):
     # tweet2, _ = find_numbers(tweet)
     tokens = tokenizer.tokenize(tweet.replace("’", "'").replace("…", "..."))
     normTweet = " ".join([normalizeToken(token) for token in tokens])
 
     if lower_case:
         normTweet = normTweet.lower()
+
+    if remove_linebreaks:
+        ## Removes all 3 types of line breaks
+        normTweet = normTweet.replace("\r", " ").replace("\n", " ")
 
     normTweet = normTweet.replace("cannot ", "can not ")\
         .replace("n't ", " not ")\

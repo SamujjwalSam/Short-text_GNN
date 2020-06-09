@@ -25,11 +25,15 @@ from sklearn.feature_extraction.text import CountVectorizer
 from tweet_normalizer import normalizeTweet
 from Data_Handlers.torchtext_handler import prepare_fields, create_vocab,\
     create_tabular_dataset, dataset2iter
+from config import configuration as cfg, platform as plat, username as user
 
 
-def get_dataset_fields(csv_dir, csv_file, embedding_file=None,
-                       embedding_dir=None, return_iter=False,
-                       text_headers=['text'], batch_size=1, init_vocab=True):
+def get_dataset_fields(csv_dir, csv_file, return_iter=False, min_freq=2,
+                       text_headers=['text'], batch_size=1, init_vocab=True,
+                       labelled_data=False,
+                       embedding_dir=cfg["paths"]["embedding_dir"][plat][user],
+                       embedding_file=cfg["embeddings"]["embedding_file"],
+                       ):
     ## Create tokenizer:
     tokenizer = partial(normalizeTweet, return_tokens=True)
 
@@ -37,12 +41,15 @@ def get_dataset_fields(csv_dir, csv_file, embedding_file=None,
         text_headers=text_headers, tokenizer=tokenizer)
 
     ## Create dataset from saved csv file:
-    dataset = create_tabular_dataset(csv_file, csv_dir, unlabelled_fields)
+    if labelled_data:
+        dataset = create_tabular_dataset(csv_file, csv_dir, labelled_fields)
+    else:
+        dataset = create_tabular_dataset(csv_file, csv_dir, unlabelled_fields)
 
     ## Create vocabulary and mappings:
     if init_vocab:
         create_vocab(dataset, TEXT, LABEL, embedding_file=embedding_file,
-                     embedding_dir=embedding_dir)
+                     embedding_dir=embedding_dir, min_freq=min_freq)
     if return_iter:
         iterator = dataset2iter(dataset, batch_size=batch_size)
 

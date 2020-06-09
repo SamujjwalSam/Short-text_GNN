@@ -22,6 +22,7 @@ import numpy as np
 from json import load, loads
 from os.path import join, exists
 from collections import OrderedDict
+from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.metrics import accuracy_score, recall_score, precision_score,\
     f1_score, precision_recall_fscore_support, classification_report
 
@@ -91,11 +92,12 @@ def load_json(filename: str, filepath: str = '', ext: str = ".json",
         # return False
 
 
-def json_keys2df(data_keys, json_data=None, labeled_file=None, dataset_dir: str
-= '', replace_index=True) -> pd.core.frame.DataFrame:
+def json_keys2df(data_keys, json_data=None, json_filename=None,
+                 dataset_dir: str= '', replace_index=False) -> \
+        pd.core.frame.DataFrame:
     """ Converts json tweet data to a dataframe for only selected data_keys.
 
-    :param labeled_file:
+    :param json_filename:
     :param data_keys: list of str to be read from the json and made a column
     in df.
     :param json_data:
@@ -103,7 +105,7 @@ def json_keys2df(data_keys, json_data=None, labeled_file=None, dataset_dir: str
     :return:
     """
     if json_data is None:
-        json_data = load_json(filename=labeled_file, filepath=dataset_dir)
+        json_data = load_json(filename=json_filename, filepath=dataset_dir)
     #     logger.debug(json_data)
     json_df = pd.DataFrame.from_dict(json_data, orient='index', dtype=object,
                                      columns=data_keys)

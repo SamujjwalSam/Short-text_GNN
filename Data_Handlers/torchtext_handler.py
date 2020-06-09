@@ -99,9 +99,9 @@ def create_vocab(dataset, TEXT_field, LABEL_field=None, embedding_file=None,
                  embedding_dir=None, min_freq=2, show_vocab_details=True):
     if embedding_file is not None:
         # initialize embeddings (Glove)
-        TEXT_field.build_vocab(dataset, min_freq=min_freq,
-                               vectors=embedding_file,
-                               vectors_cache=embedding_dir)
+        TEXT_field.build_vocab(
+            dataset, min_freq=min_freq, vectors=embedding_file,
+            vectors_cache=embedding_dir)
     else:
         TEXT_field.build_vocab(dataset, min_freq=min_freq)
 
@@ -172,6 +172,7 @@ def dataset2bucket_iter(datasets: tuple, batch_size=None, batch_sizes=(32, 64, 6
             # batch_sizes=batch_sizes,
             sort_key=lambda x: len(x.text),
             sort_within_batch=True,
+            shuffle=True,
             device=device)
     else:
         iterator = data.BucketIterator.splits(
@@ -180,6 +181,7 @@ def dataset2bucket_iter(datasets: tuple, batch_size=None, batch_sizes=(32, 64, 6
             batch_sizes=batch_sizes,
             sort_key=lambda x: len(x.text),
             sort_within_batch=True,
+            shuffle=True,
             device=device)
     return iterator
 

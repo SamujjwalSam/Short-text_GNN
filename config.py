@@ -79,8 +79,8 @@ configuration = {
         "view_train_precision": True
     },
 
-    "pretrain": {
-        'pretrain_file': 'glove.6B.100d',
+    "embeddings": {
+        'embedding_file': 'glove.6B.100d',
         'emb_dim': 100,
     },
 
@@ -133,7 +133,7 @@ configuration = {
         "result_file":  "result.txt",
         "log_dir":      "/logs",
 
-        "pretrain_dir": {
+        "embedding_dir": {
             "Windows": "D:\\Datasets\\Extreme Classification",
             "OSX":     "/home/cs16resch01001/datasets/Extreme Classification",
             "Linux":   {
