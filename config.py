@@ -32,24 +32,24 @@ seed = 0
 global configuration
 configuration = {
     "data":         {
-        "source":  {
+        "source":     {
             'labelled':   'fire16_labeled',
             'unlabelled': 'fire16_unlabeled'
         },
-        "target":  {
+        "target":     {
             'labelled':   'smerp17_labeled',
             'unlabelled': 'smerp17_unlabeled'},
         # "dataset_name": "fire16_labeled",
-        "val_split":    0.1,
-        "test_split":   0.3,
-        "show_stat":    False
+        "val_split":  0.1,
+        "test_split": 0.3,
+        "show_stat":  False
     },
 
     "model":        {
         "num_folds":            5,
         "max_sequence_length":  100,
         "max_vec_len":          5000,
-        "dropout":              0.1,
+        "dropout":              0.2,
         "dropout_external":     0.0,
         "clipnorm":             1.0,
         "data_slice":           5120,
@@ -79,9 +79,9 @@ configuration = {
         "view_train_precision": True
     },
 
-    "embeddings": {
+    "embeddings":   {
         'embedding_file': 'glove.6B.100d',
-        'emb_dim': 100,
+        'emb_dim':        100,
     },
 
     "lstm_params":  {
@@ -130,24 +130,27 @@ configuration = {
     },
 
     "paths":        {
-        "result_file":  "result.txt",
-        "log_dir":      "/logs",
+        "result_file":   "result.txt",
+        "log_dir":       "/logs",
 
         "embedding_dir": {
             "Windows": "D:\\Datasets\\Extreme Classification",
             "OSX":     "/home/cs16resch01001/datasets/Extreme Classification",
             "Linux":   {
                 "sam":            "/home/sam/Embeddings",
+                "cs16resch01001": "/home/cs16resch01001/Embeddings",
                 ## Code path: /home/cs14resch11001/codes/MNXC
                 "cs14resch11001": "/raid/ravi/pretrain"
             }
         },
 
-        "dataset_dir":  {
+        "dataset_dir":   {
             "Windows": "D:\\Datasets\\Extreme Classification",
             "OSX":     "/home/cs16resch01001/datasets/Extreme Classification",
             "Linux":   {
                 "sam":            "/home/sam/Datasets/disaster_tweets",
+                "cs16resch01001":
+                    "/home/cs16resch01001/datasets/disaster_tweets",
                 "cs14resch11001": "/raid/ravi/Datasets/Extreme Classification"
             }
         }

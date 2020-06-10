@@ -20,7 +20,7 @@ __license__     : "This source code is licensed under the MIT-style license
 import torch
 import pandas as pd
 import networkx as nx
-from os.path import join
+from os.path import join, exists
 from nltk.corpus import brown
 from collections import OrderedDict
 from json import dumps
@@ -31,7 +31,7 @@ from Layers.BiLSTM_Classifier import BiLSTM_Classifier
 from config import configuration as cfg, platform as plat, username as user
 from File_Handlers.csv_handler import read_tweet_csv
 from File_Handlers.json_handler import save_json, read_labelled_json
-from File_Handlers.pkl_handler import save_pickle
+from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
 from tweet_normalizer import normalizeTweet
 from build_corpus_vocab import get_dataset_fields
@@ -91,54 +91,17 @@ def map_nodetxt2GCNvec(G, node_list, X, return_format='pytorch'):
     return GCNvec_dict, stoi_dict
 
 
-def get_c_vocab(S_vocab, T_vocab, ignore_lower_freq=2):
-    c_freqs = S_vocab['freqs'].copy()
-    for token_str, freq in T_vocab['freqs'].items():
-        try:
-            c_freqs[token_str] += freq
-        except KeyError:
-            c_freqs[token_str] = freq
-
-    # idx = 0
-    # for token_str, freq in c_freqs.items():
-
-    # c_freqs = S_vocab['freqs'].copy()
-    c_s2i = S_vocab['str2idx_map'].copy()
-    c_i2s = S_vocab['idx2str_list'].copy()
-    t_idx_start = len(S_vocab['str2idx_map'])
-    for token_str in T_vocab['str2idx_map'].keys():
-        try:
-            c_s2i[token_str]
-        except KeyError:
-            c_s2i[token_str] = t_idx_start
-            t_idx_start += 1
-            c_i2s.append(token_str)
-
-        try:
-            c_freqs[token_str] = c_freqs[token_str] + T_vocab[
-                'freqs'][token_str]
-        except KeyError:
-            c_freqs[token_str] = T_vocab['freqs'][token_str]
-
-    c_vocab = {
-        'freqs':        c_freqs,
-        'str2idx_map':  c_s2i,
-        'idx2str_list': c_i2s,
-    }
-
-    return c_vocab
-
-
 def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
          labelled_source_name=cfg["data"]["source"]['labelled'],
          unlabelled_source_name=cfg["data"]["source"]['unlabelled'],
          labelled_target_name=cfg["data"]["target"]['labelled'],
          unlabelled_target_name=cfg["data"]["target"]['unlabelled'],
-         mittens_iter=200, gcn_hops=3, epoch=20, num_layers=1,
-         num_hidden_nodes=100, dropout=0.2, lr=0.001
-         ):
-    # classify()
-
+         mittens_iter=1000, gcn_hops=3, epoch=cfg['sampling']['num_epochs'],
+         num_layers=cfg['lstm_params']['num_layers'],
+         num_hidden_nodes=cfg['lstm_params']['hid_size'],
+         dropout=cfg['model']['dropout'], default_thresh=0.5,
+         lr=cfg['model']['optimizer']['learning_rate'],
+         glove_embs=glove2dict()):
     ## Read source data
     s_lab_df = read_labelled_json(data_dir, labelled_source_name)
 
@@ -220,9 +183,6 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # c_iter = MultiIterator([S_iter, T_iter])
     logger.info("Combined vocab size: [{}]".format(len(c_vocab['str2idx_map'])))
 
-    ## Generate embeddings for OOV tokens:
-    glove_embs = glove2dict()
-
     ## Get all OOVs which does not have Glove embedding:
     high_oov_freqs, low_glove_freqs, corpus, corpus_toks =\
         preprocess_and_find_oov((S_dataset, T_dataset), c_vocab,
@@ -239,21 +199,32 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     logger.info("Number of edges in the token graph: [{}]".format(len(G.edges)))
 
     ## Create new embeddings for OOV tokens:
-    high_oov_tokens_list = list(high_oov_freqs.keys())
-    c_corpus = corpus[0] + corpus[1]
-    oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens_list, c_corpus)
-    oov_embs = train_model(oov_mat_coo, high_oov_tokens_list, glove_embs,
-                           max_iter=mittens_iter)
-    glove_embs = merge_dicts(glove_embs, oov_embs)
+    oov_filename = labelled_source_name + '_OOV_vectors_dict'
+
+    if exists(join(data_dir, oov_filename + '.pkl')):
+        oov_embs = load_pickle(pkl_file_path=data_dir,
+                               pkl_file_name=oov_filename)
+    else:
+        high_oov_tokens_list = list(high_oov_freqs.keys())
+        c_corpus = corpus[0] + corpus[1]
+        oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens_list, c_corpus)
+        oov_embs = train_model(oov_mat_coo, high_oov_tokens_list, glove_embs,
+                               max_iter=mittens_iter)
+        save_pickle(oov_embs, pkl_file_path=data_dir,
+                    pkl_file_name=oov_filename, )
+
+    # glove_embs = merge_dicts(glove_embs, oov_embs)
 
     ## TODO: Generate <UNK> embedding from low freq tokens:
     ## Save embedding with OOV tokens:
-    # save_pickle(glove_embs, pkl_file_name=cfg["embeddings"]["embedding_file"] +
+    # save_pickle(glove_embs, pkl_file_name=cfg["embeddings"][
+    # "embedding_file"] +
     #                                       labelled_source_filename + '_' +
     #                                       labelled_target_filename,
     #             pkl_file_path=cfg["paths"]["embedding_dir"][plat][user])
 
-    # save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
+    # save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][
+    # user],
     #            glove_file='oov_glove.txt')
 
     ## Calculate edge weights from cooccurrence stats:
@@ -263,7 +234,8 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     node_list = G.nodes
     adj = nx.adjacency_matrix(G, nodelist=node_list, weight='weight')
     # adj_np = nx.to_numpy_matrix(G)
-    X = get_node_features(glove_embs, c_vocab['idx2str_list'], G.nodes)
+    X = get_node_features(glove_embs, oov_embs, c_vocab['idx2str_list'],
+                          G.nodes)
     X_hat = GCN_forward(adj, X, forward=gcn_hops)
 
     ## Create text to GCN forward vectors:
@@ -271,13 +243,15 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
 
     ## Save GCN forwarded vectors for future use:
     # save_pickle(X_dict, pkl_file_name='X_dict.t', pkl_file_path=data_dir)
-    torch.save(X_dict, join(data_dir, 'X_dict.pt'))
+    # torch.save(X_dict, join(data_dir, 'X_dict.pt'))
     # X_dict = torch.load(join(data_dir, 'X_dict.pt'))
-    # save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
+    # save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][
+    # user],
     #            glove_file='oov_glove.txt')
 
-    classify(stoi=s2i_dict, vectors=X_hat, epoch=epoch, num_layers=num_layers,
-             num_hidden_nodes=num_hidden_nodes, dropout=dropout, lr=lr)
+    result = classify(stoi=s2i_dict, vectors=X_hat, epoch=epoch,
+                      num_layers=num_layers, dropout=dropout, lr=lr,
+                      num_hidden_nodes=num_hidden_nodes, )
 
     ## Construct tweet subgraph:
     # S_iter, T_iter = dataset2iter((S_dataset, T_dataset), batch_size=1)
@@ -287,17 +261,22 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # plot_graph(txts_subgraphs[0])
 
     logger.info("Execution complete.")
+    return result
 
 
 n_classes = 4
 
 
-def classify(stoi=None, vectors=None, dim=100,
+def classify(stoi=None, vectors=None, dim=cfg['prep_vecs']['input_size'],
              data_dir=cfg["paths"]["dataset_dir"][plat][user],
              labelled_source_filename=cfg["data"]["source"]['labelled'],
              labelled_target_filename=cfg["data"]["target"]['labelled'],
-             cls_thresh=None, epoch=20, num_layers=2, num_hidden_nodes=64,
-             dropout=0.2, default_thresh=0.5, lr=0.001):
+             cls_thresh=None, epoch=cfg['sampling']['num_epochs'],
+             num_layers=cfg['lstm_params']['num_layers'],
+             num_hidden_nodes=cfg['lstm_params']['hid_size'],
+             dropout=cfg['model']['dropout'], default_thresh=0.5,
+             lr=cfg['model']['optimizer']['learning_rate'],
+             train_batch_size=128):
     ## Prepare labelled source data:
     s_lab_df = read_labelled_json(data_dir, labelled_source_filename)
     s_lab_df = labels_mapper(s_lab_df)
@@ -305,10 +284,12 @@ def classify(stoi=None, vectors=None, dim=100,
     s_lab_df.to_csv(join(data_dir, S_lab_data_name))
 
     if stoi is None:
+        logger.critical('simple GLOVE features')
         S_dataset, (S_fields, S_LABEL) = get_dataset_fields(
             csv_dir=data_dir, csv_file=S_lab_data_name, min_freq=1,
             labelled_data=True)
     else:
+        logger.critical('GCN features')
         S_dataset, (S_fields, S_LABEL) = get_dataset_fields(
             csv_dir=data_dir, csv_file=S_lab_data_name, min_freq=1,
             labelled_data=True, embedding_file=None,
@@ -324,18 +305,18 @@ def classify(stoi=None, vectors=None, dim=100,
         labelled_data=True)
 
     # check whether cuda is available
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    train_iter, val_iter = dataset2bucket_iter((S_dataset, T_dataset),
-                                               batch_sizes=(32, 64))
+    train_iter, val_iter = dataset2bucket_iter(
+        (S_dataset, T_dataset), batch_sizes=(train_batch_size, train_batch_size
+                                             * 2))
 
     size_of_vocab = len(S_fields.vocab)
-    embedding_dim = 100
     num_output_nodes = n_classes
 
     # instantiate the model
     model = BiLSTM_Classifier(size_of_vocab, num_hidden_nodes, num_output_nodes,
-                              embedding_dim, num_layers, dropout=dropout)
+                              dim, num_layers, dropout=dropout)
 
     # architecture
     logger.info(model)
@@ -349,7 +330,6 @@ def classify(stoi=None, vectors=None, dim=100,
 
     logger.debug(pretrained_embeddings.shape)
 
-    # label_cols = ("0", "1", "2", "3", "4", "5", "6")
     # label_cols = [str(cls) for cls in range(n_classes)]
 
     model_best, val_preds_trues_best, val_preds_trues_all, losses = trainer(
@@ -365,7 +345,7 @@ def classify(stoi=None, vectors=None, dim=100,
     result = calculate_performance(val_preds_trues_best['trues'].numpy(),
                                    predicted_labels)
 
-    logger.info("Supervised result: {}".format(dumps(result, indent=4)))
+    return result
 
 
 def get_supervised_result(model, train_iterator, val_iterator, test_iterator,
@@ -407,17 +387,75 @@ def save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
 
 
 if __name__ == "__main__":
-    main(mittens_iter=200, gcn_hops=1, epoch=20, num_layers=1,
-         num_hidden_nodes=100, dropout=0.2)
-    main(mittens_iter=200, gcn_hops=1, epoch=20, num_layers=1,
-         num_hidden_nodes=100, dropout=0.2, lr=1e-4)
-    main(mittens_iter=1000, gcn_hops=3, epoch=10, num_layers=1,
-         num_hidden_nodes=100, dropout=0.2, lr=1e-4)
-    main(mittens_iter=1000, gcn_hops=3, epoch=10, num_layers=1,
-         num_hidden_nodes=100, dropout=0.2, lr=1e-4)
-    main(mittens_iter=500, gcn_hops=3, epoch=20, num_layers=2,
-         num_hidden_nodes=100, dropout=0.4, lr=1e-3)
-    main(mittens_iter=500, gcn_hops=3, epoch=20, num_layers=3,
-         num_hidden_nodes=120, dropout=0.5, lr=1e-4)
-    main(mittens_iter=500, gcn_hops=5, epoch=10, num_layers=3,
-         num_hidden_nodes=50, dropout=0.4, lr=1e-5)
+
+    ## Generate embeddings for OOV tokens:
+    glove_embs = glove2dict()
+
+    epochs = [10, 25, 50]
+    layer_sizes = [1, 2, 4]
+    gcn_forward = [2, 5]
+    hid_dims = [50, 100]
+    dropouts = [0.5]
+    lrs = [1e-5, 0.00005, 1e-6]
+
+    final_result = []
+    for a in epochs:
+        for b in layer_sizes:
+            for c in gcn_forward:
+                for d in hid_dims:
+                    for e in dropouts:
+                        for f in lrs:
+                            logger.critical(f'Epoch: [{a}], LSTM #layers: '
+                                            f'[{b}], GCN forward: [{c}], Hidden'
+                                            f' dims: [{d}], Dropouts: [{e}], '
+                                            f'Learning Rate: [{f}], ')
+                            params = {
+                                'Epoch':         a,
+                                'LSTM #layers':  b,
+                                'GCN forward':   c,
+                                'Hidden dims':   d,
+                                'Dropouts':      e,
+                                'Learning Rate': f
+                            }
+                            glove_result = classify(epoch=a,
+                                                    num_layers=b,
+                                                    num_hidden_nodes=d,
+                                                    dropout=e,
+                                                    lr=f)
+                            GCN_result = main(#mittens_iter=20,
+                                              gcn_hops=c,
+                                              epoch=a,
+                                              num_layers=b,
+                                              num_hidden_nodes=d,
+                                              dropout=e,
+                                              lr=f,
+                                              glove_embs=glove_embs)
+
+                            result_dict = {
+                                'params': params,
+                                'glove': glove_result,
+                                'gcn': GCN_result
+                            }
+                            final_result.append(result_dict)
+
+                            logger.info("Result: {}".format(dumps(result_dict,
+                                                                  indent=4)))
+
+    logger.info("ALL Results: {}".format(dumps(final_result, indent=4)))
+
+    # main(mittens_iter=200, gcn_hops=1, epoch=20, num_layers=1,
+    #      num_hidden_nodes=100, dropout=0.2, lr=1e-4)
+    # main(mittens_iter=200, gcn_hops=1, epoch=20, num_layers=1,
+    #      num_hidden_nodes=100, dropout=0.2, lr=1e-5)
+    #
+    # main(mittens_iter=500, gcn_hops=1, epoch=20, num_layers=2,
+    #      num_hidden_nodes=100, dropout=0.3, lr=1e-4)
+    # main(mittens_iter=500, gcn_hops=3, epoch=20, num_layers=3,
+    #      num_hidden_nodes=120, dropout=0.4, lr=1e-5)
+    # main(mittens_iter=500, gcn_hops=5, epoch=10, num_layers=3,
+    #      num_hidden_nodes=50, dropout=0.5, lr=1e-6)
+    #
+    # main(mittens_iter=1000, gcn_hops=3, epoch=10, num_layers=1,
+    #      num_hidden_nodes=100, dropout=0.2, lr=1e-4)
+    # main(mittens_iter=1000, gcn_hops=3, epoch=10, num_layers=2,
+    #      num_hidden_nodes=100, dropout=0.2, lr=1e-5)

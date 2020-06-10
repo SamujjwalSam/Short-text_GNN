@@ -212,7 +212,7 @@ def calculate_cooccurrence_mat(oov_vocab: list, corpus_str: list):
     return coocc_ar
 
 
-def train_model(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=1000,
+def train_model(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=200,
                 glove_oov_save_path=None,
                 dataset_dir=cfg["paths"]["dataset_dir"][plat][user],
                 embedding_file=cfg["embeddings"]["embedding_file"],
