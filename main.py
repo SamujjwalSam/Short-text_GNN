@@ -386,7 +386,26 @@ def save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
             glove_f.write(line)
 
 
+# def present_result(result: dict, base_name: str = 'old',
+#                    approach_name: str = 'new'):
+#     for p1, p2 in zip(result[base_name]['precision']['classes'],
+#                    result[approach_name]['precision']['classes']):
+#
+
+
 if __name__ == "__main__":
+    ## TODO:
+    # 1. Create separate target domain test data
+    # 2. Prepare result in presentable format
+    # 3. Tsne plots for all labelled data tokens for Glove and GCN features
+    # 4. Cosine / Euclidean distance between tokens from S and T
+    # 5. Plot train and valid loss with epochs
+    # 6. Bar plots for Precision and Recall scores between approches
+    # 7. Decide and Write GNN architecture
+    # 8. Use BERT for local embedding
+    # 9. Concatenate Glove and GCN embedding and evaluate POC
+    # 10. Think about preprocessing GCN and GNN
+    # 11. Add option to read hyper-params from config
 
     ## Generate embeddings for OOV tokens:
     glove_embs = glove2dict()
@@ -396,7 +415,7 @@ if __name__ == "__main__":
     gcn_forward = [2, 5]
     hid_dims = [50, 100]
     dropouts = [0.5]
-    lrs = [1e-5, 0.00005, 1e-6]
+    lrs = [1e-5, 1e-6]
 
     final_result = []
     for a in epochs:
@@ -422,19 +441,19 @@ if __name__ == "__main__":
                                                     num_hidden_nodes=d,
                                                     dropout=e,
                                                     lr=f)
-                            GCN_result = main(#mittens_iter=20,
-                                              gcn_hops=c,
-                                              epoch=a,
-                                              num_layers=b,
-                                              num_hidden_nodes=d,
-                                              dropout=e,
-                                              lr=f,
-                                              glove_embs=glove_embs)
+                            GCN_result = main(  # mittens_iter=20,
+                                gcn_hops=c,
+                                epoch=a,
+                                num_layers=b,
+                                num_hidden_nodes=d,
+                                dropout=e,
+                                lr=f,
+                                glove_embs=glove_embs)
 
                             result_dict = {
                                 'params': params,
-                                'glove': glove_result,
-                                'gcn': GCN_result
+                                'glove':  glove_result,
+                                'gcn':    GCN_result
                             }
                             final_result.append(result_dict)
 
@@ -442,6 +461,8 @@ if __name__ == "__main__":
                                                                   indent=4)))
 
     logger.info("ALL Results: {}".format(dumps(final_result, indent=4)))
+
+    # present_result(final_result)
 
     # main(mittens_iter=200, gcn_hops=1, epoch=20, num_layers=1,
     #      num_hidden_nodes=100, dropout=0.2, lr=1e-4)

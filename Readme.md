@@ -65,26 +65,26 @@ Problem with tweets are the availability of limited context. To increase context
 
 ### Implementation Tasks: 
 []=pending, [-]=working, [x]=done
-
-    - [x] 1. Tokenize tweets (:heavy_check_mark:)
-    - [x] 2. Generate graph based on co-occurrance of tokens within a sliding window (&#9744;)
-    - [-] 3. Mark each token with it's domain count (&#9745;)
-    - [x] 4. Aggregate codes in main()
-    - [x] 5. Generate sample graphs 
-    - [] 6. Handle oov tokens (during test) as node and as embedding
     
-    - [] 1. Text preprocessing
-        - [] 1.1. Remove and replace special tokens using re
-        - [] 1.2. Clean text using CountVectorizer
-        - [] 1.3. Feature generation
-        - [] 1.4. Word2Vec OOV token feature generation
-        - [] 1.5. Test OOV token feature generation
-    - [] 2. Graph construction
-        - [] 2.1. Associate tokens/nodes with features
-        - [] 2.2. Decide and calculate edge weights
-    - [] 3. GCN application on token graph
-        - [] 3.1. GCN forward pass
-        - [] 3.2. Reassociate new vectors to token graph
+    TODO:
+    1. Create separate target domain test data
+    2. Prepare result in presentable format
+    3. Tsne plots for all labelled data tokens for Glove and GCN features
+    4. Cosine / Euclidean distance between tokens from S and T
+    5. Plot train and valid loss with epochs
+    6. Bar plots for Precision and Recall scores between approches
+    7. Decide and Write GNN architecture
+    8. Use BERT for local embedding
+    9. Concatenate Glove and GCN embedding and evaluate POC
+    10. Think about preprocessing GCN and GNN
+    11. Add option to read hyper-params from config
+    
+    - [] 1. Text preprocessing:
+        - [] 1.1. Clean and process OOV tokens
+        - [] 1.2. Improve tokenization
+    - [] 2. GCN Pre-training:
+        - [] 2.1. Link prediction of domain classification
+        - [] 2.2. Improve edge weight calculation
     - [] 4. GNN application on tweet graphs
         - [] 4.1. Decide GNN architecture
         - [] 4.2. Write code for GNN
