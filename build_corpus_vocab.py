@@ -17,6 +17,7 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
+from os.path import join
 from collections import Counter
 from functools import partial
 from sklearn.feature_extraction import stop_words
@@ -24,13 +25,14 @@ from sklearn.feature_extraction.text import CountVectorizer
 
 from tweet_normalizer import normalizeTweet
 from Data_Handlers.torchtext_handler import prepare_fields, create_vocab,\
-    create_tabular_dataset, dataset2iter
+    create_tabular_dataset, dataset2iter, split_dataset, save_dataset,\
+    load_dataset
 from config import configuration as cfg, platform as plat, username as user
 
 
 def get_dataset_fields(csv_dir, csv_file, return_iter=False, min_freq=2,
                        text_headers=['text'], batch_size=1, init_vocab=True,
-                       labelled_data=False,
+                       labelled_data=False, target_split=False,
                        embedding_dir=cfg["paths"]["embedding_dir"][plat][user],
                        embedding_file=cfg["embeddings"]["embedding_file"],
                        ):
@@ -45,6 +47,13 @@ def get_dataset_fields(csv_dir, csv_file, return_iter=False, min_freq=2,
         dataset = create_tabular_dataset(csv_file, csv_dir, labelled_fields)
     else:
         dataset = create_tabular_dataset(csv_file, csv_dir, unlabelled_fields)
+
+    if target_split:
+        if join(csv_dir, csv_file + "_examples.pkl"):
+            dataset = load_dataset(csv_dir, csv_file)
+        else:
+            train, dataset = split_dataset(dataset, split_size=0.7)
+            save_dataset(dataset, csv_dir, csv_file, fields=labelled_fields)
 
     ## Create vocabulary and mappings:
     if init_vocab:

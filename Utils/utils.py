@@ -21,13 +21,72 @@ import pandas as pd
 import numpy as np
 from json import load, loads
 from os.path import join, exists
-from collections import OrderedDict
+from collections import OrderedDict, Counter
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.metrics import accuracy_score, recall_score, precision_score,\
     f1_score, precision_recall_fscore_support, classification_report
+from skmultilearn.model_selection import iterative_train_test_split
+from skmultilearn.model_selection.measures import\
+    get_combination_wise_output_matrix
 
 from config import configuration as cfg, platform as plat, username as user
 from Logger.logger import logger
+
+
+def split_data(lab_tweets, split_size=0.3, stratified=True, random_state=0):
+    """ Splits json data.
+
+    :param lab_tweets:
+    :param split_size:
+    :param stratified:
+    :param random_state:
+    :return:
+    """
+    sample_keys = np.array(list(lab_tweets.keys()))
+
+    if stratified is False:
+        train_split, test_split = train_test_split(sample_keys,
+                                                   test_size=split_size,
+                                                   random_state=random_state)
+    else:
+        classes = []
+        for idx, val in lab_tweets.items():
+            classes.append(val["classes"])
+
+        mlb = MultiLabelBinarizer()
+        train_y_hot = mlb.fit_transform(classes)
+
+        sample_keys = np.reshape(sample_keys, (sample_keys.shape[0], -1))
+
+        logger.info(Counter(combination for row in
+                            get_combination_wise_output_matrix(train_y_hot,
+                                                               order=2)
+                            for combination in row))
+
+        train_split, y_train, test_split, y_test = iterative_train_test_split(
+            sample_keys, train_y_hot, test_size=split_size)
+
+        logger.info(Counter(combination for row in
+                            get_combination_wise_output_matrix(y_train,
+                                                               order=2)
+                            for combination in row))
+
+        logger.info(Counter(combination for row in
+                            get_combination_wise_output_matrix(y_test,
+                                                               order=2)
+                            for combination in row))
+
+        train_split = np.reshape(train_split, (train_split.shape[0],))
+        test_split = np.reshape(test_split, (test_split.shape[0],))
+
+    train = OrderedDict()
+    test = OrderedDict()
+    for id in train_split:
+        train[id] = lab_tweets[id]
+    for id in test_split:
+        test[id] = lab_tweets[id]
+    return train, test
 
 
 def save_model(model, saved_model_name='tweet_bilstm',
