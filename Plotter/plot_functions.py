@@ -21,16 +21,26 @@ from matplotlib import pyplot as plt
 from sklearn.manifold import TSNE
 
 
-# from sklearn import datasets
+def plot_features_tsne(X, tokens: list = None, limit_view: int = -100):
+    """ Plots TSNE representations of tokens and their embeddings.
 
-# digits = datasets.load_digits()
-
-
-def plot_features_tsne(X, tokens=None, limit_view=100):
+    :param X:
+    :param tokens:
+    :param limit_view:
+    """
     tsne = TSNE(n_components=2, random_state=0)
 
-    X = X[:limit_view, ]
-    tokens = tokens[:limit_view]
+    if limit_view > X.shape[0]:
+        limit_view = X.shape[0]
+
+    if limit_view > 0:
+        X = X[:limit_view, ]
+        tokens = tokens[:limit_view]
+    elif limit_view < 0:
+        X = X[limit_view:, ]
+        tokens = tokens[limit_view:]
+    else:
+        pass
 
     X_2d = tsne.fit_transform(X)
     colors = range(X_2d.shape[0])
@@ -43,6 +53,25 @@ def plot_features_tsne(X, tokens=None, limit_view=100):
     plt.title('TSNE visualization of input vectors in 2D')
     # plt.xlabel('x-axis')
     # plt.ylabel('y-axis')
+    plt.show()
+
+
+def plot_training_loss(training_losses: list, val_losses: list):
+    """ Plots loss comparison of training and validation.
+
+    :param training_losses:
+    :param val_losses:
+    """
+    # Create count of the number of epochs
+    epoch_count = range(1, len(training_losses) + 1)
+
+    # Visualize loss history
+    plt.plot(epoch_count, training_losses, 'r--')
+    plt.plot(epoch_count, val_losses, 'b-')
+    plt.title('Epoch-wise training and validation loss')
+    plt.legend(['Training Loss', 'Validation Loss'])
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
     plt.show()
 
 

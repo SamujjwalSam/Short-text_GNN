@@ -23,7 +23,7 @@ import networkx as nx
 from os.path import join, exists
 from nltk.corpus import brown
 from collections import OrderedDict
-from json import dumps
+from json import dumps, load
 
 from Utils.utils import count_parameters, logit2label, calculate_performance,\
     json_keys2df
@@ -35,7 +35,8 @@ from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
 from tweet_normalizer import normalizeTweet
 from build_corpus_vocab import get_dataset_fields
-from Data_Handlers.torchtext_handler import dataset2iter, MultiIterator
+from Data_Handlers.torchtext_handler import dataset2iter, MultiIterator,\
+    split_dataset
 from generate_graph import create_src_tokengraph, create_tgt_tokengraph,\
     get_k_hop_subgraph, generate_sample_subgraphs, plot_graph,\
     plot_weighted_graph, get_node_features, add_edge_weights, create_tokengraph
@@ -44,6 +45,7 @@ from finetune_static_embeddings import glove2dict, get_rareoov, process_data,\
     calculate_cooccurrence_mat, train_model, preprocess_and_find_oov
 from Trainer.Training import trainer, training, predict_with_label
 from Class_mapper.FIRE16_SMERP17_map import labels_mapper
+from Plotter.plot_functions import plot_features_tsne, plot_training_loss
 from Logger.logger import logger
 
 
@@ -286,15 +288,20 @@ def classify(stoi=None, vectors=None, dim=cfg['prep_vecs']['input_size'],
     if stoi is None:
         logger.critical('simple GLOVE features')
         S_dataset, (S_fields, S_LABEL) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=S_lab_data_name, min_freq=1,
+            csv_dir=data_dir, csv_file=S_lab_data_name, min_freq=2,
             labelled_data=True)
+        # plot_features_tsne(S_LABEL.vocab.vectors)
     else:
         logger.critical('GCN features')
         S_dataset, (S_fields, S_LABEL) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=S_lab_data_name, min_freq=1,
+            csv_dir=data_dir, csv_file=S_lab_data_name, min_freq=2,
             labelled_data=True, embedding_file=None,
             embedding_dir=None)
         S_fields.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
+        # plot_features_tsne(S_LABEL.vocab.vectors)
+
+    ## Plot representations:
+    plot_features_tsne(S_fields.vocab.vectors, list(S_fields.vocab.stoi.keys()))
 
     ## Prepare labelled target data:
     t_lab_df = read_labelled_json(data_dir, labelled_target_filename)
@@ -335,6 +342,8 @@ def classify(stoi=None, vectors=None, dim=cfg['prep_vecs']['input_size'],
     model_best, val_preds_trues_best, val_preds_trues_all, losses = trainer(
         model, train_iter, val_iter, N_EPOCHS=epoch, lr=lr)
 
+    plot_training_loss(losses['train'], losses['val'])
+
     if cls_thresh is None:
         cls_thresh = [default_thresh] * n_classes
 
@@ -344,6 +353,10 @@ def classify(stoi=None, vectors=None, dim=cfg['prep_vecs']['input_size'],
 
     result = calculate_performance(val_preds_trues_best['trues'].numpy(),
                                    predicted_labels)
+
+    result_df = flatten_results(result)
+    result_df.round(decimals=4).to_csv(
+        join(data_dir, labelled_target_filename+'_results.csv'))
 
     return result
 
@@ -386,20 +399,38 @@ def save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
             glove_f.write(line)
 
 
-# def present_result(result: dict, base_name: str = 'old',
-#                    approach_name: str = 'new'):
-#     for p1, p2 in zip(result[base_name]['precision']['classes'],
-#                    result[approach_name]['precision']['classes']):
-#
+def flatten_results(results: dict):
+    """ Flattens the nested result dict and save as csv.
+
+    :param results:
+    :return:
+    """
+    ## Replace classes list to dict:
+    for i, result in enumerate(results):
+        for approach, vals in result.items():
+            if approach != 'params':
+                for metric1, averaging in vals.items():
+                    for avg, score in averaging.items():
+                        if avg == 'classes':
+                            classes_dict = {}
+                            for cls, val in enumerate(score):
+                                cls = str(cls)
+                                classes_dict[cls] = val
+                            results[i][approach][metric1][avg] = classes_dict
+
+    result_df = pd.json_normalize(results, sep='_')
+
+    ## Round values and save:
+    # result_df.round(decimals=4).to_csv('results.csv')
+
+    return result_df
 
 
 if __name__ == "__main__":
+    result = load(open('Tweet_GCN_results.json'))
+    flatten_results(result)
     ## TODO:
-    # 1. Create separate target domain test data
-    # 2. Prepare result in presentable format
-    # 3. Tsne plots for all labelled data tokens for Glove and GCN features
-    # 4. Cosine / Euclidean distance between tokens from S and T
-    # 5. Plot train and valid loss with epochs
+    # 1. Create separate target domain test data -> TEST
     # 6. Bar plots for Precision and Recall scores between approches
     # 7. Decide and Write GNN architecture
     # 8. Use BERT for local embedding
