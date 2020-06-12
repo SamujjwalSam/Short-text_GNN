@@ -17,6 +17,8 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 import torch
+import dill
+from pathlib import Path
 from os.path import join
 from torchtext import data
 
@@ -86,13 +88,50 @@ def create_tabular_dataset(csv_file, data_dir, fields=None, skip_header=True):
     if fields is None:
         _, fields, unlabelled_fields = prepare_fields()
 
-    data_table = data.TabularDataset(path=join(data_dir, csv_file),
-                                     format='csv', fields=fields,
-                                     skip_header=skip_header)
+    dataset = data.TabularDataset(path=join(data_dir, csv_file),
+                                  format='csv', fields=fields,
+                                  skip_header=skip_header)
 
-    logger.debug(vars(data_table.examples[0]))
+    logger.debug(vars(dataset.examples[0]))
+    return dataset
 
-    return data_table
+
+def split_dataset(dataset, split_size=0.7, stratify=False, strata_name='label'):
+    """ Splits a torchtext dataset into train, test, val.
+
+    :param dataset:
+    :param split_size:
+    :param stratify:
+    :param strata_name:
+    :return:
+    """
+    train, test = dataset.split(
+        split_ratio=split_size, stratified=stratify, strata_field=strata_name)
+    return train, test
+
+
+def save_dataset(dataset, save_dir, name, fields=None):
+    if not isinstance(save_dir, Path):
+        save_dir = Path(save_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)
+    torch.save(dataset, save_dir / name + "_examples.pkl",
+               pickle_module=dill)
+    if fields:
+        torch.save(fields, save_dir / name + "_fields.pkl",
+                   pickle_module=dill)
+
+
+def load_dataset(load_dir, name):
+    if not isinstance(load_dir, Path):
+        load_dir = Path(load_dir)
+    dataset = torch.load(load_dir / name + "_examples.pkl", pickle_module=dill)
+    try:
+        fields = torch.load(load_dir / name + "_fields.pkl", pickle_module=dill)
+        return data.Dataset(dataset, fields)
+    except FileNotFoundError:
+        logger.warning(f'fields not found at: '
+                       f'[{load_dir / name + "_fields.pkl"}]')
+    return dataset
 
 
 def create_vocab(dataset, TEXT_field, LABEL_field=None, embedding_file=None,
@@ -136,9 +175,9 @@ def dataset2iter(datasets: tuple, batch_size=None, batch_sizes=(32, 64, 64),
         iterator = data.Iterator.splits(
             datasets, batch_size=batch_size, shuffle=shuffle, sort=False,
             repeat=False, device=device)
-            # batch_sizes=batch_sizes,
-            # sort_key=lambda x: len(x.text),
-            # sort_within_batch=True,
+        # batch_sizes=batch_sizes,
+        # sort_key=lambda x: len(x.text),
+        # sort_within_batch=True,
 
     else:
         iterator = data.Iterator.splits(
@@ -154,7 +193,8 @@ def dataset2iter(datasets: tuple, batch_size=None, batch_sizes=(32, 64, 64),
     return iterator
 
 
-def dataset2bucket_iter(datasets: tuple, batch_size=None, batch_sizes=(32, 64, 64), ):
+def dataset2bucket_iter(datasets: tuple, batch_size=None,
+                        batch_sizes=(32, 64, 64), ):
     """
     Converts DataFrame to TorchText iterator.
 
