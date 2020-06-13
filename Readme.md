@@ -67,17 +67,20 @@ Problem with tweets are the availability of limited context. To increase context
 []=pending, [-]=working, [x]=done
     
     TODO:
-    1. Create separate target domain test data
-    2. Prepare result in presentable format
-    3. Tsne plots for all labelled data tokens for Glove and GCN features
-    4. Cosine / Euclidean distance between tokens from S and T
-    5. Plot train and valid loss with epochs
-    6. Bar plots for Precision and Recall scores between approches
-    7. Decide and Write GNN architecture
-    8. Use BERT for local embedding
-    9. Concatenate Glove and GCN embedding and evaluate POC
-    10. Think about preprocessing GCN and GNN
-    11. Add option to read hyper-params from config
+    # 1. Create separate target domain test data -> TEST
+    # 2. Generate result with different portions of target data as train set
+    # and a fixed target test set
+    # 3. Class-wise toekn distribution of source and target domains
+    # 4. Ways to pretrain GCN:
+    #   4.1 Domain classification
+    #   4.2 Link prediction
+    # 5. Restrict GCN propagation using class information
+    # 6. Integrate various plotting functions
+    # 7 Think about adversarial setting
+    # 8. Use BERT for local embedding
+    # 9. Concatenate Glove and GCN embedding and evaluate POC
+    # 10. Think about preprocessing GCN and GNN
+    # 11. Add option to read hyper-params from config
     
     - [] 1. Text preprocessing:
         - [] 1.1. Clean and process OOV tokens
