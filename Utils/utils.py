@@ -246,6 +246,33 @@ def calculate_performance(true: np.ndarray, pred: np.ndarray) -> dict:
     return scores
 
 
+def flatten_results(results: dict):
+    """ Flattens the nested result dict and save as csv.
+
+    :param results:
+    :return:
+    """
+    ## Replace classes list to dict:
+    for i, result in enumerate(results):
+        for approach, vals in result.items():
+            if approach != 'params':
+                for metric1, averaging in vals.items():
+                    for avg, score in averaging.items():
+                        if avg == 'classes':
+                            classes_dict = {}
+                            for cls, val in enumerate(score):
+                                cls = str(cls)
+                                classes_dict[cls] = val
+                            results[i][approach][metric1][avg] = classes_dict
+
+    result_df = pd.json_normalize(results, sep='_')
+
+    ## Round values and save:
+    # result_df.round(decimals=4).to_csv('results.csv')
+
+    return result_df
+
+
 # No. of trianable parameters
 def count_parameters(model):
     param_count = sum(p.numel() for p in model.parameters() if p.requires_grad)

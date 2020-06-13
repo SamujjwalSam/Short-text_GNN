@@ -26,7 +26,7 @@ from collections import OrderedDict
 from json import dumps, load
 
 from Utils.utils import count_parameters, logit2label, calculate_performance,\
-    json_keys2df
+    json_keys2df, flatten_results
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
 from config import configuration as cfg, platform as plat, username as user
 from File_Handlers.csv_handler import read_tweet_csv
@@ -397,33 +397,6 @@ def save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
         for token, vec in glove_embs.items():
             line = token + ' ' + str(vec)
             glove_f.write(line)
-
-
-def flatten_results(results: dict):
-    """ Flattens the nested result dict and save as csv.
-
-    :param results:
-    :return:
-    """
-    ## Replace classes list to dict:
-    for i, result in enumerate(results):
-        for approach, vals in result.items():
-            if approach != 'params':
-                for metric1, averaging in vals.items():
-                    for avg, score in averaging.items():
-                        if avg == 'classes':
-                            classes_dict = {}
-                            for cls, val in enumerate(score):
-                                cls = str(cls)
-                                classes_dict[cls] = val
-                            results[i][approach][metric1][avg] = classes_dict
-
-    result_df = pd.json_normalize(results, sep='_')
-
-    ## Round values and save:
-    # result_df.round(decimals=4).to_csv('results.csv')
-
-    return result_df
 
 
 if __name__ == "__main__":

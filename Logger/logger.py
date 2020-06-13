@@ -3,7 +3,7 @@
 """
 __synopsis__    : Logger class for the project.
 __description__ : Logs to console and file.
-__project__     : SentiSum
+__project__     :
 __classes__     : ColoredFormatter
 __variables__   :
 __methods__     :
@@ -25,7 +25,7 @@ from datetime import datetime
 # from logging import Formatter
 
 ## Create logger
-LOG_FILE = datetime.now().strftime('%Y%m%d_%H%M%S')
+timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
 MAPPING = {
     'DEBUG':    37,  # white
@@ -55,7 +55,7 @@ class ColoredFormatter(logging.Formatter):
 
 
 def create_logger(logger_name: str = 'root',
-                  log_filename: str = LOG_FILE,
+                  log_filename: str = timestamp,
                   filepath: str = 'logs',
                   file_level: int = logging.DEBUG,
                   file_format: str = "%(asctime)s [%(levelname)s %("
@@ -78,6 +78,7 @@ def create_logger(logger_name: str = 'root',
     :param color:
     :return:
     """
+    log_filename = logger_name + log_filename
     if not exists(filepath):
         makedirs(filepath)
     logger = logging.getLogger(logger_name)
@@ -97,6 +98,6 @@ def create_logger(logger_name: str = 'root',
     return logger
 
 
-logger = create_logger(logger_name='project.logger',
-                       log_filename=LOG_FILE)
+logger = create_logger(logger_name='logger',
+                       log_filename=timestamp)
 logger.info("Logger created succesfully.")
