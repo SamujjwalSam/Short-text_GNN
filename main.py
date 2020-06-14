@@ -22,11 +22,11 @@ import pandas as pd
 import networkx as nx
 from os.path import join, exists
 from nltk.corpus import brown
-from collections import OrderedDict
+from collections import OrderedDict, Counter
 from json import dumps, load
 
 from Utils.utils import count_parameters, logit2label, calculate_performance,\
-    json_keys2df, flatten_results
+    json_keys2df, flatten_results, split_df
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
 from config import configuration as cfg, platform as plat, username as user
 from File_Handlers.csv_handler import read_tweet_csv
@@ -47,24 +47,6 @@ from Trainer.Training import trainer, training, predict_with_label
 from Class_mapper.FIRE16_SMERP17_map import labels_mapper
 from Plotter.plot_functions import plot_features_tsne, plot_training_loss
 from Logger.logger import logger
-
-
-def tokenize_txts(df: pd.DataFrame, txts_toks: list = None):
-    if txts_toks is None:
-        txts_toks = []
-    for txt in df.tweets:
-        txts_toks.append(normalizeTweet(txt, return_tokens=True))
-
-    return txts_toks
-
-
-def merge_dicts(*dict_args):
-    """ Given any number of dicts, shallow copy and merge into a new dict,
-    precedence goes to key value pairs in latter dicts. """
-    result = {}
-    for dictionary in dict_args:
-        result.update(dictionary)
-    return result
 
 
 def map_nodetxt2GCNvec(G, node_list, X, return_format='pytorch'):
@@ -91,6 +73,41 @@ def map_nodetxt2GCNvec(G, node_list, X, return_format='pytorch'):
             raise NotImplementedError(f'Unknown format: [{return_format}].')
 
     return GCNvec_dict, stoi_dict
+
+
+n_classes = 4
+
+
+def split_target(t_lab_df=None,
+                 data_dir=cfg["paths"]["dataset_dir"][plat][user],
+                 labelled_target_name=cfg["data"]["target"]['labelled'],
+                 test_size=0.3, train_size=0.5, n_classes=4):
+    """ Splits labelled target data to train and test set.
+
+    :param data_dir:
+    :param labelled_target_name:
+    :param test_size:
+    :param train_size:
+    :param n_classes:
+    :return:
+    """
+    ## Read target data
+    if t_lab_df is None:
+        t_lab_df = read_labelled_json(data_dir, labelled_target_name)
+    t_lab_df, t_lab_test_df = split_df(t_lab_df, test_size=test_size,
+                                       stratified=True, order=2,
+                                       n_classes=n_classes)
+
+    logger.info(f'Number of TEST samples: [{t_lab_test_df.shape[0]}]')
+
+    if train_size is not None:
+        _, t_lab_df = split_df(t_lab_df, test_size=train_size,
+                               stratified=True, order=2, n_classes=n_classes)
+    logger.info(f'Number of TRAIN samples: [{t_lab_df.shape[0]}]')
+
+    # token_dist(t_lab_df)
+
+    return t_lab_df, t_lab_test_df
 
 
 def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
@@ -278,7 +295,7 @@ def classify(stoi=None, vectors=None, dim=cfg['prep_vecs']['input_size'],
              num_hidden_nodes=cfg['lstm_params']['hid_size'],
              dropout=cfg['model']['dropout'], default_thresh=0.5,
              lr=cfg['model']['optimizer']['learning_rate'],
-             train_batch_size=128):
+             train_batch_size=128, ):
     ## Prepare labelled source data:
     s_lab_df = read_labelled_json(data_dir, labelled_source_filename)
     s_lab_df = labels_mapper(s_lab_df)
@@ -290,7 +307,6 @@ def classify(stoi=None, vectors=None, dim=cfg['prep_vecs']['input_size'],
         S_dataset, (S_fields, S_LABEL) = get_dataset_fields(
             csv_dir=data_dir, csv_file=S_lab_data_name, min_freq=2,
             labelled_data=True)
-        # plot_features_tsne(S_LABEL.vocab.vectors)
     else:
         logger.critical('GCN features')
         S_dataset, (S_fields, S_LABEL) = get_dataset_fields(
@@ -298,7 +314,6 @@ def classify(stoi=None, vectors=None, dim=cfg['prep_vecs']['input_size'],
             labelled_data=True, embedding_file=None,
             embedding_dir=None)
         S_fields.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
-        # plot_features_tsne(S_LABEL.vocab.vectors)
 
     ## Plot representations:
     plot_features_tsne(S_fields.vocab.vectors, list(S_fields.vocab.stoi.keys()))
@@ -356,7 +371,7 @@ def classify(stoi=None, vectors=None, dim=cfg['prep_vecs']['input_size'],
 
     result_df = flatten_results(result)
     result_df.round(decimals=4).to_csv(
-        join(data_dir, labelled_target_filename+'_results.csv'))
+        join(data_dir, labelled_target_filename + '_results.csv'))
 
     return result
 
@@ -400,15 +415,24 @@ def save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
 
 
 if __name__ == "__main__":
+    train, test = split_target()
+
     result = load(open('Tweet_GCN_results.json'))
     flatten_results(result)
     ## TODO:
     # 1. Create separate target domain test data -> TEST
-    # 6. Bar plots for Precision and Recall scores between approches
-    # 7. Decide and Write GNN architecture
+    # 2. Generate result with different portions of target data as train set
+    # and a fixed target test set
+    # 3. Class-wise token distribution of source and target domains
+    # 4. Ways to pretrain GCN:
+    #   4.1 Domain classification
+    #   4.2 Link prediction
+    # 5. Restrict GCN propagation using class information
+    # 6. Integrate various plotting functions
+    # 7. Think about adversarial setting
     # 8. Use BERT for local embedding
     # 9. Concatenate Glove and GCN embedding and evaluate POC
-    # 10. Think about preprocessing GCN and GNN
+    # 10. Think about pre-training GCN and GNN
     # 11. Add option to read hyper-params from config
 
     ## Generate embeddings for OOV tokens:
@@ -416,7 +440,7 @@ if __name__ == "__main__":
 
     epochs = [10, 25, 50]
     layer_sizes = [1, 2, 4]
-    gcn_forward = [2, 5]
+    gcn_forward = [2, 5, 10]
     hid_dims = [50, 100]
     dropouts = [0.5]
     lrs = [1e-5, 1e-6]
