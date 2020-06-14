@@ -17,7 +17,7 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
-from os.path import join
+from os.path import join, exists
 from collections import Counter
 from functools import partial
 from sklearn.feature_extraction import stop_words
@@ -32,7 +32,7 @@ from config import configuration as cfg, platform as plat, username as user
 
 def get_dataset_fields(csv_dir, csv_file, return_iter=False, min_freq=2,
                        text_headers=['text'], batch_size=1, init_vocab=True,
-                       labelled_data=False, target_split=False,
+                       labelled_data=False, target_train_portion=None,
                        embedding_dir=cfg["paths"]["embedding_dir"][plat][user],
                        embedding_file=cfg["embeddings"]["embedding_file"],
                        ):
@@ -48,12 +48,15 @@ def get_dataset_fields(csv_dir, csv_file, return_iter=False, min_freq=2,
     else:
         dataset = create_tabular_dataset(csv_file, csv_dir, unlabelled_fields)
 
-    if target_split:
-        if join(csv_dir, csv_file + "_examples.pkl"):
-            dataset = load_dataset(csv_dir, csv_file)
-        else:
-            train, dataset = split_dataset(dataset, split_size=0.7)
-            save_dataset(dataset, csv_dir, csv_file, fields=labelled_fields)
+    if target_train_portion is not None:
+        dataset, test = split_dataset(dataset, split_size=0.7)
+        dataset, unused = split_dataset(dataset,
+                                        split_size=target_train_portion)
+        # if exists(join(csv_dir, csv_file + "_examples.pkl")):
+        #     dataset = load_dataset(csv_dir, csv_file)
+        # else:
+        #     train, dataset = split_dataset(dataset, split_size=0.7)
+        #     save_dataset(dataset, csv_dir, csv_file, fields=labelled_fields)
 
     ## Create vocabulary and mappings:
     if init_vocab:
@@ -61,8 +64,10 @@ def get_dataset_fields(csv_dir, csv_file, return_iter=False, min_freq=2,
                      embedding_dir=embedding_dir, min_freq=min_freq)
     if return_iter:
         iterator = dataset2iter(dataset, batch_size=batch_size)
-
         return dataset, (TEXT, LABEL), iterator
+
+    if target_train_portion is not None:
+        return dataset, (TEXT, LABEL), test
     return dataset, (TEXT, LABEL)
 
 

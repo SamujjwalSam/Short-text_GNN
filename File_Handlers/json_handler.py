@@ -17,15 +17,75 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
+import pandas as pd
 from os.path import join, exists
 from pathlib import Path
-from json import load, dumps
+from json import load, loads, dumps
 from collections import OrderedDict
 from sklearn.preprocessing import MultiLabelBinarizer
 
 from Logger.logger import logger
-from Utils.utils import json_keys2df
+# from Utils.utils import json_keys2df
 from config import configuration as cfg, platform as plat, username as user
+
+
+def load_json(filename: str, filepath: str = '', ext: str = ".json",
+              show_path: bool = True) -> OrderedDict:
+    """ Reads json file as a Python OrderedDict.
+
+    :param filename:
+    :param filepath:
+    :param ext:
+    :param show_path:
+    :return:
+    """
+    file_loc = join(filepath, filename + ext)
+    if show_path:
+        logger.debug("Reading JSON file: [{}]".format(file_loc))
+    if exists(file_loc):
+        try:
+            with open(file_loc, encoding="utf-8") as file:
+                json_dict = load(file)
+                json_dict = OrderedDict(json_dict)
+            file.close()
+            return json_dict
+        except Exception as e:
+            logger.debug(
+                "Could not open file as JSON: [{}]. \n Reason:[{}]".format(
+                    file_loc, e))
+
+            logger.warn("Reading JSON as STR: [{}]".format(file_loc))
+            with open(file_loc, encoding="utf-8") as file:
+                json_dict = str(file)
+                json_dict = loads(json_dict)
+            return json_dict
+    else:
+        raise FileNotFoundError("File not found at: [{}]".format(file_loc))
+        # logger.error("File does not exist at: [{}]".format(file_loc))
+        # return False
+
+
+def json_keys2df(data_keys, json_data=None, json_filename=None,
+                 dataset_dir: str = '', replace_index=False) ->\
+        pd.core.frame.DataFrame:
+    """ Converts json tweet data to a dataframe for only selected data_keys.
+
+    :param json_filename:
+    :param data_keys: list of str to be read from the json and made a column
+    in df.
+    :param json_data:
+    :param dataset_dir:
+    :return:
+    """
+    if json_data is None:
+        json_data = load_json(filename=json_filename, filepath=dataset_dir)
+    #     logger.debug(json_data)
+    json_df = pd.DataFrame.from_dict(json_data, orient='index', dtype=object,
+                                     columns=data_keys)
+    if replace_index:  ## Replaces tweet ids by autoincremented int
+        json_df.index = pd.Series(range(0, json_df.shape[0]))
+
+    return json_df
 
 
 def read_json(file_path: str = join(cfg["paths"]["dataset_dir"][plat][

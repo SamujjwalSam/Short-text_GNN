@@ -26,11 +26,11 @@ from collections import OrderedDict, Counter
 from json import dumps, load
 
 from Utils.utils import count_parameters, logit2label, calculate_performance,\
-    json_keys2df, flatten_results, split_df
+    flatten_results, split_df
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
 from config import configuration as cfg, platform as plat, username as user
 from File_Handlers.csv_handler import read_tweet_csv
-from File_Handlers.json_handler import save_json, read_labelled_json
+from File_Handlers.json_handler import json_keys2df, read_labelled_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
 from tweet_normalizer import normalizeTweet
@@ -78,42 +78,42 @@ def map_nodetxt2GCNvec(G, node_list, X, return_format='pytorch'):
 n_classes = 4
 
 
-def split_target(t_lab_df=None,
+def split_target(df=None,
                  data_dir=cfg["paths"]["dataset_dir"][plat][user],
-                 labelled_target_name=cfg["data"]["target"]['labelled'],
-                 test_size=0.3, train_size=0.5, n_classes=4):
+                 labelled_data_name=cfg["data"]["target"]['labelled'],
+                 test_size=0.3, train_size=1.0, n_classes=4):
     """ Splits labelled target data to train and test set.
 
     :param data_dir:
-    :param labelled_target_name:
+    :param labelled_data_name:
     :param test_size:
     :param train_size:
     :param n_classes:
     :return:
     """
     ## Read target data
-    if t_lab_df is None:
-        t_lab_df = read_labelled_json(data_dir, labelled_target_name)
-    t_lab_df, t_lab_test_df = split_df(t_lab_df, test_size=test_size,
-                                       stratified=True, order=2,
-                                       n_classes=n_classes)
+    if df is None:
+        df = read_labelled_json(data_dir, labelled_data_name)
+    df, t_lab_test_df = split_df(df, test_size=test_size,
+                                 stratified=True, order=2,
+                                 n_classes=n_classes)
 
     logger.info(f'Number of TEST samples: [{t_lab_test_df.shape[0]}]')
 
     if train_size is not None:
-        _, t_lab_df = split_df(t_lab_df, test_size=train_size,
-                               stratified=True, order=2, n_classes=n_classes)
-    logger.info(f'Number of TRAIN samples: [{t_lab_df.shape[0]}]')
+        _, df = split_df(df, test_size=train_size,
+                         stratified=True, order=2, n_classes=n_classes)
+    logger.info(f'Number of TRAIN samples: [{df.shape[0]}]')
 
     # token_dist(t_lab_df)
 
-    return t_lab_df, t_lab_test_df
+    return df, t_lab_test_df
 
 
 def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
          labelled_source_name=cfg["data"]["source"]['labelled'],
          unlabelled_source_name=cfg["data"]["source"]['unlabelled'],
-         labelled_target_name=cfg["data"]["target"]['labelled'],
+         # labelled_target_name=cfg["data"]["target"]['labelled'],
          unlabelled_target_name=cfg["data"]["target"]['unlabelled'],
          mittens_iter=1000, gcn_hops=3, epoch=cfg['sampling']['num_epochs'],
          num_layers=cfg['lstm_params']['num_layers'],
@@ -286,10 +286,11 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
 n_classes = 4
 
 
-def classify(stoi=None, vectors=None, dim=cfg['prep_vecs']['input_size'],
+def classify(train_df=None, test_df=None, stoi=None, vectors=None,
+             dim=cfg['prep_vecs']['input_size'],
              data_dir=cfg["paths"]["dataset_dir"][plat][user],
-             labelled_source_filename=cfg["data"]["source"]['labelled'],
-             labelled_target_filename=cfg["data"]["target"]['labelled'],
+             train_filename=cfg["data"]["source"]['labelled'],
+             test_filename=cfg["data"]["target"]['labelled'],
              cls_thresh=None, epoch=cfg['sampling']['num_epochs'],
              num_layers=cfg['lstm_params']['num_layers'],
              num_hidden_nodes=cfg['lstm_params']['hid_size'],
@@ -297,43 +298,46 @@ def classify(stoi=None, vectors=None, dim=cfg['prep_vecs']['input_size'],
              lr=cfg['model']['optimizer']['learning_rate'],
              train_batch_size=128, ):
     ## Prepare labelled source data:
-    s_lab_df = read_labelled_json(data_dir, labelled_source_filename)
-    s_lab_df = labels_mapper(s_lab_df)
-    S_lab_data_name = labelled_source_filename + "_4class_data.csv"
-    s_lab_df.to_csv(join(data_dir, S_lab_data_name))
+    if train_df is None:
+        train_df = read_labelled_json(data_dir, train_filename)
+        train_df = labels_mapper(train_df)
+    train_data_name = train_filename + "_4class_data.csv"
+    train_df.to_csv(join(data_dir, train_data_name))
 
     if stoi is None:
         logger.critical('simple GLOVE features')
-        S_dataset, (S_fields, S_LABEL) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=S_lab_data_name, min_freq=2,
+        train_dataset, (train_fields, train_label) = get_dataset_fields(
+            csv_dir=data_dir, csv_file=train_data_name, min_freq=2,
             labelled_data=True)
     else:
         logger.critical('GCN features')
-        S_dataset, (S_fields, S_LABEL) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=S_lab_data_name, min_freq=2,
+        train_dataset, (train_fields, train_label) = get_dataset_fields(
+            csv_dir=data_dir, csv_file=train_data_name, min_freq=2,
             labelled_data=True, embedding_file=None,
             embedding_dir=None)
-        S_fields.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
+        train_fields.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
 
     ## Plot representations:
-    plot_features_tsne(S_fields.vocab.vectors, list(S_fields.vocab.stoi.keys()))
+    plot_features_tsne(train_fields.vocab.vectors,
+                       list(train_fields.vocab.stoi.keys()))
 
     ## Prepare labelled target data:
-    t_lab_df = read_labelled_json(data_dir, labelled_target_filename)
-    T_lab_data_name = labelled_target_filename + "_4class_data.csv"
-    t_lab_df.to_csv(join(data_dir, T_lab_data_name))
-    T_dataset, (T_fields, T_LABEL) = get_dataset_fields(
-        csv_dir=data_dir, csv_file=T_lab_data_name,  # init_vocab=True,
+    if test_df is None:
+        test_df = read_labelled_json(data_dir, test_filename)
+    test_data_name = test_filename + "_4class_data.csv"
+    test_df.to_csv(join(data_dir, test_data_name))
+    test_dataset, (test_fields, test_label) = get_dataset_fields(
+        csv_dir=data_dir, csv_file=test_data_name,  # init_vocab=True,
         labelled_data=True)
 
     # check whether cuda is available
     # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     train_iter, val_iter = dataset2bucket_iter(
-        (S_dataset, T_dataset), batch_sizes=(train_batch_size, train_batch_size
-                                             * 2))
+        (train_dataset, test_dataset), batch_sizes=(train_batch_size,
+                                                    train_batch_size * 2))
 
-    size_of_vocab = len(S_fields.vocab)
+    size_of_vocab = len(train_fields.vocab)
     num_output_nodes = n_classes
 
     # instantiate the model
@@ -347,7 +351,7 @@ def classify(stoi=None, vectors=None, dim=cfg['prep_vecs']['input_size'],
     count_parameters(model)
 
     # Initialize the pretrained embedding
-    pretrained_embeddings = S_fields.vocab.vectors
+    pretrained_embeddings = train_fields.vocab.vectors
     model.embedding.weight.data.copy_(pretrained_embeddings)
 
     logger.debug(pretrained_embeddings.shape)
@@ -371,7 +375,7 @@ def classify(stoi=None, vectors=None, dim=cfg['prep_vecs']['input_size'],
 
     result_df = flatten_results(result)
     result_df.round(decimals=4).to_csv(
-        join(data_dir, labelled_target_filename + '_results.csv'))
+        join(data_dir, test_filename + '_results.csv'))
 
     return result
 
@@ -415,15 +419,12 @@ def save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
 
 
 if __name__ == "__main__":
-    train, test = split_target()
-
-    result = load(open('Tweet_GCN_results.json'))
+    df = read_labelled_json()
+    train, test = split_target(df)
+    result = classify(train, test)
+    # result = load(open('Tweet_GCN_results.json'))
     flatten_results(result)
     ## TODO:
-    # 1. Create separate target domain test data -> TEST
-    # 2. Generate result with different portions of target data as train set
-    # and a fixed target test set
-    # 3. Class-wise token distribution of source and target domains
     # 4. Ways to pretrain GCN:
     #   4.1 Domain classification
     #   4.2 Link prediction
