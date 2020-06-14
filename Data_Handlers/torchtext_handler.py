@@ -111,26 +111,32 @@ def split_dataset(dataset, split_size=0.7, stratify=False, strata_name='label'):
 
 
 def save_dataset(dataset, save_dir, name, fields=None):
+    ename = name + "_examples.pkl"
+    fname = name + "_fields.pkl"
     if not isinstance(save_dir, Path):
         save_dir = Path(save_dir)
+        ename = Path(ename)
+        fname = Path(fname)
     save_dir.mkdir(parents=True, exist_ok=True)
-    torch.save(dataset, save_dir / name + "_examples.pkl",
-               pickle_module=dill)
+    torch.save(dataset, save_dir / ename, pickle_module=dill)
     if fields:
-        torch.save(fields, save_dir / name + "_fields.pkl",
-                   pickle_module=dill)
+        torch.save(fields, save_dir / fname, pickle_module=dill)
 
 
 def load_dataset(load_dir, name):
+    ename = name + "_examples.pkl"
+    fname = name + "_fields.pkl"
     if not isinstance(load_dir, Path):
         load_dir = Path(load_dir)
-    dataset = torch.load(load_dir / name + "_examples.pkl", pickle_module=dill)
+        ename = Path(ename)
+        fname = Path(fname)
+    dataset = torch.load(load_dir / ename, pickle_module=dill)
     try:
-        fields = torch.load(load_dir / name + "_fields.pkl", pickle_module=dill)
+        fields = torch.load(load_dir / fname, pickle_module=dill)
         return data.Dataset(dataset, fields)
     except FileNotFoundError:
         logger.warning(f'fields not found at: '
-                       f'[{load_dir / name + "_fields.pkl"}]')
+                       f'[{load_dir / fname}]')
     return dataset
 
 
