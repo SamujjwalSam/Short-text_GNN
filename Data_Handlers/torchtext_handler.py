@@ -74,6 +74,26 @@ def prepare_fields(text_headers=None, label_headers=None, tokenizer='spacy',
     return (TEXT, LABEL), labelled_fields, unlabelled_fields
 
 
+def create_dataset(examples, fields=None):
+    """ Creates a TorchText Dataset from examples (list) and fields (dict).
+
+    Args:
+        csv_file:
+        fields:
+        skip_header:
+
+    Returns:
+
+    """
+    if fields is None:
+        _, fields, unlabelled_fields = prepare_fields()
+
+    dataset = data.Dataset(examples=examples, fields=fields)
+
+    logger.debug(vars(dataset.examples[0]))
+    return dataset
+
+
 def create_tabular_dataset(csv_file, data_dir, fields=None, skip_header=True):
     """ Reads a csv file and returns TorchText TabularDataset format.
 
@@ -141,7 +161,7 @@ def load_dataset(load_dir, name):
 
 
 def create_vocab(dataset, TEXT_field, LABEL_field=None, embedding_file=None,
-                 embedding_dir=None, min_freq=2, show_vocab_details=True):
+                 embedding_dir=None, min_freq=1, show_vocab_details=True):
     if embedding_file is not None:
         # initialize embeddings (Glove)
         TEXT_field.build_vocab(
