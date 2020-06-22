@@ -18,8 +18,12 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import torch
+import torch.nn.functional as F
+from torch.nn import ModuleList
 import numpy as np
 import scipy.sparse as sp
+from torch_geometric.nn import GCNConv
+from torch_geometric.data import Data
 
 
 def sp_sparse2torch_sparse(M):
@@ -68,3 +72,76 @@ def GCN_forward(adj, X, forward=2):
             X = torch.spmm(A_hat, X)
 
     return X
+
+
+class GCN_Net_multi(torch.nn.Module):
+    def __init__(self, num_node_features, hid_dim, num_classes,
+                 num_gcn_layers=2):
+        super(GCN_Net_multi, self).__init__()
+        self.gcn_start = GCNConv(num_node_features, hid_dim)
+
+        self.gcn_layers = []
+        for _ in range(num_gcn_layers - 1):
+            self.gcn_layers.append(GCNConv(hid_dim, hid_dim))
+        self.gcn_layers = ModuleList(self.gcn_layers)
+
+        self.gcn_final = GCNConv(hid_dim, num_classes)
+
+    def forward(self, data):
+        x, edge_index = data.x, data.edge_index
+
+        x = self.gcn_start(x, edge_index)
+        x = F.relu(x)
+
+        for layer in self.gcn_layers:
+            x = layer(x, edge_index)
+            x = F.relu(x)
+            x = F.dropout(x, training=self.training)
+
+        output = self.gcn_final(x, edge_index)
+
+        return output
+
+
+class GCN_Net(torch.nn.Module):
+    def __init__(self, num_node_features, hid_dim, num_classes):
+        super(GCN_Net, self).__init__()
+        self.conv1 = GCNConv(num_node_features, hid_dim)
+        self.conv2 = GCNConv(hid_dim, num_classes)
+
+    def forward(self, data):
+        x, edge_index = data.x, data.edge_index
+        x = self.conv1(x, edge_index)
+        x = F.relu(x)
+        x = F.dropout(x, training=self.training)
+        x = self.conv2(x, edge_index)
+
+        # return F.log_softmax(x, dim=1)
+        return x
+
+
+def main():
+    """
+    Main module to start code
+    :param args:
+        Type: tuple
+        Required
+        Read Only
+    :return:
+    """
+
+    gcn_net = GCN_Net_multi(100, 50, 2)
+
+    edge_index = torch.tensor([[0, 1, 1, 2],
+                               [1, 0, 2, 1]], dtype=torch.long)
+    x = torch.rand((20, 100), dtype=torch.float)
+
+    data = Data(x=x, edge_index=edge_index)
+    print(data)
+
+    output = gcn_net(data)
+    print(output)
+
+
+if __name__ == "__main__":
+    main()
