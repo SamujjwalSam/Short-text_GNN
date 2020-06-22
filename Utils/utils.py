@@ -16,6 +16,7 @@ __license__     : "This source code is licensed under the MIT-style license
                    found in the LICENSE file in the root directory of this
                    source tree."
 """
+
 import torch
 import pandas as pd
 import numpy as np
@@ -152,27 +153,43 @@ tokenizer = partial(normalizeTweet, return_tokens=True)
 def token_dist(df, txt_tokenized=False):
     """ Returns a dict of most freq tokens per class.
 
-    :param df:
+    :param df: Labelled DataFrame ['text', label_1, label_2, ...]
     :param txt_tokenized:
     :return:
     """
     cls_freq = {}
+    all_tokens = []
     for col in df.columns[1:]:
         col_series = df.loc[df[col] == 1][df.columns[0]]
         if not txt_tokenized:
             col_series = col_series.apply(tokenizer)
-        all_tokens = []
+
         for tokens in col_series.to_list():
             all_tokens += tokens
+
         cls_freq[col] = Counter(all_tokens)
 
-    return cls_freq
+    return cls_freq, set(all_tokens)
+
+
+def token_dist2token_labels(cls_freq: dict, vocab_set: list):
+    token_labels = {}
+    for token in vocab_set:
+        l_vec = [0] * len(cls_freq)
+        for cls in cls_freq:
+            freq = cls_freq[cls][token]
+            if freq == 0:
+                freq = 0.001
+            l_vec[cls] = freq
+        token_labels[token] = l_vec
+
+    return token_labels
 
 
 def merge_dicts(*dict_args):
     """ Given any number of dicts, shallow copy and merge into a new dict,
     precedence goes to key value pairs in latter dicts. """
-    result = {}
+    result = OrderedDict()
     for dictionary in dict_args:
         result.update(dictionary)
     return result
