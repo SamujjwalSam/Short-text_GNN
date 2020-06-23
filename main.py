@@ -21,12 +21,13 @@ import torch
 import pandas as pd
 import networkx as nx
 from os.path import join, exists
-from nltk.corpus import brown
+# from nltk.corpus import brown
 from collections import OrderedDict, Counter
 from json import dumps, load
 
 from Utils.utils import count_parameters, logit2label, calculate_performance,\
-    flatten_results, split_df
+    flatten_results, split_df, token_dist, token_dist2token_labels,\
+    token_class_proba
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
 from config import configuration as cfg, platform as plat, username as user
 from File_Handlers.csv_handler import read_tweet_csv
@@ -39,7 +40,9 @@ from Data_Handlers.torchtext_handler import dataset2iter, MultiIterator,\
     split_dataset
 from generate_graph import create_src_tokengraph, create_tgt_tokengraph,\
     get_k_hop_subgraph, generate_sample_subgraphs, plot_graph,\
-    plot_weighted_graph, get_node_features, add_edge_weights, create_tokengraph
+    plot_weighted_graph, get_node_features, add_edge_weights, \
+    create_tokengraph, get_label_vectors
+
 from Layers.GCN_forward import GCN_forward
 from finetune_static_embeddings import glove2dict, get_rareoov, process_data,\
     calculate_cooccurrence_mat, train_model, preprocess_and_find_oov
@@ -50,7 +53,7 @@ from Logger.logger import logger
 
 
 def map_nodetxt2GCNvec(G, node_list, X, return_format='pytorch'):
-    """ Creates a dict from token (node) to it's vectors.
+    """ Creates a dict from token (node_id) to it's vectors.
 
     :param G:
     :param node_list:
@@ -60,9 +63,9 @@ def map_nodetxt2GCNvec(G, node_list, X, return_format='pytorch'):
     """
     GCNvec_dict = OrderedDict()
     stoi_dict = OrderedDict()
-    for i, node in enumerate(node_list):
-        node_txt = G.node[node]['node_txt']
-        stoi_dict[node_txt] = node
+    for i, node_id in enumerate(node_list):
+        node_txt = G.nodes[node_id]['node_txt']
+        stoi_dict[node_txt] = node_id
         if return_format == 'numpy':
             GCNvec_dict[node_txt] = X[i].numpy()
         elif return_format == 'list':
@@ -115,14 +118,14 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
          unlabelled_source_name=cfg["data"]["source"]['unlabelled'],
          # labelled_target_name=cfg["data"]["target"]['labelled'],
          unlabelled_target_name=cfg["data"]["target"]['unlabelled'],
-         mittens_iter=1000, gcn_hops=3, epoch=cfg['sampling']['num_epochs'],
-         num_layers=cfg['lstm_params']['num_layers'],
-         num_hidden_nodes=cfg['lstm_params']['hid_size'],
-         dropout=cfg['model']['dropout'], default_thresh=0.5,
-         lr=cfg['model']['optimizer']['learning_rate'],
+         mittens_iter=1000, gcn_hops=5,
          glove_embs=glove2dict()):
     ## Read source data
     s_lab_df = read_labelled_json(data_dir, labelled_source_name)
+
+    s_lab_df = labels_mapper(s_lab_df)
+    token2label_vec_map = token_class_proba(s_lab_df)
+    # label_vec = token_dist2token_labels(cls_freq, vocab_set)
 
     s_unlab_df = json_keys2df(['text'], json_filename=unlabelled_source_name,
                               dataset_dir=data_dir)
@@ -204,8 +207,9 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
 
     ## Get all OOVs which does not have Glove embedding:
     high_oov_freqs, low_glove_freqs, corpus, corpus_toks =\
-        preprocess_and_find_oov((S_dataset, T_dataset), c_vocab,
-                                glove_embs=glove_embs, )
+        preprocess_and_find_oov(
+            (S_dataset, T_dataset), c_vocab, glove_embs=glove_embs,
+            labelled_vocab_set=set(token2label_vec_map.keys()))
 
     # ## Create token graph G using source data:
     # G = create_src_tokengraph(corpus_toks[0], S_vocab)
@@ -219,7 +223,6 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
 
     ## Create new embeddings for OOV tokens:
     oov_filename = labelled_source_name + '_OOV_vectors_dict'
-
     if exists(join(data_dir, oov_filename + '.pkl')):
         oov_embs = load_pickle(pkl_file_path=data_dir,
                                pkl_file_name=oov_filename)
@@ -253,8 +256,12 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     node_list = G.nodes
     adj = nx.adjacency_matrix(G, nodelist=node_list, weight='weight')
     # adj_np = nx.to_numpy_matrix(G)
+
+    X_labels = get_label_vectors(node_list, token2label_vec_map)
+    X_labels_hat = GCN_forward(adj, X_labels, forward=gcn_hops)
+
     X = get_node_features(glove_embs, oov_embs, c_vocab['idx2str_list'],
-                          G.nodes)
+                          node_list)
     X_hat = GCN_forward(adj, X, forward=gcn_hops)
 
     ## Create text to GCN forward vectors:
@@ -268,10 +275,6 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # user],
     #            glove_file='oov_glove.txt')
 
-    result = classify(stoi=s2i_dict, vectors=X_hat, epoch=epoch,
-                      num_layers=num_layers, dropout=dropout, lr=lr,
-                      num_hidden_nodes=num_hidden_nodes, )
-
     ## Construct tweet subgraph:
     # S_iter, T_iter = dataset2iter((S_dataset, T_dataset), batch_size=1)
     # txts_subgraphs = generate_sample_subgraphs(s_lab_df.text.to_list(), G=G)
@@ -279,8 +282,7 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # print(txts_subgraphs[0].nodes)
     # plot_graph(txts_subgraphs[0])
 
-    logger.info("Execution complete.")
-    return result
+    return s2i_dict, X_hat
 
 
 n_classes = 4
@@ -296,7 +298,8 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
              num_hidden_nodes=cfg['lstm_params']['hid_size'],
              dropout=cfg['model']['dropout'], default_thresh=0.5,
              lr=cfg['model']['optimizer']['learning_rate'],
-             train_batch_size=128, ):
+             train_batch_size=128,
+             ):
     ## Prepare labelled source data:
     if train_df is None:
         train_df = read_labelled_json(data_dir, train_filename)
@@ -307,19 +310,19 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
     if stoi is None:
         logger.critical('simple GLOVE features')
         train_dataset, (train_fields, train_label) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=train_data_name, min_freq=2,
+            csv_dir=data_dir, csv_file=train_data_name, min_freq=1,
             labelled_data=True)
     else:
         logger.critical('GCN features')
         train_dataset, (train_fields, train_label) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=train_data_name, min_freq=2,
+            csv_dir=data_dir, csv_file=train_data_name, min_freq=1,
             labelled_data=True, embedding_file=None,
             embedding_dir=None)
         train_fields.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
 
     ## Plot representations:
-    plot_features_tsne(train_fields.vocab.vectors,
-                       list(train_fields.vocab.stoi.keys()))
+    # plot_features_tsne(train_fields.vocab.vectors,
+    #                    list(train_fields.vocab.stoi.keys()))
 
     ## Prepare labelled target data:
     if test_df is None:
@@ -361,7 +364,8 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
     model_best, val_preds_trues_best, val_preds_trues_all, losses = trainer(
         model, train_iter, val_iter, N_EPOCHS=epoch, lr=lr)
 
-    plot_training_loss(losses['train'], losses['val'])
+    plot_training_loss(losses['train'], losses['val'],
+                       plot_name='loss'+str(epoch) + str(lr))
 
     if cls_thresh is None:
         cls_thresh = [default_thresh] * n_classes
@@ -373,9 +377,11 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
     result = calculate_performance(val_preds_trues_best['trues'].numpy(),
                                    predicted_labels)
 
-    result_df = flatten_results(result)
-    result_df.round(decimals=4).to_csv(
-        join(data_dir, test_filename + '_results.csv'))
+    logger.info("Result: {}".format(dumps(result, indent=4)))
+
+    # result_df = flatten_results(result)
+    # result_df.round(decimals=4).to_csv(
+    #     join(data_dir, test_filename + '_results.csv'))
 
     return result
 
@@ -420,10 +426,39 @@ def save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
 
 if __name__ == "__main__":
     df = read_labelled_json()
-    train, test = split_target(df)
-    result = classify(train, test)
+    cls_freqs = token_class_proba(df)
+    # label_vec = token_dist2token_labels(cls_freq, vocab_set)
+    #
+
+    # glove_embs = glove2dict()
+    # # df = labels_mapper(df)
+    # train_portions = [0.2, 0.5, 1.0]
+    # final_result = []
+    # for train_portion in train_portions:
+    #     s2i_dict, X_hat = main(glove_embs=glove_embs)
+    #
+    #     train, test = split_target(df, test_size=0.3, train_size=train_portion)
+    #
+    #     GCN_result = classify(test_df=test, stoi=s2i_dict, vectors=X_hat,
+    #                           lr=1e-5, dropout=0.5)
+    #
+    #     glove_result = classify(train_df=train, test_df=test)
+    #
+    #     params = {
+    #         'train_portion': train_portion,
+    #     }
+    #     result_dict = {
+    #         'params': params,
+    #         'glove':  glove_result,
+    #         'gcn':    GCN_result
+    #     }
+    #     final_result.append(result_dict)
+    #
+    # logger.info(dumps(final_result, indent=4))
+    #
+    # exit(0)
     # result = load(open('Tweet_GCN_results.json'))
-    flatten_results(result)
+    # flatten_results(result)
     ## TODO:
     # 4. Ways to pretrain GCN:
     #   4.1 Domain classification
@@ -439,55 +474,71 @@ if __name__ == "__main__":
     ## Generate embeddings for OOV tokens:
     glove_embs = glove2dict()
 
-    epochs = [10, 25, 50]
-    layer_sizes = [1, 2, 4]
-    gcn_forward = [2, 5, 10]
+    epochs = [10, 25]
+    layer_sizes = [1, 4]
+    gcn_forward = [2, 6]
     hid_dims = [50, 100]
     dropouts = [0.5]
     lrs = [1e-5, 1e-6]
 
     final_result = []
-    for a in epochs:
-        for b in layer_sizes:
-            for c in gcn_forward:
-                for d in hid_dims:
-                    for e in dropouts:
-                        for f in lrs:
-                            logger.critical(f'Epoch: [{a}], LSTM #layers: '
-                                            f'[{b}], GCN forward: [{c}], Hidden'
-                                            f' dims: [{d}], Dropouts: [{e}], '
-                                            f'Learning Rate: [{f}], ')
-                            params = {
-                                'Epoch':         a,
-                                'LSTM #layers':  b,
-                                'GCN forward':   c,
-                                'Hidden dims':   d,
-                                'Dropouts':      e,
-                                'Learning Rate': f
-                            }
-                            glove_result = classify(epoch=a,
-                                                    num_layers=b,
-                                                    num_hidden_nodes=d,
-                                                    dropout=e,
-                                                    lr=f)
-                            GCN_result = main(  # mittens_iter=20,
-                                gcn_hops=c,
-                                epoch=a,
-                                num_layers=b,
-                                num_hidden_nodes=d,
-                                dropout=e,
-                                lr=f,
-                                glove_embs=glove_embs)
 
-                            result_dict = {
-                                'params': params,
-                                'glove':  glove_result,
-                                'gcn':    GCN_result
-                            }
-                            final_result.append(result_dict)
+    train_portions = [0.2, 0.5, 1.0]
+    for train_portion in train_portions:
+        train, test = split_target(df, test_size=0.3,
+                                   train_size=train_portion)
+        for c in gcn_forward:
+            s2i_dict, X_hat = main(  # mittens_iter=20,
+                gcn_hops=c, glove_embs=glove_embs)
 
-                            logger.info("Result: {}".format(dumps(result_dict,
-                                                                  indent=4)))
+            for a in epochs:
+                for b in layer_sizes:
+                    for d in hid_dims:
+                        for e in dropouts:
+                            for f in lrs:
+                                logger.critical(f'Epoch: [{a}], LSTM #layers: '
+                                                f'[{b}], GCN forward: [{c}], Hidden'
+                                                f' dims: [{d}], Dropouts: [{e}], '
+                                                f'Learning Rate: [{f}], ')
+                                params = {
+                                    'Epoch':         a,
+                                    'LSTM #layers':  b,
+                                    'GCN forward':   c,
+                                    'Hidden dims':   d,
+                                    'Dropouts':      e,
+                                    'Learning Rate': f,
+                                    'train_portion': train_portion,
+                                }
+                                glove_target = classify(
+                                    train_df=train, test_df=test, epoch=a,
+                                    num_layers=b, num_hidden_nodes=d, dropout=e,
+                                    lr=f)
+
+                                glove_source = classify(
+                                    test_df=test, epoch=a, num_hidden_nodes=d,
+                                    num_layers=b, dropout=e, lr=f,)
+
+                                gcn_target = classify(
+                                    train_df=train, test_df=test, stoi=s2i_dict,
+                                    vectors=X_hat, epoch=a, num_hidden_nodes=d,
+                                    num_layers=b, dropout=e, lr=f,)
+
+                                gcn_source = classify(
+                                    test_df=test, stoi=s2i_dict, vectors=X_hat,
+                                    epoch=a, num_hidden_nodes=d, num_layers=b,
+                                    dropout=e, lr=f,)
+
+                                result_dict = {
+                                    'params': params,
+                                    'glove_target':  glove_target,
+                                    'glove_source':  glove_source,
+                                    'gcn_target':    gcn_target,
+                                    'gcn_source':    gcn_source,
+                                }
+                                final_result.append(result_dict)
+
+                                logger.info("Result: {}".format(dumps(
+                                    result_dict, indent=4)))
 
     logger.info("ALL Results: {}".format(dumps(final_result, indent=4)))
 
@@ -509,3 +560,5 @@ if __name__ == "__main__":
     #      num_hidden_nodes=100, dropout=0.2, lr=1e-4)
     # main(mittens_iter=1000, gcn_hops=3, epoch=10, num_layers=2,
     #      num_hidden_nodes=100, dropout=0.2, lr=1e-5)
+
+    logger.info("Execution complete.")
