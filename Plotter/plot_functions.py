@@ -61,14 +61,18 @@ def plot_features_tsne(X, tokens: list = None, limit_view: int = -100):
     plt.show()
 
 
-def plot_training_loss(training_losses: list, val_losses: list):
+def plot_training_loss(training_losses: list, val_losses: list,
+                       plot_name: str='training_loss'):
     """ Plots loss comparison of training and validation.
 
+    :param plot_name:
     :param training_losses:
     :param val_losses:
     """
     # Create count of the number of epochs
     epoch_count = range(1, len(training_losses) + 1)
+
+    fig, ax = plt.subplots()
 
     # Visualize loss history
     plt.plot(epoch_count, training_losses, 'r--')
@@ -77,7 +81,8 @@ def plot_training_loss(training_losses: list, val_losses: list):
     plt.legend(['Training Loss', 'Validation Loss'])
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
-    plt.show()
+    # plt.show()
+    fig.savefig(plot_name+'.pdf', format='pdf', bbox_inches='tight')
 
 
 def calculate_sd():

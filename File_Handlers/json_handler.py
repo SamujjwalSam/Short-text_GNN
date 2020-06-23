@@ -150,11 +150,13 @@ mlb = MultiLabelBinarizer()
 
 
 def read_labelled_json(data_dir=cfg["paths"]["dataset_dir"][plat][user],
-                       filename=cfg["data"]["source"]['labelled'],
+                       filename=cfg["data"]["target"]['labelled'],
                        data_keys=['text', 'classes'], dataname='train',
                        # rename_cols={"parsed_tweet": "text"},
                        ):
     """ Reads json data and converts to DataFrame.
+
+    Default reads labelled target data.
 
     Args:
         data_dir:

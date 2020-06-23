@@ -100,3 +100,13 @@ Problem with tweets are the availability of limited context. To increase context
     - [] 2. Correct Spelling
     - [] 3. Search and replace phone numbers
     - [] 4. Replace numbers with #D
+    
+    
+#### Installing Pytorch_Geometric (CPU only):
+```shell script
+conda install pytorch torchvision cpuonly -c pytorch
+
+pip install torch-scatter==latest+cpu torch-sparse==latest+cpu torch-spline-conv==latest+cpu torch-cluster==latest+cpu -f https://s3.eu-central-1.amazonaws.com/pytorch-geometric.com/whl/torch-1.5.0.html
+
+pip install torch-geometric -f https://s3.eu-central-1.amazonaws.com/pytorch-geometric.com/whl/torch-1.5.0.html
+```
