@@ -86,6 +86,26 @@ def find_numbers(text, replace=True,
     return text, numbers
 
 
+def normalizeToken2(token):
+    tokens = normalizeToken(token).strip().split()
+    cleaned_tokens = str()
+    for token in tokens:
+        ## Remove special characters:
+        token_split = re.sub('[^A-Za-z0-9]+', ' ', token).strip()
+
+        ## Split if str and int are merged:
+        token_clean = re.findall(r'(\w+?)(\d+)', token_split)
+        if token_clean:
+            for t in token_clean:
+                for tt in t:
+                    cleaned_tokens += ' ' + tt
+        else:
+            for token2 in token_split.split():
+                cleaned_tokens += ' ' + token2
+
+    return cleaned_tokens
+
+
 def normalizeToken(token):
     token_lower = token
     # token_lower2, _ = find_numbers(token_lower)
@@ -117,7 +137,7 @@ def normalizeTweet(tweet, tokenizer=TweetTokenizer(), return_tokens=False,
                    lower_case=True, remove_linebreaks=True):
     # tweet2, _ = find_numbers(tweet)
     tokens = tokenizer.tokenize(tweet.replace("’", "'").replace("…", "..."))
-    normTweet = " ".join([normalizeToken(token) for token in tokens])
+    normTweet = " ".join([normalizeToken2(token) for token in tokens])
 
     if lower_case:
         normTweet = normTweet.lower()
@@ -159,7 +179,9 @@ if __name__ == "__main__":
          "-5fd3-11ea-9ce4-5f495366cee6.html?utm_medium=social&utm_source="\
          "twitter&utm_campaign=user-share… via @postandcourier"
 
-    t2 = "Here is a list of some of the groups soliciting donations for relief efforts in #Nepal #earthquake\nhttp://t.co/ujtFuZAiY9\n@SunnyLeone"
+    t2 = "Here is a list of some of the groups soliciting donations for " \
+         "relief efforts in #Nepal " \
+         "#earthquake\nhttp://t.co/ujtFuZAiY9\n@SunnyLeone"
 
     # print(normalizeTweet(t1))
     print(normalizeTweet(t2))
