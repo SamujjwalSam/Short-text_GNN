@@ -20,6 +20,7 @@ __license__     : "This source code is licensed under the MIT-style license
 import torch
 import pandas as pd
 import numpy as np
+from collections import defaultdict
 from functools import partial
 from json import load, loads
 from os.path import join, exists
@@ -172,14 +173,46 @@ def token_dist(df, txt_tokenized=False):
     return cls_freq, set(all_tokens)
 
 
+def token_class_proba(df, normalize=False):
+    """ Returns a dict of most freq tokens per class.
+
+    :param df: Labelled DataFrame ['text', label_1, label_2, ...]
+    :return:
+    """
+    def default_label_vec(n=len(df.columns[1:])):
+        return [0] * n
+
+    token_cls_freq = defaultdict(default_label_vec)
+
+    for i, tweet in df.iterrows():
+        tweet_toks = set(tokenizer(tweet.text))
+        for token in tweet_toks:
+            # token_cls_freq[token] = {}
+            try:
+                token_cls_freq[token]
+            except KeyError:
+                token_cls_freq[token] = [0] * len(tweet[1:])
+            for cls, val in tweet[1:].items():
+                if val == 1:
+                    token_cls_freq[token][cls] += 1
+                    # try:
+                    #     token_cls_freq[token][cls] += 1
+                    # except KeyError:
+                    #     token_cls_freq[token][cls] = 1
+
+    # if normalize:
+    #     for token in token_cls_freq:
+    #
+
+    return token_cls_freq
+
+
 def token_dist2token_labels(cls_freq: dict, vocab_set: list):
     token_labels = {}
     for token in vocab_set:
         l_vec = [0] * len(cls_freq)
         for cls in cls_freq:
             freq = cls_freq[cls][token]
-            if freq == 0:
-                freq = 0.001
             l_vec[cls] = freq
         token_labels[token] = l_vec
 

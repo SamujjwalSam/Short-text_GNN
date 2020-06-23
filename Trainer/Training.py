@@ -180,6 +180,7 @@ def trainer(model, train_iterator, val_iterator, N_EPOCHS=5, optimizer=None,
     model_best = None
     record_train_losses = []
     record_val_losses = []
+    ## TODO: Run epochs till val_loss decreases
     for epoch in range(N_EPOCHS):
         logger.info("=" * 10)
         logger.info("Epoch: [{}]".format(epoch))
