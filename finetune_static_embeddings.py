@@ -14,6 +14,7 @@ __date__        : "07/05/20"
 __last_modified__:
 """
 
+import re
 import csv
 import numpy as np
 import pandas as pd
@@ -49,13 +50,15 @@ def glove2dict(embedding_dir=cfg["paths"]["embedding_dir"][plat][user],
     return embed
 
 
-def preprocess_and_find_oov(datasets: tuple, common_vocab=None,
+def preprocess_and_find_oov(datasets: tuple, common_vocab: dict = None,
                             glove_embs: dict = None, stopwords: list = None,
-                            oov_min_freq: int = 2,
+                            labelled_vocab_set: set = None,
                             ):
     """ Process and prepare data by removing stopwords, finding oovs and
      creating corpus.
 
+    :param labelled_vocab_set: Tokens of labelled data with associate
+    label vecs
     :param datasets:
     :param common_vocab: Vocab generated from all datasets
     :param oov_min_freq: Count of min freq oov token which should be removed
@@ -72,8 +75,8 @@ def preprocess_and_find_oov(datasets: tuple, common_vocab=None,
         glove_embs = glove2dict()
 
     vocab_freq_set = set(common_vocab['freqs'].keys())
-    glove_set = set(glove_embs.keys())
     vocab_s2i_set = set(common_vocab['str2idx_map'].keys())
+    glove_set = set(glove_embs.keys())
 
     ## Tokens without embeddings:
     # oov = vocab_freq_set - glove_set
@@ -89,11 +92,18 @@ def preprocess_and_find_oov(datasets: tuple, common_vocab=None,
     for token in low:
         low_freqs[token] = common_vocab['freqs'][token]
 
-    ## Low freq tokens with embeddings; will be used to create <unk> emb:
+    ## Find OOV from labelled data:
+    labelled_oov = labelled_vocab_set - vocab_s2i_set
+    logger.info(f'Number of labelled OOV tokens (embedding needs to be'
+                f' generated): [{len(labelled_oov)}]')
+
+    ## Low freq tokens with embeddings; will be added back and used to create
+    ## <unk> emb:
     low_glove = low.intersection(glove_set)
-    logger.info(f'Number of low freq tokens with embeddings (should be '
+    logger.info(f'Number of low freq tokens with embeddings (will be '
                 f'added back): [{len(low_glove)}]')
-    ## Add these tokens back to vocab
+
+    ## Add 'low freq with embeddings' tokens back to vocab:
     start_idx = len(common_vocab['str2idx_map'])
     low_glove_freqs = {}
     for token in low_glove:
@@ -101,26 +111,29 @@ def preprocess_and_find_oov(datasets: tuple, common_vocab=None,
         common_vocab['idx2str_list'].append(token)
         start_idx += 1
 
+    ## Update vocab set after adding low freq tokens back:
+    vocab_s2i_set.update(low_glove)
+
     ## Reinitialize low freq set after adding non-oov tokens back:
     ## Low freq tokens without embeddings:
     # low_oov = low - low_glove
-    low_oov = vocab_freq_set - set(common_vocab['str2idx_map'].keys())
+    low_oov = vocab_freq_set - vocab_s2i_set
     logger.info(f'Number of low freq tokens without embeddings: '
                 f'[{len(low_oov)}]')
     low_oov_freqs = {}
     for token in low_oov:
         low_oov_freqs[token] = common_vocab['freqs'][token]
 
-    ## Not low freq but glove OOV:
+    ## High freq but glove OOV:
     high_oov = vocab_s2i_set - glove_set
-    logger.info(f'Number of high freq but glove OOV tokens:'
-                f' [{len(high_oov)}]')
+
+    ## Add labelled oov tokens which does not have embedding:
+    high_oov.update(labelled_oov - low_glove)
+
+    logger.info(f'Number of high freq but OOV tokens: [{len(high_oov)}]')
     high_oov_freqs = {}
     for token in high_oov:
         high_oov_freqs[token] = common_vocab['freqs'][token]
-
-    ## Low freq tokens without embeddings (subset of oov):
-    # low_freq_oov = low_freqs - low_freq_glove
 
     corpus = [[], []]
     corpus_toks = [[], []]
@@ -168,7 +181,7 @@ def process_data(data: list, glove_embs: dict = None,
         glove_embs = glove2dict()
 
     nonstop_tokens = [token for token in data if (token not in
-                                                          stopwords)]
+                                                  stopwords)]
 
     ## Tokens (repeated) not present in glove:
     oov = [token for token in nonstop_tokens if token not in glove_embs.keys()]
