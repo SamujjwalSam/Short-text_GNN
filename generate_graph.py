@@ -38,6 +38,23 @@ def add_edge_weights(G, alpha: float = 0.6):
     return G
 
 
+def get_label_vectors(node_list, token2label_vec_map):
+    """ Fetches label vectors ordered by node_list.
+
+    :param node_list:
+    :param token2label_vec_map: defaultdict of node to label vectors map
+    :return:
+    """
+    X_labels_dict = []
+    for node in node_list:
+        X_labels_dict.append(token2label_vec_map[node])
+
+    ordered_node_embs = np.stack(X_labels_dict)
+    ordered_node_embs = torch.from_numpy(ordered_node_embs)
+
+    return ordered_node_embs
+
+
 def get_node_features(embs, oov_embs, combined_i2s: list, node_list: list):
     """ Generates embeddings in node_list order.
 
