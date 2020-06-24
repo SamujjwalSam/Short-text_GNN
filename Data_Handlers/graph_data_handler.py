@@ -21,11 +21,35 @@ import torch
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
+from torch_geometric import utils as tg_utils
 
 from Logger.logger import logger
 
 
+def netrowkx2geometric(G):
+    G_data = tg_utils.from_networkx(G)
+    return G_data
+
+
+# def calculate_edge_weight(cooccure_dict, alpha: float = 0.6):
+#     c1 = (cooccure_dict['s_pair'] / (G.nodes[edge[0]]['s_co'] + G.nodes[
+#         edge[1]]['s_co'] + 1))
+#     c2 = (cooccure_dict['t_pair'] / (G.nodes[edge[0]]['t_co'] + G.nodes[
+#         edge[1]]['t_co'] + 1))
+#     wt = ((1 - alpha) * c1) + (alpha * c2)
+#
+#     return wt
+
+
 def add_edge_weights(G, alpha: float = 0.6):
+    """ Calculate edge weight from occurrence values.
+
+    Removes occurrence and other attributes.
+
+    :param G:
+    :param alpha:
+    :return:
+    """
     for edge in G.edges:
         cooccure_dict = G.get_edge_data(edge[0], edge[1])
         c1 = (cooccure_dict['s_pair'] / (G.nodes[edge[0]]['s_co'] + G.nodes[
@@ -34,12 +58,13 @@ def add_edge_weights(G, alpha: float = 0.6):
             edge[1]]['t_co'] + 1))
         wt = ((1 - alpha) * c1) + (alpha * c2)
         G[edge[0]][edge[1]]['weight'] = wt
+        ## TODO: remove other attributes after calculating weight:
 
     return G
 
 
 def get_label_vectors(node_list: list, token2label_vec_map: dict,
-                      token_txt2token_id_map: list, n:int = 4):
+                      token_txt2token_id_map: list, n: int = 4):
     """ Fetches label vectors ordered by node_list.
 
     :param node_list:
@@ -50,7 +75,7 @@ def get_label_vectors(node_list: list, token2label_vec_map: dict,
     for node in node_list:
         try:
             ordered_node_embs.append(token2label_vec_map[token_txt2token_id_map[
-            node]])
+                node]])
         except KeyError:
             ordered_node_embs.append([0.001] * n)
 
@@ -278,8 +303,7 @@ def create_tgt_tokengraph(dataset, t_vocab, s_vocab, G: nx.Graph = None,
 
 
 def create_tokengraph(datasets, c_vocab, s_vocab, t_vocab,
-                      G: nx.Graph = None,
-                      window_size: int = 2):
+                      G: nx.Graph = None, window_size: int = 2):
     """ Given a target dataset adds new nodes (occurs only in target domain)
     to existing token Graph. Update t_co count if node already exists.
 
