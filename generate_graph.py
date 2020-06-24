@@ -38,19 +38,24 @@ def add_edge_weights(G, alpha: float = 0.6):
     return G
 
 
-def get_label_vectors(node_list, token2label_vec_map):
+def get_label_vectors(node_list: list, token2label_vec_map: dict,
+                      token_txt2token_id_map: list, n:int = 4):
     """ Fetches label vectors ordered by node_list.
 
     :param node_list:
     :param token2label_vec_map: defaultdict of node to label vectors map
     :return:
     """
-    X_labels_dict = []
+    ordered_node_embs = []
     for node in node_list:
-        X_labels_dict.append(token2label_vec_map[node])
+        try:
+            ordered_node_embs.append(token2label_vec_map[token_txt2token_id_map[
+            node]])
+        except KeyError:
+            ordered_node_embs.append([0.001] * n)
 
-    ordered_node_embs = np.stack(X_labels_dict)
-    ordered_node_embs = torch.from_numpy(ordered_node_embs)
+    ordered_node_embs = np.stack(ordered_node_embs)
+    ordered_node_embs = torch.from_numpy(ordered_node_embs).float()
 
     return ordered_node_embs
 
@@ -77,7 +82,7 @@ def get_node_features(embs, oov_embs, combined_i2s: list, node_list: list):
         ordered_node_embs.append(node_emb)
 
     ordered_node_embs = np.stack(ordered_node_embs)
-    ordered_node_embs = torch.from_numpy(ordered_node_embs)
+    ordered_node_embs = torch.from_numpy(ordered_node_embs).float()
 
     return ordered_node_embs
 

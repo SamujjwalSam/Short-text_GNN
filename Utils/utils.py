@@ -173,17 +173,13 @@ def token_dist(df, txt_tokenized=False):
     return cls_freq, set(all_tokens)
 
 
-def token_class_proba(df, normalize=False):
+def token_class_proba(df, normalize=True):
     """ Returns a dict of most freq tokens per class.
 
     :param df: Labelled DataFrame ['text', label_1, label_2, ...]
     :return:
     """
-    def default_label_vec(n=len(df.columns[1:])):
-        return [0] * n
-
-    token_cls_freq = defaultdict(default_label_vec)
-
+    token_cls_freq = {}
     for i, tweet in df.iterrows():
         tweet_toks = set(tokenizer(tweet.text))
         for token in tweet_toks:
@@ -191,7 +187,7 @@ def token_class_proba(df, normalize=False):
             try:
                 token_cls_freq[token]
             except KeyError:
-                token_cls_freq[token] = [0] * len(tweet[1:])
+                token_cls_freq[token] = [0.0] * len(tweet[1:])
             for cls, val in tweet[1:].items():
                 if val == 1:
                     token_cls_freq[token][cls] += 1
@@ -200,9 +196,12 @@ def token_class_proba(df, normalize=False):
                     # except KeyError:
                     #     token_cls_freq[token][cls] = 1
 
-    # if normalize:
-    #     for token in token_cls_freq:
-    #
+    if normalize:
+        cls_counts = []
+        for cls in df.columns[1:]:
+            cls_counts.append(sum(df[cls]))
+        for token_id, cls_list in token_cls_freq.items():
+            token_cls_freq[token_id] = np.divide(cls_list, cls_counts)
 
     return token_cls_freq
 

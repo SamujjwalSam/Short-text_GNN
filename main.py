@@ -235,6 +235,11 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
         save_pickle(oov_embs, pkl_file_path=data_dir,
                     pkl_file_name=oov_filename, )
 
+    node_list = G.nodes
+
+    X_labels = get_label_vectors(node_list, token2label_vec_map, c_vocab[
+        'idx2str_list'])
+
     # glove_embs = merge_dicts(glove_embs, oov_embs)
 
     ## TODO: Generate <UNK> embedding from low freq tokens:
@@ -253,11 +258,8 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     G = add_edge_weights(G)
 
     ## Get adjacency matrix and node embeddings in same order:
-    node_list = G.nodes
     adj = nx.adjacency_matrix(G, nodelist=node_list, weight='weight')
     # adj_np = nx.to_numpy_matrix(G)
-
-    X_labels = get_label_vectors(node_list, token2label_vec_map)
     X_labels_hat = GCN_forward(adj, X_labels, forward=gcn_hops)
 
     X = get_node_features(glove_embs, oov_embs, c_vocab['idx2str_list'],
@@ -426,7 +428,7 @@ def save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
 
 if __name__ == "__main__":
     df = read_labelled_json()
-    cls_freqs = token_class_proba(df)
+    # cls_freqs = token_class_proba(df)
     # label_vec = token_dist2token_labels(cls_freq, vocab_set)
     #
 
