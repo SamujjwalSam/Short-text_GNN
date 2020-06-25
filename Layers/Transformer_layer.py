@@ -99,6 +99,9 @@ def main(train_df, test_df, n_classes=4,
     :param use_cuda:
     :return:
     """
+    train_df = format_inputs(train_df)
+    test_df = format_inputs(test_df)
+
     ## Create a MultiLabelClassificationModel
     model = MultiLabelClassificationModel(
         model_name, model_type, num_labels=n_classes,

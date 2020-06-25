@@ -31,16 +31,6 @@ def netrowkx2geometric(G):
     return G_data
 
 
-# def calculate_edge_weight(cooccure_dict, alpha: float = 0.6):
-#     c1 = (cooccure_dict['s_pair'] / (G.nodes[edge[0]]['s_co'] + G.nodes[
-#         edge[1]]['s_co'] + 1))
-#     c2 = (cooccure_dict['t_pair'] / (G.nodes[edge[0]]['t_co'] + G.nodes[
-#         edge[1]]['t_co'] + 1))
-#     wt = ((1 - alpha) * c1) + (alpha * c2)
-#
-#     return wt
-
-
 def add_edge_weights(G, alpha: float = 0.6):
     """ Calculate edge weight from occurrence values.
 
@@ -50,15 +40,17 @@ def add_edge_weights(G, alpha: float = 0.6):
     :param alpha:
     :return:
     """
-    for edge in G.edges:
-        cooccure_dict = G.get_edge_data(edge[0], edge[1])
-        c1 = (cooccure_dict['s_pair'] / (G.nodes[edge[0]]['s_co'] + G.nodes[
-            edge[1]]['s_co'] + 1))
-        c2 = (cooccure_dict['t_pair'] / (G.nodes[edge[0]]['t_co'] + G.nodes[
-            edge[1]]['t_co'] + 1))
+    for n1, n2, edge_data in G.edges(data=True):
+        n1_data = G.nodes[n1]
+        n2_data = G.nodes[n2]
+        c1 = (edge_data['s_pair'] / (n1_data['s_co'] + n2_data['s_co'] + 1))
+        c2 = (edge_data['t_pair'] / (n1_data['t_co'] + n2_data['t_co'] + 1))
         wt = ((1 - alpha) * c1) + (alpha * c2)
-        G[edge[0]][edge[1]]['weight'] = wt
-        ## TODO: remove other attributes after calculating weight:
+        edge_data.clear()
+        G[n1][n2]['weight'] = wt
+
+    for n in G.nodes:
+        G.nodes[n].clear()
 
     return G
 
@@ -77,7 +69,7 @@ def get_label_vectors(node_list: list, token2label_vec_map: dict,
             ordered_node_embs.append(token2label_vec_map[token_txt2token_id_map[
                 node]])
         except KeyError:
-            ordered_node_embs.append([0.001] * n)
+            ordered_node_embs.append([0.5] * n)
 
     ordered_node_embs = np.stack(ordered_node_embs)
     ordered_node_embs = torch.from_numpy(ordered_node_embs).float()

@@ -22,33 +22,27 @@ import pandas as pd
 import networkx as nx
 from os.path import join, exists
 # from nltk.corpus import brown
-from collections import OrderedDict, Counter
-from json import dumps, load
+from collections import OrderedDict
+from json import dumps
 
 from Utils.utils import count_parameters, logit2label, calculate_performance,\
-    flatten_results, split_df, token_dist, token_dist2token_labels,\
-    token_class_proba
+    split_df, token_class_proba
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
+from Layers.Transformer_layer import format_inputs
 from config import configuration as cfg, platform as plat, username as user
 from File_Handlers.csv_handler import read_tweet_csv
 from File_Handlers.json_handler import json_keys2df, read_labelled_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
-from tweet_normalizer import normalizeTweet
 from build_corpus_vocab import get_dataset_fields
-from Data_Handlers.torchtext_handler import dataset2iter, MultiIterator,\
-    split_dataset
-from generate_graph import create_src_tokengraph, create_tgt_tokengraph,\
-    get_k_hop_subgraph, generate_sample_subgraphs, plot_graph,\
-    plot_weighted_graph, get_node_features, add_edge_weights, \
+from Data_Handlers.graph_data_handler import get_node_features, add_edge_weights, \
     create_tokengraph, get_label_vectors
 
 from Layers.GCN_forward import GCN_forward
-from finetune_static_embeddings import glove2dict, get_rareoov, process_data,\
-    calculate_cooccurrence_mat, train_model, preprocess_and_find_oov
-from Trainer.Training import trainer, training, predict_with_label
+from finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat, train_model, preprocess_and_find_oov
+from Trainer.Training import trainer, predict_with_label
 from Class_mapper.FIRE16_SMERP17_map import labels_mapper
-from Plotter.plot_functions import plot_features_tsne, plot_training_loss
+from Plotter.plot_functions import plot_training_loss
 from Logger.logger import logger
 
 
@@ -124,6 +118,7 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     s_lab_df = read_labelled_json(data_dir, labelled_source_name)
 
     s_lab_df = labels_mapper(s_lab_df)
+
     token2label_vec_map = token_class_proba(s_lab_df)
     # label_vec = token_dist2token_labels(cls_freq, vocab_set)
 
@@ -218,6 +213,9 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # G, c_i2s = create_tgt_tokengraph(corpus_toks[1], T_vocab, S_vocab, G)
     G = create_tokengraph(corpus_toks, c_vocab, S_vocab, T_vocab)
 
+    ## Calculate edge weights from cooccurrence stats:
+    G = add_edge_weights(G)
+
     logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))
     logger.info("Number of edges in the token graph: [{}]".format(len(G.edges)))
 
@@ -239,6 +237,7 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
 
     X_labels = get_label_vectors(node_list, token2label_vec_map, c_vocab[
         'idx2str_list'])
+    torch.save(X_labels, 'X_labels_05.pt')
 
     # glove_embs = merge_dicts(glove_embs, oov_embs)
 
@@ -254,13 +253,11 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # user],
     #            glove_file='oov_glove.txt')
 
-    ## Calculate edge weights from cooccurrence stats:
-    G = add_edge_weights(G)
-
     ## Get adjacency matrix and node embeddings in same order:
     adj = nx.adjacency_matrix(G, nodelist=node_list, weight='weight')
     # adj_np = nx.to_numpy_matrix(G)
     X_labels_hat = GCN_forward(adj, X_labels, forward=gcn_hops)
+    torch.save(X_labels_hat, 'X_labels_hat_05.pt')
 
     X = get_node_features(glove_embs, oov_embs, c_vocab['idx2str_list'],
                           node_list)
@@ -478,7 +475,7 @@ if __name__ == "__main__":
 
     epochs = [10, 25]
     layer_sizes = [1, 4]
-    gcn_forward = [2, 6]
+    gcn_forward = [6, 2]
     hid_dims = [50, 100]
     dropouts = [0.5]
     lrs = [1e-5, 1e-6]

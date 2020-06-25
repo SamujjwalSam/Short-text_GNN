@@ -45,9 +45,28 @@ configuration = {
         "show_stat":  False
     },
 
+    "transformer":  {
+        "model_name":                  "distilbert",
+        "model_type":
+            "distilbert-base-uncased-distilled-squad",
+        "optimizer_type":              "AdamW",
+        "learning_rate_scheduler":     "linear_warmup",
+        'gradient_accumulation_steps': 1,
+        "adam_epsilon":                1e-8,
+        'warmup_ratio':                0.06,
+        'warmup_steps':                0,
+        "momentum":                    0.9,
+        "dampening":                   0.9,
+        "alpha":                       0.99,
+        "rho":                         0.9,
+        "centered":                    False,
+        "view_grads":                  False,
+        "view_train_precision":        True
+    },
+
     "model":        {
         "num_folds":            5,
-        "max_sequence_length":  100,
+        "max_sequence_length":  200,
         "max_vec_len":          5000,
         "dropout":              0.2,
         "dropout_external":     0.0,
@@ -130,8 +149,9 @@ configuration = {
     },
 
     "paths":        {
-        "result_file":   "result.txt",
+        "result_dir":    "results",
         "log_dir":       "/logs",
+        "cache_dir":     "/cache",
 
         "embedding_dir": {
             "Windows": "D:\\Datasets\\Extreme Classification",
@@ -150,7 +170,7 @@ configuration = {
             "Linux":   {
                 "sam":            "/home/sam/Datasets/disaster_tweets",
                 "cs16resch01001":
-                    "/home/cs16resch01001/datasets/disaster_tweets",
+                                  "/home/cs16resch01001/datasets/disaster_tweets",
                 "cs14resch11001": "/raid/ravi/Datasets/Extreme Classification"
             }
         }
