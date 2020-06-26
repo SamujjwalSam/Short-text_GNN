@@ -108,7 +108,7 @@ def preprocess_and_find_oov(datasets: tuple, common_vocab: dict = None,
     low_glove_freqs = {}
     for token in low_glove:
         common_vocab['str2idx_map'][token] = start_idx
-        common_vocab['idx2str_list'].append(token)
+        common_vocab['idx2str_map'].append(token)
         start_idx += 1
 
     ## Update vocab set after adding low freq tokens back:

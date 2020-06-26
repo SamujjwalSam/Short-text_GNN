@@ -20,33 +20,39 @@ __license__     : "This source code is licensed under the MIT-style license
 import torch
 import pandas as pd
 import networkx as nx
+from os import environ
 from os.path import join, exists
-# from nltk.corpus import brown
 from collections import OrderedDict
 from json import dumps
 
 from Utils.utils import count_parameters, logit2label, calculate_performance,\
     split_df, token_class_proba
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
-from Layers.Transformer_layer import format_inputs
 from config import configuration as cfg, platform as plat, username as user
 from File_Handlers.csv_handler import read_tweet_csv
 from File_Handlers.json_handler import json_keys2df, read_labelled_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
 from build_corpus_vocab import get_dataset_fields
-from Data_Handlers.graph_data_handler import get_node_features, add_edge_weights, \
-    create_tokengraph, get_label_vectors
-
+from Data_Handlers.graph_data_handler import get_node_features,\
+    add_edge_weights, create_tokengraph, get_label_vectors
 from Layers.GCN_forward import GCN_forward
-from finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat, train_model, preprocess_and_find_oov
+from finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
+    train_model, preprocess_and_find_oov
 from Trainer.Training import trainer, predict_with_label
 from Class_mapper.FIRE16_SMERP17_map import labels_mapper
 from Plotter.plot_functions import plot_training_loss
 from Logger.logger import logger
 
+n_classes = 4
 
-def map_nodetxt2GCNvec(G, node_list, X, return_format='pytorch'):
+## Enable multi GPU cuda environment:
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+if torch.cuda.is_available():
+    environ["CUDA_VISIBLE_DEVICES"] = ["0", "1"]
+
+
+def map_nodetxt2GCNvec(G, node_list, X, id2txt_map, return_format='pytorch'):
     """ Creates a dict from token (node_id) to it's vectors.
 
     :param G:
@@ -56,10 +62,11 @@ def map_nodetxt2GCNvec(G, node_list, X, return_format='pytorch'):
     :return:
     """
     GCNvec_dict = OrderedDict()
-    stoi_dict = OrderedDict()
+    # stoi_dict = OrderedDict()
     for i, node_id in enumerate(node_list):
-        node_txt = G.nodes[node_id]['node_txt']
-        stoi_dict[node_txt] = node_id
+        # node_txt = G.nodes[node_id]['node_txt']
+        node_txt = id2txt_map[node_id]
+        # stoi_dict[node_txt] = node_id
         if return_format == 'numpy':
             GCNvec_dict[node_txt] = X[i].numpy()
         elif return_format == 'list':
@@ -69,10 +76,7 @@ def map_nodetxt2GCNvec(G, node_list, X, return_format='pytorch'):
         else:
             raise NotImplementedError(f'Unknown format: [{return_format}].')
 
-    return GCNvec_dict, stoi_dict
-
-
-n_classes = 4
+    return GCNvec_dict  # , stoi_dict
 
 
 def split_target(df=None,
@@ -143,9 +147,9 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
                                                       csv_file=S_data_name, )
 
     S_vocab = {
-        'freqs':        S_fields.vocab.freqs,
-        'str2idx_map':  dict(S_fields.vocab.stoi),
-        'idx2str_list': S_fields.vocab.itos,
+        'freqs':       S_fields.vocab.freqs,
+        'str2idx_map': dict(S_fields.vocab.stoi),
+        'idx2str_map': S_fields.vocab.itos,
     }
 
     # logger.info("Number of tokens in corpus: [{}]".format(len(corpus)))
@@ -169,9 +173,9 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     logger.info("Target vocab size: [{}]".format(len(T_fields.vocab)))
 
     T_vocab = {
-        'freqs':        T_fields.vocab.freqs,
-        'str2idx_map':  dict(T_fields.vocab.stoi),
-        'idx2str_list': T_fields.vocab.itos,
+        'freqs':       T_fields.vocab.freqs,
+        'str2idx_map': dict(T_fields.vocab.stoi),
+        'idx2str_map': T_fields.vocab.itos,
     }
 
     ## Create combined data:
@@ -188,22 +192,22 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     C_dataset, (C_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
                                                       csv_file=c_data_name, )
 
-    c_vocab = {
-        'freqs':        C_fields.vocab.freqs,
-        'str2idx_map':  dict(C_fields.vocab.stoi),
-        'idx2str_list': C_fields.vocab.itos,
+    C_vocab = {
+        'freqs':       C_fields.vocab.freqs,
+        'str2idx_map': dict(C_fields.vocab.stoi),
+        'idx2str_map': C_fields.vocab.itos,
     }
 
     ## Combine S and T vocabs:
-    # c_vocab = get_c_vocab(S_vocab, T_vocab)
+    # C_vocab = get_c_vocab(S_vocab, T_vocab)
     # S_iter, T_iter = dataset2iter((S_dataset, T_dataset), batch_size=1)
     # c_iter = MultiIterator([S_iter, T_iter])
-    logger.info("Combined vocab size: [{}]".format(len(c_vocab['str2idx_map'])))
+    logger.info("Combined vocab size: [{}]".format(len(C_vocab['str2idx_map'])))
 
     ## Get all OOVs which does not have Glove embedding:
     high_oov_freqs, low_glove_freqs, corpus, corpus_toks =\
         preprocess_and_find_oov(
-            (S_dataset, T_dataset), c_vocab, glove_embs=glove_embs,
+            (S_dataset, T_dataset), C_vocab, glove_embs=glove_embs,
             labelled_vocab_set=set(token2label_vec_map.keys()))
 
     # ## Create token graph G using source data:
@@ -211,7 +215,7 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     #
     # ## Add nodes and edges to the token graph generated using source data:
     # G, c_i2s = create_tgt_tokengraph(corpus_toks[1], T_vocab, S_vocab, G)
-    G = create_tokengraph(corpus_toks, c_vocab, S_vocab, T_vocab)
+    G = create_tokengraph(corpus_toks, C_vocab, S_vocab, T_vocab)
 
     ## Calculate edge weights from cooccurrence stats:
     G = add_edge_weights(G)
@@ -235,8 +239,8 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
 
     node_list = G.nodes
 
-    X_labels = get_label_vectors(node_list, token2label_vec_map, c_vocab[
-        'idx2str_list'])
+    X_labels = get_label_vectors(node_list, token2label_vec_map, C_vocab[
+        'idx2str_map'])
     torch.save(X_labels, 'X_labels_05.pt')
 
     # glove_embs = merge_dicts(glove_embs, oov_embs)
@@ -259,12 +263,12 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     X_labels_hat = GCN_forward(adj, X_labels, forward=gcn_hops)
     torch.save(X_labels_hat, 'X_labels_hat_05.pt')
 
-    X = get_node_features(glove_embs, oov_embs, c_vocab['idx2str_list'],
+    X = get_node_features(glove_embs, oov_embs, C_vocab['idx2str_map'],
                           node_list)
     X_hat = GCN_forward(adj, X, forward=gcn_hops)
 
     ## Create text to GCN forward vectors:
-    X_dict, s2i_dict = map_nodetxt2GCNvec(G, node_list, X_hat)
+    # X_dict = map_nodetxt2GCNvec(G, node_list, X_hat, C_vocab['idx2str_map'])
 
     ## Save GCN forwarded vectors for future use:
     # save_pickle(X_dict, pkl_file_name='X_dict.t', pkl_file_path=data_dir)
@@ -281,10 +285,7 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # print(txts_subgraphs[0].nodes)
     # plot_graph(txts_subgraphs[0])
 
-    return s2i_dict, X_hat
-
-
-n_classes = 4
+    return C_vocab['str2idx_map'], X_hat
 
 
 def classify(train_df=None, test_df=None, stoi=None, vectors=None,
@@ -364,16 +365,16 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
         model, train_iter, val_iter, N_EPOCHS=epoch, lr=lr)
 
     plot_training_loss(losses['train'], losses['val'],
-                       plot_name='loss'+str(epoch) + str(lr))
+                       plot_name='loss' + str(epoch) + str(lr))
 
     if cls_thresh is None:
         cls_thresh = [default_thresh] * n_classes
 
     predicted_labels = logit2label(
-        pd.DataFrame(val_preds_trues_best['preds'].numpy()), cls_thresh,
+        pd.DataFrame(val_preds_trues_best['preds'].cpu().numpy()), cls_thresh,
         drop_irrelevant=False)
 
-    result = calculate_performance(val_preds_trues_best['trues'].numpy(),
+    result = calculate_performance(val_preds_trues_best['trues'].cpu().numpy(),
                                    predicted_labels)
 
     logger.info("Result: {}".format(dumps(result, indent=4)))
@@ -436,7 +437,8 @@ if __name__ == "__main__":
     # for train_portion in train_portions:
     #     s2i_dict, X_hat = main(glove_embs=glove_embs)
     #
-    #     train, test = split_target(df, test_size=0.3, train_size=train_portion)
+    #     train, test = split_target(df, test_size=0.3,
+    #     train_size=train_portion)
     #
     #     GCN_result = classify(test_df=test, stoi=s2i_dict, vectors=X_hat,
     #                           lr=1e-5, dropout=0.5)
@@ -496,8 +498,10 @@ if __name__ == "__main__":
                         for e in dropouts:
                             for f in lrs:
                                 logger.critical(f'Epoch: [{a}], LSTM #layers: '
-                                                f'[{b}], GCN forward: [{c}], Hidden'
-                                                f' dims: [{d}], Dropouts: [{e}], '
+                                                f'[{b}], GCN forward: [{c}], '
+                                                f'Hidden'
+                                                f' dims: [{d}], Dropouts: ['
+                                                f'{e}], '
                                                 f'Learning Rate: [{f}], ')
                                 params = {
                                     'Epoch':         a,
@@ -515,24 +519,24 @@ if __name__ == "__main__":
 
                                 glove_source = classify(
                                     test_df=test, epoch=a, num_hidden_nodes=d,
-                                    num_layers=b, dropout=e, lr=f,)
+                                    num_layers=b, dropout=e, lr=f, )
 
                                 gcn_target = classify(
                                     train_df=train, test_df=test, stoi=s2i_dict,
                                     vectors=X_hat, epoch=a, num_hidden_nodes=d,
-                                    num_layers=b, dropout=e, lr=f,)
+                                    num_layers=b, dropout=e, lr=f, )
 
                                 gcn_source = classify(
                                     test_df=test, stoi=s2i_dict, vectors=X_hat,
                                     epoch=a, num_hidden_nodes=d, num_layers=b,
-                                    dropout=e, lr=f,)
+                                    dropout=e, lr=f, )
 
                                 result_dict = {
-                                    'params': params,
-                                    'glove_target':  glove_target,
-                                    'glove_source':  glove_source,
-                                    'gcn_target':    gcn_target,
-                                    'gcn_source':    gcn_source,
+                                    'params':       params,
+                                    'glove_target': glove_target,
+                                    'glove_source': glove_source,
+                                    'gcn_target':   gcn_target,
+                                    'gcn_source':   gcn_source,
                                 }
                                 final_result.append(result_dict)
 

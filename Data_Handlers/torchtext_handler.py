@@ -185,7 +185,7 @@ def create_vocab(dataset, TEXT_field, LABEL_field=None, embedding_file=None,
             TEXT_field.vocab.freqs.most_common(10)))
 
 
-def dataset2iter(datasets: tuple, batch_size=None, batch_sizes=(32, 64, 64),
+def dataset2iter(datasets: tuple, batch_size=None, batch_sizes=(128, 256, 256),
                  shuffle=True):
     """
     Converts DataFrame to TorchText iterator.
@@ -220,7 +220,7 @@ def dataset2iter(datasets: tuple, batch_size=None, batch_sizes=(32, 64, 64),
 
 
 def dataset2bucket_iter(datasets: tuple, batch_size=None,
-                        batch_sizes=(32, 64, 64), ):
+                        batch_sizes=(128, 256, 256), ):
     """
     Converts DataFrame to TorchText iterator.
 

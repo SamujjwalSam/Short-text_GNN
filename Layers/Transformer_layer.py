@@ -24,6 +24,7 @@ from os.path import join
 from json import dumps, dump
 
 from simpletransformers.classification import MultiLabelClassificationModel
+from simpletransformers.classification import ClassificationArgs
 
 from config import configuration as cfg, platform as plat, username as user
 from Utils.utils import calculate_performance
@@ -102,42 +103,38 @@ def main(train_df, test_df, n_classes=4,
     train_df = format_inputs(train_df)
     test_df = format_inputs(test_df)
 
+    ## Add arguments:
+    model_args = ClassificationArgs()
+    model_args.num_train_epochs = num_epoch
+    model_args.learning_rate = cfg['transformer']['learning_rate']
+    model_args.output_dir = cfg['paths']['result_dir'],
+    model_args.cache_dir = cfg['paths']['cache_dir'],
+    model_args.fp16 = False,
+    model_args.fp16_opt_level = 'O1',
+    model_args.max_seq_length = cfg['model']['max_seq_len'],
+    model_args.weight_decay = cfg['transformer']['weight_decay'],
+    model_args.learning_rate = cfg['transformer']['learning_rate'],
+    model_args.adam_epsilon = cfg['transformer']['adam_epsilon'],
+    model_args.warmup_ratio = cfg['transformer']['warmup_ratio'],
+    model_args.warmup_steps = cfg['transformer']['warmup_steps'],
+    model_args.max_grad_norm = cfg['transformer']['max_grad_norm'],
+    model_args.train_batch_size = cfg['sampling']['train_batch_size'],
+    model_args.gradient_accumulation_steps = cfg['model'][
+                                                 'gradient_accumulation_steps'],
+    model_args.eval_batch_size = cfg['sampling']['eval_batch_size'],
+    model_args.num_train_epochs = num_epoch,
+    model_args.evaluate_during_training = False,
+    model_args.evaluate_during_training_steps = 3000,
+    model_args.save_steps = 10000,
+    model_args.overwrite_output_dir = True,
+    model_args.reprocess_input_data = True,
+    model_args.n_gpu = 2,
+    model_args.threshold = 0.5
+
     ## Create a MultiLabelClassificationModel
     model = MultiLabelClassificationModel(
-        model_name, model_type, num_labels=n_classes,
-        args={
-            'output_dir':                     cfg['paths']['result_dir'],
-            'cache_dir':                      cfg['paths']['cache_dir'],
-            'fp16':                           False,
-            'fp16_opt_level':                 'O1',
-            'max_seq_length':                 cfg['model']['max_seq_len'],
-            'weight_decay':                   cfg['transformer'][
-                                                  'weight_decay'],
-            'learning_rate':                  cfg['transformer'][
-                                                  'learning_rate'],
-            'adam_epsilon':                   cfg['transformer'][
-                                                  'adam_epsilon'],
-            'warmup_ratio':                   cfg['transformer'][
-                                                  'warmup_ratio'],
-            'warmup_steps':                   cfg['transformer'][
-                                                  'warmup_steps'],
-            'max_grad_norm':                  cfg['transformer'][
-                                                  'max_grad_norm'],
-            'train_batch_size':               cfg['sampling'][
-                                                  'train_batch_size'],
-            'gradient_accumulation_steps':    cfg['model'][
-                                                  'gradient_accumulation_steps'],
-            'eval_batch_size':                cfg['sampling'][
-                                                  'eval_batch_size'],
-            'num_train_epochs':               num_epoch,
-            'evaluate_during_training':       False,
-            'evaluate_during_training_steps': 3000,
-            'save_steps':                     10000,
-            'overwrite_output_dir':           True,
-            'reprocess_input_data':           True,
-            'n_gpu':                          1,
-            'threshold':                      0.5
-        }, use_cuda=use_cuda)
+        model_name, model_type, num_labels=n_classes, args=model_args,
+        use_cuda=use_cuda)
 
     ## Train the model
     start_time = timeit.default_timer()

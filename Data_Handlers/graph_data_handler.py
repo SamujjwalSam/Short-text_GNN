@@ -69,7 +69,7 @@ def get_label_vectors(node_list: list, token2label_vec_map: dict,
             ordered_node_embs.append(token2label_vec_map[token_txt2token_id_map[
                 node]])
         except KeyError:
-            ordered_node_embs.append([0.5] * n)
+            ordered_node_embs.append([1.0] * n)
 
     ordered_node_embs = np.stack(ordered_node_embs)
     ordered_node_embs = torch.from_numpy(ordered_node_embs).float()
@@ -235,7 +235,7 @@ def create_tgt_tokengraph(dataset, t_vocab, s_vocab, G: nx.Graph = None,
                                   'create G.')
 
     combined_s2i = s_vocab['str2idx_map']
-    combined_i2s = s_vocab['idx2str_list']
+    combined_i2s = s_vocab['idx2str_map']
     t_idx_start = len(s_vocab['str2idx_map']) + 1
     ## Add token's id (from s_vocab) as node id to the graph
     for token_str, token_id in t_vocab['str2idx_map'].items():

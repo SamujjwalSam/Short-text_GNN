@@ -121,8 +121,8 @@ configuration = {
     "sampling":     {
         "num_epochs":            20,
         "num_train_epoch":       5,
-        "train_batch_size":      32,
-        "eval_batch_size":       64,
+        "train_batch_size":      128,
+        "eval_batch_size":       256,
         "categories_per_batch":  2,
         "supports_per_category": 2,
         "targets_per_category":  2
@@ -158,6 +158,7 @@ configuration = {
             "OSX":     "/home/cs16resch01001/datasets/Extreme Classification",
             "Linux":   {
                 "sam":            "/home/sam/Embeddings",
+                "cs14mtech11017": "/home/cs14mtech11017/Embeddings",
                 "cs16resch01001": "/home/cs16resch01001/Embeddings",
                 ## Code path: /home/cs14resch11001/codes/MNXC
                 "cs14resch11001": "/raid/ravi/pretrain"
@@ -169,8 +170,8 @@ configuration = {
             "OSX":     "/home/cs16resch01001/datasets/Extreme Classification",
             "Linux":   {
                 "sam":            "/home/sam/Datasets/disaster_tweets",
-                "cs16resch01001":
-                                  "/home/cs16resch01001/datasets/disaster_tweets",
+                "cs14mtech11017": "/home/cs14mtech11017/Datasets/disaster_tweets",
+                "cs16resch01001": "/home/cs16resch01001/datasets/disaster_tweets",
                 "cs14resch11001": "/raid/ravi/Datasets/Extreme Classification"
             }
         }
