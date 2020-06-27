@@ -31,6 +31,9 @@ from Utils.utils import calculate_performance
 from Logger.logger import logger
 
 
+## TODO: Add hyperparam optimization using WandB.
+
+
 def format_inputs(df: pd.core.frame.DataFrame):
     """ Converts the input to proper format for simpletransformer.
 

@@ -24,6 +24,12 @@ import numpy as np
 import scipy.sparse as sp
 from torch_geometric.nn import GCNConv
 from torch_geometric.data import Data
+from torch_geometric import utils as tg_utils
+
+
+def netrowkx2geometric(G):
+    G_data = tg_utils.from_networkx(G)
+    return G_data
 
 
 def sp_sparse2torch_sparse(M):
@@ -74,14 +80,15 @@ def GCN_forward(adj, X, forward=2):
     return X
 
 
-class GCN_Net_multi(torch.nn.Module):
+class GCN_Net_multi_linear(torch.nn.Module):
+    """ Multiple (param) GCN layers. """
     def __init__(self, num_node_features, hid_dim, num_classes,
                  num_gcn_layers=2):
-        super(GCN_Net_multi, self).__init__()
+        super(GCN_Net_multi_linear, self).__init__()
         self.gcn_start = GCNConv(num_node_features, hid_dim)
 
         self.gcn_layers = []
-        for _ in range(num_gcn_layers - 1):
+        for _ in range(num_gcn_layers - 2):
             self.gcn_layers.append(GCNConv(hid_dim, hid_dim))
         self.gcn_layers = ModuleList(self.gcn_layers)
 
@@ -89,6 +96,10 @@ class GCN_Net_multi(torch.nn.Module):
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
+        if x.dtype == torch.float64:
+            x = x.float()
+        else:
+            x = x
 
         x = self.gcn_start(x, edge_index)
         x = F.relu(x)
@@ -111,6 +122,10 @@ class GCN_Net(torch.nn.Module):
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
+        if x.dtype == torch.float64:
+            x = x.float()
+        else:
+            x = x
         x = self.conv1(x, edge_index)
         x = F.relu(x)
         x = F.dropout(x, training=self.training)
@@ -129,17 +144,19 @@ def main():
         Read Only
     :return:
     """
+    import networkx as nx
+    G_k = nx.path_graph(5)
+    for i in range(5):
+        G_k.nodes[i]['x'] = np.random.rand(7,)
+    G_k_data = netrowkx2geometric(G_k)
 
-    gcn_net = GCN_Net_multi(100, 50, 2)
+    print(G_k_data.x)
+    print(G_k_data.edge_index)
 
-    edge_index = torch.tensor([[0, 1, 1, 2],
-                               [1, 0, 2, 1]], dtype=torch.long)
-    x = torch.rand((20, 100), dtype=torch.float)
+    gcn_net = GCN_Net_multi_linear(num_node_features=7, hid_dim=5,
+                                   num_classes=2, num_gcn_layers=2)
 
-    data = Data(x=x, edge_index=edge_index)
-    print(data)
-
-    output = gcn_net(data)
+    output = gcn_net(G_k_data)
     print(output)
 
 

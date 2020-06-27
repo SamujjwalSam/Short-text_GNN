@@ -26,11 +26,6 @@ from torch_geometric import utils as tg_utils
 from Logger.logger import logger
 
 
-def netrowkx2geometric(G):
-    G_data = tg_utils.from_networkx(G)
-    return G_data
-
-
 def add_edge_weights(G, alpha: float = 0.6):
     """ Calculate edge weight from occurrence values.
 
@@ -127,10 +122,19 @@ def plot_weighted_graph(G, val=2):
     plt.show()
 
 
-def plot_graph(G: nx.Graph, plot_name='H.png'):
+def plot_graph(G: nx.Graph, plot_name: str = 'H.png', labels: dict = None):
+    """ Plots a networkx graph.
+
+    :param G:
+    :param plot_name:
+    :param labels: Node labels map from id to text.
+    """
     plt.subplot(121)
     # labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
-    nx.draw(G, with_labels=True, font_weight='bold')
+    if labels:
+        nx.draw(G, labels=labels, with_labels=True, font_weight='bold')
+    else:
+        nx.draw(G, with_labels=True, font_weight='bold')
     # plt.subplot(122)
     # nx.draw_shell(G, with_labels=True, font_weight='bold')
     # plt.show()

@@ -36,7 +36,7 @@ from Data_Handlers.torchtext_handler import dataset2bucket_iter
 from build_corpus_vocab import get_dataset_fields
 from Data_Handlers.graph_data_handler import get_node_features,\
     add_edge_weights, create_tokengraph, get_label_vectors
-from Layers.GCN_forward import GCN_forward
+from Layers.GCN_forward import GCN_forward, netrowkx2geometric
 from finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
     train_model, preprocess_and_find_oov
 from Trainer.Training import trainer, predict_with_label
@@ -49,7 +49,7 @@ n_classes = 4
 ## Enable multi GPU cuda environment:
 # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if torch.cuda.is_available():
-    environ["CUDA_VISIBLE_DEVICES"] = ["0", "1"]
+    environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 
 
 def map_nodetxt2GCNvec(G, node_list, X, id2txt_map, return_format='pytorch'):
