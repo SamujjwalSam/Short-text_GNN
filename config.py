@@ -45,23 +45,43 @@ configuration = {
         "show_stat":  False
     },
 
-    "transformer":  {
-        "model_name":                  "distilbert",
-        "model_type":
-            "distilbert-base-uncased-distilled-squad",
-        "optimizer_type":              "AdamW",
-        "learning_rate_scheduler":     "linear_warmup",
+    "transformer":        {
+        "model_type":           "distilbert",
+        "model_name":           "distilbert-base-uncased-distilled-squad",
+        "num_folds":            5,
+        "max_seq_len":          128,
         'gradient_accumulation_steps': 1,
-        "adam_epsilon":                1e-8,
-        'warmup_ratio':                0.06,
-        'warmup_steps':                0,
-        "momentum":                    0.9,
-        "dampening":                   0.9,
-        "alpha":                       0.99,
-        "rho":                         0.9,
-        "centered":                    False,
-        "view_grads":                  False,
-        "view_train_precision":        True
+        "max_vec_len":          5000,
+        "dropout":              0.1,
+        "dropout_external":     0.0,
+        "clipnorm":             1.0,
+        "data_slice":           5120,
+        "use_cuda":             True,
+        "normalize_inputs":     False,
+        "kernel_size":          1,
+        "stride":               1,
+        "padding":              1,
+        "context":              10,
+        "classify_count":       0,
+        "fce":                  True,
+        "optimizer":            {
+            "optimizer_type": "AdamW",
+            "learning_rate_scheduler":  "linear_warmup",
+            "learning_rate":  5e-5,
+            "lr_decay":       0,
+            "weight_decay":   0,
+            "max_grad_norm":  1.0,
+            "adam_epsilon":   1e-8,
+            'warmup_ratio':   0.06,
+            'warmup_steps':   0,
+            "momentum":       0.9,
+            "dampening":      0.9,
+            "alpha":          0.99,
+            "rho":            0.9,
+            "centered":       False
+        },
+        "view_grads":           False,
+        "view_train_precision": True
     },
 
     "model":        {
@@ -74,7 +94,7 @@ configuration = {
         "data_slice":           5120,
 
         "g_encoder":            "cnn",
-        "use_cuda":             False,
+        "use_cuda":             True,
         "normalize_inputs":     False,
         "tfidf_avg":            False,
         "kernel_size":          1,
@@ -120,7 +140,7 @@ configuration = {
 
     "sampling":     {
         "num_epochs":            20,
-        "num_train_epoch":       5,
+        "num_train_epoch":       20,
         "train_batch_size":      128,
         "eval_batch_size":       256,
         "categories_per_batch":  2,
@@ -150,8 +170,8 @@ configuration = {
 
     "paths":        {
         "result_dir":    "results",
-        "log_dir":       "/logs",
-        "cache_dir":     "/cache",
+        "log_dir":       "logs",
+        "cache_dir":     "cache",
 
         "embedding_dir": {
             "Windows": "D:\\Datasets\\Extreme Classification",
