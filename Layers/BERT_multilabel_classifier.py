@@ -36,7 +36,7 @@ from Logger.logger import logger
 ## TODO: Add hyperparam optimization using WandB.
 
 
-def format_inputs(df: pd.core.frame.DataFrame):
+def format_inputs_old(df: pd.core.frame.DataFrame):
     """ Converts the input to proper format for simpletransformer.
 
     """
@@ -46,6 +46,15 @@ def format_inputs(df: pd.core.frame.DataFrame):
         labels.append(row.to_list())
     tf_df['labels'] = pd.Series(labels, index=tf_df.index)
     return tf_df
+
+
+def format_inputs(df: pd.core.frame.DataFrame):
+    """ Converts the input to proper format for simpletransformer.
+
+    """
+    df['labels'] = df[df.columns[1:]].values.tolist()
+    df = df[['text', 'labels']].copy()
+    return df
 
 
 def macro_f1(labels, preds, threshold=0.5):
