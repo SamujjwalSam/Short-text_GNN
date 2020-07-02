@@ -26,6 +26,7 @@ import pandas as pd
 from sklearn import metrics
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, RandomSampler, TensorDataset
 from transformers import AutoModel, AutoTokenizer, BertTokenizer
 from simpletransformers.classification import ClassificationModel
@@ -271,7 +272,7 @@ class BERT_pretrained_simpletransformers(ClassificationModel):
 MAX_LEN = 128
 TRAIN_BATCH_SIZE = 8
 VALID_BATCH_SIZE = 4
-EPOCHS = 1
+EPOCHS = 3
 LEARNING_RATE = 1e-05
 cuda_device = -1
 
@@ -307,40 +308,71 @@ class TransformerDataset(Dataset):
 
 ## Creating model, by adding a dropout and a linear (dense) layer on top of transformer to get final model:
 class TransformerClassifier(torch.nn.Module):
-    def __init__(self, model_name='distilbert-base-uncased-distilled-squad', num_layers=1, dropout=0.3, hid_size=768,
-                 out_size=4, return_tokens_emb=False):
+    def __init__(self, model_name='distilbert-base-uncased-distilled-squad', num_layers=2, dropout=0.3, hid_size=768,
+                 out_size=4, pool_output=False):
         super(TransformerClassifier, self).__init__()
-        self.return_tokens_emb = return_tokens_emb
+        self.model_name = model_name
+        self.pool_output = pool_output
         self.transformer = AutoModel.from_pretrained(model_name)
 
         ## Add multiple layers based on param [num_layers]:
         self.dropout = torch.nn.Dropout(dropout)
-        self.classifier = torch.nn.Linear(hid_size, out_size)
+        self.pre_classifier = nn.Linear(hid_size, hid_size)
 
-    def forward(self, ids, mask, token_type_ids):
+        self.linear_layers = []
+        for _ in range(num_layers - 2):
+            self.linear_layers.append(nn.Linear(hid_size, hid_size))
+        self.linear_layers = nn.ModuleList(self.linear_layers)
+
+        self.classifier = nn.Linear(hid_size, out_size)
+
+        # self.init_weights()
+
+    def forward(self, input_ids=None, attention_mask=None, head_mask=None, inputs_embeds=None, token_type_ids=None, pool_output=None):
+        ## Recheck if pooled output to be taken:
+        self.pool_output = pool_output if pool_output is not None else self.pool_output
+
+        if self.model_name.startswith('bert'):
+            _, transformer_output = self.transformer(input_ids=input_ids, attention_mask=attention_mask,
+                                                     token_type_ids=token_type_ids)
+        elif self.model_name.startswith('distilbert'):
+            transformer_output = self.transformer(input_ids=input_ids, attention_mask=attention_mask,
+                                                  head_mask=head_mask)  # (bs, seq_len, dim)
+        else:
+            raise NotImplementedError(f'Unknown model: [{self.model_name}]')
+
+        outputs = transformer_output[0]
+
         ## Use pooled (sentence) output instead of token embeddings:
-        _, transformer_output = self.transformer(ids, attention_mask=mask,
-                                                 ## TODO: DistilBERT does not support [token_type_ids]
-                                                 token_type_ids=token_type_ids
-                                                 )
-        outputs = self.dropout(transformer_output)
+        if pool_output:
+            outputs = outputs[:, 0]  # (bs, dim)
+        outputs = F.relu(outputs)
+        outputs = self.dropout(outputs)
+        outputs = self.pre_classifier(outputs)
+
+        for layer in self.linear_layers:
+            outputs = layer(outputs)
+            outputs = F.relu(outputs)
+            outputs = F.dropout(outputs, training=self.training)
+
         outputs = self.classifier(outputs)
 
         ## Add hidden states and attention if they are here
-        outputs = (outputs,) + transformer_output[2:]
+        outputs = (outputs,) + transformer_output[1:]
         return outputs
 
 
 class TransformerPretrain():
-    def __init__(self, MODEL_NAME="distilbert-base-uncased-distilled-squad", train_df=None, test_df=None, n_gpu=2, use_cuda=True, seed=42):
+    def __init__(self, MODEL_NAME="distilbert-base-uncased-distilled-squad", train_df=None, test_df=None, n_gpu=2,
+                 use_cuda=True, seed=42):
         self.seed = seed
 
         if self.seed:
-            random.seed(seed)
-            np.random.seed(seed)
-            torch.manual_seed(seed)
+            random.seed(self.seed)
+            np.random.seed(self.seed)
+            torch.manual_seed(self.seed)
             if n_gpu > 0 and torch.cuda.is_available():
-                torch.cuda.manual_seed_all(seed)
+                torch.cuda.manual_seed_all(self.seed)
 
         if use_cuda:
             if torch.cuda.is_available():
@@ -416,26 +448,38 @@ class TransformerPretrain():
         logger.info("TEST Dataset: {}".format(test_df.shape))
         return train_df, test_df
 
-    def train(self, epoch):
+    def train(self):
         self.model.to(device)
         self.model.train()
+        epoch_loss = 0
+        stores = {'preds': [], 'trues': [], 'ids': []}
         for _, data in enumerate(self.train_loader, 0):
             ids = data['ids'].to(device, dtype=torch.long)
             mask = data['mask'].to(device, dtype=torch.long)
             token_type_ids = data['token_type_ids'].to(device, dtype=torch.long)
             targets = data['targets'].to(device, dtype=torch.float)
 
-            outputs = self.model(ids, mask, token_type_ids)
-            # outputs = self.model(ids, mask)
+            ## Set pool_output = True for classification:
+            outputs = self.model(ids, mask, token_type_ids=token_type_ids, pool_output=True)
 
             self.optimizer.zero_grad()
-            loss = self.loss_fn(outputs, targets)
-            if _ % 5 == 0:
-                logger.info(f'Epoch: {epoch}, Loss:  {loss.item()}')
+            loss = self.loss_fn(outputs[0], targets)
+
+            stores['preds'].append(outputs[0])
+            stores['trues'].append(targets)
+
+            if _ % 20 == 0:
+                logger.info(f'Batch: {_}, Loss:  {loss.item()}')
 
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
+            epoch_loss += loss.item()
+
+        stores['preds'] = torch.cat(stores['preds'])
+        stores['trues'] = torch.cat(stores['trues'])
+        # stores['ids'] = torch.cat(stores['ids'])
+        return epoch_loss / len(self.train_loader), stores  # , epoch_acc / len(iterator)
 
     def validation(self):
         self.model.eval()
@@ -469,7 +513,8 @@ class TransformerPretrain():
 
     def train_model(self):
         for epoch in range(EPOCHS):
-            self.train(epoch)
+            epoch_loss, stores = self.train()
+            logger.info(f'Epoch: {epoch}, Loss:  {epoch_loss}')
 
         # for input in dataset:
         #     outputs, pooled = self.model(input)
@@ -488,7 +533,6 @@ class TransformerPretrain():
 
 
 if __name__ == "__main__":
-
     pretrain_model = TransformerPretrain(use_cuda=False)
     pretrain_model.train_model()
 

@@ -18,6 +18,7 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import torch
+import argparse
 import pandas as pd
 import networkx as nx
 from os import environ
@@ -28,7 +29,6 @@ from json import dumps
 from Utils.utils import count_parameters, logit2label, calculate_performance,\
     split_df, token_class_proba
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
-from config import configuration as cfg, platform as plat, username as user
 from File_Handlers.csv_handler import read_tweet_csv
 from File_Handlers.json_handler import json_keys2df, read_labelled_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
@@ -37,11 +37,13 @@ from build_corpus_vocab import get_dataset_fields
 from Data_Handlers.graph_data_handler import get_node_features,\
     add_edge_weights, create_tokengraph, get_label_vectors
 from Layers.GCN_forward import GCN_forward, netrowkx2geometric
+from Layers.BERT_multilabel_classifier import BERT_classifier
 from finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
     train_model, preprocess_and_find_oov
 from Trainer.Training import trainer, predict_with_label
 from Class_mapper.FIRE16_SMERP17_map import labels_mapper
 from Plotter.plot_functions import plot_training_loss
+from config import configuration as cfg, platform as plat, username as user
 from Logger.logger import logger
 
 n_classes = 4
@@ -50,6 +52,51 @@ n_classes = 4
 # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if torch.cuda.is_available():
     environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
+
+"""
+In [1]: import torch
+
+In [2]: torch.cuda.current_device()
+Out[2]: 0
+
+In [3]: torch.cuda.device(0)
+Out[3]: <torch.cuda.device at 0x7efce0b03be0>
+
+In [4]: torch.cuda.device_count()
+Out[4]: 1
+
+In [5]: torch.cuda.get_device_name(0)
+Out[5]: 'GeForce GTX 950M'
+
+In [6]: torch.cuda.is_available()
+Out[6]: True
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print('Using device:', device)
+print()
+
+#Additional Info when using cuda
+if device.type == 'cuda':
+    print(torch.cuda.get_device_name(0))
+    print('Memory Usage:')
+    print('Allocated:', round(torch.cuda.memory_allocated(0)/1024**3,1), 'GB')
+    print('Cached:   ', round(torch.cuda.memory_cached(0)/1024**3,1), 'GB')
+    
+    
+>>> import platform
+>>> platform.machine()
+'x86'
+>>> platform.version()
+'5.1.2600'
+>>> platform.platform()
+'Windows-XP-5.1.2600-SP2'
+>>> platform.uname()
+('Windows', 'name', 'XP', '5.1.2600', 'x86', 'x86 Family 6 Model 15 Stepping 6, GenuineIntel')
+>>> platform.system()
+'Windows'
+>>> platform.processor()
+'x86 Family 6 Model 15 Stepping 6, GenuineIntel'
+"""
 
 
 def map_nodetxt2GCNvec(G, node_list, X, id2txt_map, return_format='pytorch'):
@@ -425,7 +472,34 @@ def save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
 
 
 if __name__ == "__main__":
-    df = read_labelled_json()
+    parser = argparse.ArgumentParser()
+
+    ## Required parameters
+    parser.add_argument("-d", "--dataset_name",
+                        default=cfg['data']['source']['labelled'], type=str)
+    parser.add_argument("-m", "--model_name",
+                        default=cfg['transformer']['model_name'], type=str)
+    parser.add_argument("-mt", "--model_type",
+                        default=cfg['transformer']['model_type'], type=str)
+    parser.add_argument("-ne", "--num_train_epochs",
+                        default=cfg['sampling']['num_train_epoch'], type=int)
+    parser.add_argument("-c", "--use_cuda",
+                        default=cfg['model']['use_cuda'], action='store_true')
+
+    args = parser.parse_args()
+
+    data_dir = cfg["paths"]["dataset_dir"][plat][user]
+
+    train_df = read_labelled_json(data_dir, args.dataset_name)
+    train_df = labels_mapper(train_df)
+
+    test_df = read_labelled_json(data_dir, cfg['data']['target']['labelled'])
+
+    result, model_outputs = BERT_classifier(
+        train_df=train_df, test_df=test_df, dataset_name=args.dataset_name,
+        model_name=args.model_name, model_type=args.model_type,
+        num_epoch=args.num_train_epochs, use_cuda=True)
+    exit(0)
     # cls_freqs = token_class_proba(df)
     # label_vec = token_dist2token_labels(cls_freq, vocab_set)
     #
