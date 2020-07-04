@@ -42,7 +42,7 @@ def add_edge_weights(G, alpha: float = 0.6):
         c2 = (edge_data['t_pair'] / (n1_data['t_co'] + n2_data['t_co'] + 1))
         wt = ((1 - alpha) * c1) + (alpha * c2)
         edge_data.clear()
-        G[n1][n2]['weight'] = wt
+        G[n1][n2]['edge_weight'] = wt
 
     for n in G.nodes:
         G.nodes[n].clear()
@@ -51,9 +51,13 @@ def add_edge_weights(G, alpha: float = 0.6):
 
 
 def get_label_vectors(node_list: list, token2label_vec_map: dict,
-                      token_txt2token_id_map: list, n: int = 4):
+                      token_txt2token_id_map: list, num_classes: int = 4,
+                      default_fill=0.5):
     """ Fetches label vectors ordered by node_list.
 
+    :param token_txt2token_id_map:
+    :param default_fill:
+    :param num_classes: Number of classes
     :param node_list:
     :param token2label_vec_map: defaultdict of node to label vectors map
     :return:
@@ -64,7 +68,7 @@ def get_label_vectors(node_list: list, token2label_vec_map: dict,
             ordered_node_embs.append(token2label_vec_map[token_txt2token_id_map[
                 node]])
         except KeyError:
-            ordered_node_embs.append([1.0] * n)
+            ordered_node_embs.append([default_fill] * num_classes)
 
     ordered_node_embs = np.stack(ordered_node_embs)
     ordered_node_embs = torch.from_numpy(ordered_node_embs).float()

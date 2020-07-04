@@ -25,9 +25,10 @@ from os import environ
 from os.path import join, exists
 from collections import OrderedDict
 from json import dumps
+from scipy import sparse
 
 from Utils.utils import count_parameters, logit2label, calculate_performance,\
-    split_df, token_class_proba
+    split_df, freq_tokens_per_class, merge_dicts
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
 from File_Handlers.csv_handler import read_tweet_csv
 from File_Handlers.json_handler import json_keys2df, read_labelled_json
@@ -170,7 +171,7 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
 
     s_lab_df = labels_mapper(s_lab_df)
 
-    token2label_vec_map = token_class_proba(s_lab_df)
+    token2label_vec_map = freq_tokens_per_class(s_lab_df)
     # label_vec = token_dist2token_labels(cls_freq, vocab_set)
 
     s_unlab_df = json_keys2df(['text'], json_filename=unlabelled_source_name,
@@ -267,8 +268,8 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     ## Calculate edge weights from cooccurrence stats:
     G = add_edge_weights(G)
 
-    logger.info("Number of nodes in the token graph: [{}]".format(len(G.nodes)))
-    logger.info("Number of edges in the token graph: [{}]".format(len(G.edges)))
+    logger.info("Number of nodes: [{}]".format(len(G.nodes)))
+    logger.info("Number of edges: [{}]".format(len(G.edges)))
 
     ## Create new embeddings for OOV tokens:
     oov_filename = labelled_source_name + '_OOV_vectors_dict'
@@ -284,13 +285,14 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
         save_pickle(oov_embs, pkl_file_path=data_dir,
                     pkl_file_name=oov_filename, )
 
-    node_list = G.nodes
+    node_list = list(G.nodes)
 
-    X_labels = get_label_vectors(node_list, token2label_vec_map, C_vocab[
-        'idx2str_map'])
-    torch.save(X_labels, 'X_labels_05.pt')
+    X_labels = get_label_vectors(node_list, token2label_vec_map,
+                                 token_txt2token_id_map=C_vocab['idx2str_map'],
+                                 default_fill=-1)
+    # torch.save(X_labels, 'X_labels_05.pt')
 
-    # glove_embs = merge_dicts(glove_embs, oov_embs)
+    glove_embs = merge_dicts(glove_embs, oov_embs)
 
     ## TODO: Generate <UNK> embedding from low freq tokens:
     ## Save embedding with OOV tokens:
@@ -305,8 +307,25 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     #            glove_file='oov_glove.txt')
 
     ## Get adjacency matrix and node embeddings in same order:
-    adj = nx.adjacency_matrix(G, nodelist=node_list, weight='weight')
+    adj = nx.adjacency_matrix(G, nodelist=node_list, weight='edge_weight')
     # adj_np = nx.to_numpy_matrix(G)
+    sparse.save_npz("adj.npz", adj)
+
+    from label_propagation import propagate_labels, discretize_labels
+
+    X_labels_discreet_np = discretize_labels(X_labels.numpy().copy())
+
+    X = get_node_features(glove_embs, oov_embs, C_vocab['idx2str_map'],
+                          node_list)
+    propagate_labels(X, X_labels_discreet_np)
+
+    exit(0)
+
+    G_data = netrowkx2geometric(G)
+    print(G_data)
+    print(G_data.weight.dtype)
+    print(G_data.edge_index.dtype)
+
     X_labels_hat = GCN_forward(adj, X_labels, forward=gcn_hops)
     torch.save(X_labels_hat, 'X_labels_hat_05.pt')
 
@@ -472,6 +491,11 @@ def save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
 
 
 if __name__ == "__main__":
+    glove_embs = glove2dict()
+    s2i_dict, X_hat = main(glove_embs=glove_embs)
+
+    exit(0)
+
     parser = argparse.ArgumentParser()
 
     ## Required parameters
@@ -500,7 +524,7 @@ if __name__ == "__main__":
         model_name=args.model_name, model_type=args.model_type,
         num_epoch=args.num_train_epochs, use_cuda=True)
     exit(0)
-    # cls_freqs = token_class_proba(df)
+    # cls_freqs = freq_tokens_per_class(df)
     # label_vec = token_dist2token_labels(cls_freq, vocab_set)
     #
 

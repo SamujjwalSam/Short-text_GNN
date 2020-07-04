@@ -511,7 +511,7 @@ class TransformerPretrain():
 
         return dataset_pt
 
-    def train_model(self):
+    def trainer(self):
         for epoch in range(EPOCHS):
             epoch_loss, stores = self.train()
             logger.info(f'Epoch: {epoch}, Loss:  {epoch_loss}')
@@ -534,7 +534,7 @@ class TransformerPretrain():
 
 if __name__ == "__main__":
     pretrain_model = TransformerPretrain(use_cuda=False)
-    pretrain_model.train_model()
+    pretrain_model.trainer()
 
     # parser = argparse.ArgumentParser()
     #

@@ -173,7 +173,7 @@ def token_dist(df, txt_tokenized=False):
     return cls_freq, set(all_tokens)
 
 
-def token_class_proba(df, normalize=True):
+def freq_tokens_per_class(df, normalize=True):
     """ Returns a dict of most freq tokens per class.
 
     :param df: Labelled DataFrame ['text', label_1, label_2, ...]
