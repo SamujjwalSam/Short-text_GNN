@@ -311,13 +311,13 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # adj_np = nx.to_numpy_matrix(G)
     sparse.save_npz("adj.npz", adj)
 
-    from label_propagation import propagate_labels, discretize_labels
+    from label_propagation import propagate_multilabels, discretize_labels
 
     X_labels_discreet_np = discretize_labels(X_labels.numpy().copy())
 
     X = get_node_features(glove_embs, oov_embs, C_vocab['idx2str_map'],
                           node_list)
-    propagate_labels(X, X_labels_discreet_np)
+    labels_propagated = propagate_multilabels(X, X_labels_discreet_np)
 
     exit(0)
 

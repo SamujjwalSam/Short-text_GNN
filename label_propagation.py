@@ -19,11 +19,11 @@ __license__     : "This source code is licensed under the MIT-style license
 
 import numpy as np
 from scipy import sparse
-from sklearn.semi_supervised import LabelSpreading
+from sklearn.semi_supervised import LabelSpreading, LabelPropagation
 from sklearn.multiclass import OneVsRestClassifier
 
 
-def discretize_labels(x_vectors: np.ndarray, thresh=0.01, k = 2,):
+def discretize_labels(x_vectors: np.ndarray, thresh=0.2, k=2, ):
     """ Converts logit to multi-hot based on threshold per class.
 
     :param x_vectors:
@@ -34,7 +34,7 @@ def discretize_labels(x_vectors: np.ndarray, thresh=0.01, k = 2,):
     """
     # ## value greater than threshold:
     # x_vectors[(x_vectors > 0.0) & (x_vectors <= thresh)] = 0.0
-    # x_vectors[(x_vectors > thresh)] = 1.0
+    x_vectors[(x_vectors > thresh)] = 1.0
     #
     # ## Maximum of each row is 1.:
     # x_vectors = (x_vectors == x_vectors.max(axis=1)[:,None]).astype(
@@ -43,24 +43,31 @@ def discretize_labels(x_vectors: np.ndarray, thresh=0.01, k = 2,):
     ## Top k values of each row:
     for row in x_vectors:
         if row.sum() > 0.:  ## for non -1 rows only
-            # row_tmp = np.argpartition(-row, k)
-            row[np.argpartition(-row, k)[:k]] = 1.
-            row[np.argpartition(-row, k)[k:]] = 0.
+            row_idx = np.argpartition(-row, k)
+            row[row_idx[:k]] = 1.
+            row[row_idx[k:]] = 0.
 
     return x_vectors
 
 
-def construct_graph(input):
+def construct_graph(input1, input2):
     adj = sparse.load_npz("adj.npz")
     return adj
 
 
 def propagate_labels(features, labels, ):
-    label_prop_model = OneVsRestClassifier(LabelSpreading(kernel=construct_graph, n_jobs=-1))
-
+    label_prop_model = LabelSpreading(kernel=construct_graph, n_jobs=-1)
     label_prop_model.fit(features, labels)
-
     preds = label_prop_model.predict(features)
+
+    return preds
+
+
+def propagate_multilabels(features, labels, ):
+    preds = []
+    for i in range(labels.shape[1]):
+        pred = propagate_labels(features, labels[:, i])
+        preds.append(pred)
 
     return preds
 
