@@ -1,5 +1,5 @@
 # coding=utf-8
-# !/usr/bin/python3.6  # Please use python 3.6
+# !/usr/bin/python3.7  # Please use python 3.7
 """
 __synopsis__    : Trains static embeddings like Glove
 __description__ : Useful for oov tokens
@@ -23,7 +23,7 @@ from os.path import join
 from collections import Counter
 from nltk.corpus import brown
 from mittens import Mittens
-from sklearn.feature_extraction import stop_words
+# from sklearn.feature_extraction import stop_words
 from sklearn.feature_extraction.text import CountVectorizer
 
 from config import configuration as cfg, platform as plat, username as user
@@ -53,6 +53,7 @@ def glove2dict(embedding_dir=cfg["paths"]["embedding_dir"][plat][user],
 def preprocess_and_find_oov(datasets: tuple, common_vocab: dict = None,
                             glove_embs: dict = None, stopwords: list = None,
                             labelled_vocab_set: set = None,
+                            special_tokens = {'<unk>', '<pad>'}
                             ):
     """ Process and prepare data by removing stopwords, finding oovs and
      creating corpus.
@@ -69,8 +70,8 @@ def preprocess_and_find_oov(datasets: tuple, common_vocab: dict = None,
     :return:
     """
     ## TODO: Set STOPWORDs' freq = 0 to ignore them.
-    if stopwords is None:
-        stopwords = list(stop_words.ENGLISH_STOP_WORDS)
+    # if stopwords is None:
+    #     stopwords = list(stop_words.ENGLISH_STOP_WORDS)
     if glove_embs is None:
         glove_embs = glove2dict()
 
@@ -124,8 +125,8 @@ def preprocess_and_find_oov(datasets: tuple, common_vocab: dict = None,
     for token in low_oov:
         low_oov_freqs[token] = common_vocab['freqs'][token]
 
-    ## High freq but glove OOV:
-    high_oov = vocab_s2i_set - glove_set
+    ## High freq but glove OOV except special tokens:
+    high_oov = vocab_s2i_set - glove_set - special_tokens
 
     ## Add labelled oov tokens which does not have embedding:
     high_oov.update(labelled_oov - low_glove)
@@ -159,7 +160,7 @@ def preprocess_and_find_oov(datasets: tuple, common_vocab: dict = None,
 
 
 def process_data(data: list, glove_embs: dict = None,
-                 stopwords: list = stop_words.ENGLISH_STOP_WORDS,
+                 # stopwords: list = stop_words.ENGLISH_STOP_WORDS,
                  remove_rare_oov: bool = False):
     """ Process and prepare data by removing stopwords, finding oovs and
      creating corpus.
@@ -175,13 +176,13 @@ def process_data(data: list, glove_embs: dict = None,
     :return:
     """
     ## Tokens other than stopwords:
-    if stopwords is None:
-        stopwords = list(stop_words.ENGLISH_STOP_WORDS)
+    # if stopwords is None:
+    #     stopwords = list(stop_words.ENGLISH_STOP_WORDS)
     if glove_embs is None:
         glove_embs = glove2dict()
 
-    nonstop_tokens = [token for token in data if (token not in
-                                                  stopwords)]
+    # nonstop_tokens = [token for token in data if (token not in stopwords)]
+    nonstop_tokens = [token for token in data]
 
     ## Tokens (repeated) not present in glove:
     oov = [token for token in nonstop_tokens if token not in glove_embs.keys()]
