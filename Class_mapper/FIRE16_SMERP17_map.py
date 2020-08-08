@@ -1,5 +1,5 @@
 # coding=utf-8
-# !/usr/bin/python3.6  # Please use python 3.6
+# !/usr/bin/python3.7  # Please use python 3.7
 """
 __synopsis__    : Maps FIRE16 7 classes to SMERP17 4 classes.
 __description__ : Details and usage.

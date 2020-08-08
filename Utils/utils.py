@@ -1,5 +1,5 @@
 # coding=utf-8
-# !/usr/bin/python3.6  # Please use python 3.6
+# !/usr/bin/python3.7  # Please use python 3.7
 """
 __synopsis__    : Short summary of the script.
 __description__ : Details and usage.
@@ -177,6 +177,7 @@ def freq_tokens_per_class(df, normalize=True):
     """ Returns a dict of most freq tokens per class.
 
     :param df: Labelled DataFrame ['text', label_1, label_2, ...]
+    :param normalize: If values devided by total number of samples of that class
     :return:
     """
     token_cls_freq = {}
@@ -201,7 +202,7 @@ def freq_tokens_per_class(df, normalize=True):
         for cls in df.columns[1:]:
             cls_counts.append(sum(df[cls]))
         for token_id, cls_list in token_cls_freq.items():
-            token_cls_freq[token_id] = np.divide(cls_list, cls_counts)
+            token_cls_freq[token_id] = np.divide(cls_list, cls_counts).tolist()
 
     return token_cls_freq
 

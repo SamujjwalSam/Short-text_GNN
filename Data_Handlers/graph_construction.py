@@ -1,5 +1,5 @@
 # coding=utf-8
-# !/usr/bin/python3.6  # Please use python 3.6
+# !/usr/bin/python3.7  # Please use python 3.7
 """
 __synopsis__    : Generate token graph
 __description__ : Details and usage.
@@ -22,6 +22,7 @@ import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 from torch_geometric import utils as tg_utils
+from networkx.readwrite.gpickle import write_gpickle, read_gpickle
 
 from Logger.logger import logger
 
@@ -90,11 +91,11 @@ def get_node_features(embs, oov_embs, combined_i2s: list, node_list: list):
     oov_embs['<pad>'] = np.zeros(emb_shape)
 
     ordered_node_embs = []
-    for node in node_list:
+    for node_id in node_list:
         try:
-            node_emb = oov_embs[combined_i2s[node]]
+            node_emb = oov_embs[combined_i2s[node_id]]
         except KeyError:
-            node_emb = embs[combined_i2s[node]]
+            node_emb = embs[combined_i2s[node_id]]
         ordered_node_embs.append(node_emb)
 
     ordered_node_embs = np.stack(ordered_node_embs)

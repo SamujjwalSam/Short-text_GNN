@@ -1,5 +1,5 @@
 # coding=utf-8
-# !/usr/bin/python3.6  # Please use python 3.6
+# !/usr/bin/python3.7  # Please use python 3.7
 """
 __synopsis__    : Reads CSV file as DF using pandas.
 __description__ : Details and usage.
@@ -89,13 +89,13 @@ def json_keys2df(data_keys, json_data=None, json_filename=None,
 
 
 def read_json(file_path: str = join(cfg["paths"]["dataset_dir"][plat][
-                                        user], 'acronym.json')) -> OrderedDict:
+                                        user], 'acronym')) -> OrderedDict:
     """ Reads json file as OrderedDict.
 
     :param file_path:
     :return:
     """
-    # file_path = Path(file_path + ".json")
+    file_path = Path(file_path + ".json")
     file_path = Path(file_path)
     logger.info(f"Reading json file [{file_path}].")
 

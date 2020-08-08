@@ -1,5 +1,5 @@
 # coding=utf-8
-# !/usr/bin/python3.6  # Please use python 3.6
+# !/usr/bin/python3.7  # Please use python 3.7
 """
 __synopsis__    : Generate token graph
 __description__ : Details and usage.
@@ -328,7 +328,8 @@ class TransformerClassifier(torch.nn.Module):
 
         # self.init_weights()
 
-    def forward(self, input_ids=None, attention_mask=None, head_mask=None, inputs_embeds=None, token_type_ids=None, pool_output=None):
+    def forward(self, input_ids=None, attention_mask=None, head_mask=None,
+                inputs_embeds=None, token_type_ids=None, pool_output=None):
         ## Recheck if pooled output to be taken:
         self.pool_output = pool_output if pool_output is not None else self.pool_output
 
