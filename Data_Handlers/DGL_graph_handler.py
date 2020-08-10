@@ -1,8 +1,8 @@
 # coding=utf-8
 # !/usr/bin/python3.7  # Please use python 3.7
 """
-__synopsis__    : Generate token graph using DGL library
-__description__ : Details and usage.
+__synopsis__    : Code related to applying GNN from DGL library
+__description__ : DGL node and graph classification
 __project__     : Tweet_GNN_inductive
 __classes__     : Tweet_GNN_inductive
 __variables__   :
@@ -28,9 +28,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-
-def scipy_coo2dgl_graph(adj):
-    G = DGLGraph(adj)
+from Logger.logger import logger
 
 
 def plot_graph(g):
@@ -74,8 +72,36 @@ def train_node_classifier(g, features, labels, labelled_mask, model, loss_func,
 
         dur.append(time.time() - t0)
 
-        print("Epoch {:05d} | Loss {:.4f} | Time(s) {:.4f}".format(
+        logger.info("Epoch {:05d} | Loss {:.4f} | Time(s) {:.4f}".format(
             epoch, loss.item(), np.mean(dur)))
+
+
+def node_binary_classification(hid_feats=4, out_feats=7, num_heads=2):
+    from dgl.data import citation_graph as citegrh
+
+    def load_cora_data():
+        data = citegrh.load_cora()
+        features = torch.FloatTensor(data.features)
+        labels = torch.LongTensor(data.labels)
+        mask = torch.BoolTensor(data.train_mask)
+        g = DGLGraph(data.graph)
+        return g, features, labels, mask
+
+    g, features, labels, mask = load_cora_data()
+
+    net = GATModel(in_dim=features.size(1), hidden_dim=hid_feats,
+                   out_dim=out_feats, num_heads=num_heads)
+    logger.info(net)
+
+    loss_func = F.nll_loss
+
+    optimizer = optim.Adam(net.parameters(), lr=1e-3)
+    train_node_classifier(g, features, labels, labelled_mask=mask, model=net,
+                          loss_func=loss_func, optimizer=optimizer, epochs=5)
+
+
+def test_node_classifier():
+    pass
 
 
 def batch_graphs(samples):
@@ -123,35 +149,15 @@ def train_graph_classifier(model, data_loader, loss_func, optimizer, epochs=5):
             optimizer.step()
             epoch_loss += loss.detach().item()
         epoch_loss /= (iter + 1)
-        print('Epoch {}, loss {:.4f}'.format(epoch, epoch_loss))
+        logger.info('Epoch {}, loss {:.4f}'.format(epoch, epoch_loss))
         epoch_losses.append(epoch_loss)
 
 
-def node_classification(hid_feats=4, out_feats=7, num_heads=2):
-    from dgl.data import citation_graph as citegrh
-
-    def load_cora_data():
-        data = citegrh.load_cora()
-        features = torch.FloatTensor(data.features)
-        labels = torch.LongTensor(data.labels)
-        mask = torch.BoolTensor(data.train_mask)
-        g = DGLGraph(data.graph)
-        return g, features, labels, mask
-
-    g, features, labels, mask = load_cora_data()
-
-    net = GATModel(in_dim=features.size(1), hidden_dim=hid_feats,
-                   out_dim=out_feats, num_heads=num_heads)
-    print(net)
-
-    loss_func = F.nll_loss
-
-    optimizer = optim.Adam(net.parameters(), lr=1e-3)
-    train_node_classifier(g, features, labels, labelled_mask=mask, model=net,
-                          loss_func=loss_func, optimizer=optimizer, epochs=5)
+def test_graph_classifier():
+    pass
 
 
-def graph_classification(in_feats=1, hid_feats=4, num_heads=2):
+def graph_multiclass_classification(in_feats=1, hid_feats=4, num_heads=2):
     from dgl.data import MiniGCDataset
 
     # Create training and test sets.
@@ -165,7 +171,7 @@ def graph_classification(in_feats=1, hid_feats=4, num_heads=2):
     # Create model
     model = GAT_Graph_Classifier(in_feats, hid_feats, num_heads=num_heads,
                                  n_classes=trainset.num_classes)
-    print(model)
+    logger.info(model)
 
     loss_func = torch.nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
@@ -183,11 +189,11 @@ def main():
         Read Only
     :return:
     """
-    ## Graph Classification:
-    graph_classification(in_feats=1, hid_feats=4, num_heads=2)
+    ## Binary Node Classification:
+    node_binary_classification(hid_feats=4, out_feats=7, num_heads=2)
 
-    ## Node Classification:
-    node_classification(hid_feats=4, out_feats=7, num_heads=2)
+    ## Multi-Class Graph Classification:
+    graph_multiclass_classification(in_feats=1, hid_feats=4, num_heads=2)
 
 
 if __name__ == "__main__":
