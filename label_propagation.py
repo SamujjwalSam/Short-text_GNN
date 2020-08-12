@@ -94,52 +94,49 @@ def discretize_labelled(labelled_dict: dict, thresh1=0.1, k=2,
 
 def undersample_major_class(discretized_labels: dict):
     under_sampler = RandomUnderSampler()
+
+    ## RandomSampler only takes numpy as input, convert:
     tokens = np.array(list(discretized_labels.keys())).reshape(-1, 1)
     vecs = np.array(list(discretized_labels.values()))
-    # sets = {}
-    discretized_labels_resampled = {}
+
+    undersampled_class_sets = []
     for i in range(vecs.shape[1]):
         tokens_resampled, vecs_resampled = under_sampler.fit_resample(
             tokens, vecs[:, i])
+        discretized_labels_resampled = {}
         for token, vec in zip(tokens_resampled, vecs_resampled):
             token = str(token[0])
-            try:
-                discretized_labels_resampled[token][i] = vec
-            except KeyError:
-                discretized_labels_resampled[token] = [0.] * vecs.shape[1]
-                discretized_labels_resampled[token][i] = vec
-        # example_set = {}
-        # for token, vec in zip(tokens_resampled, vecs_resampled):
-        #     example_set[token] = vec
-        # sets[i] = example_set
+            discretized_labels_resampled[token] = vec
+        undersampled_class_sets.append(discretized_labels_resampled)
 
-    return discretized_labels_resampled
+    return undersampled_class_sets
 
 
 def fetch_all_nodes(node_list: list, token2label_vec_map: dict,
-                    token_txt2token_id_map: list, num_classes: int = 4,
-                    default_fill=-1.):
+                    token_id2token_txt_map: list, default_fill=-1.):
     """ Fetches label vectors ordered by node_list.
 
-    :param token_txt2token_id_map:
+    :param token_id2token_txt_map:
     :param default_fill:
     :param num_classes: Number of classes
     :param node_list:
     :param token2label_vec_map: defaultdict of node to label vectors map
     :return:
     """
-    ordered_node_embs = []
-    for node in node_list:
-        try:
-            ordered_node_embs.append(token2label_vec_map[token_txt2token_id_map[
-                node]])
-        except KeyError:
-            ordered_node_embs.append([default_fill] * num_classes)
+    all_node_embs = []
+    for cls_token2label_vec_map in token2label_vec_map:
+        ordered_node_embs = []
+        for node in node_list:
+            try:
+                ordered_node_embs.append(cls_token2label_vec_map[
+                                             token_id2token_txt_map[node]])
+            except KeyError:
+                ordered_node_embs.append(default_fill)
 
-    ordered_node_embs = np.stack(ordered_node_embs)
-    # ordered_node_embs = torch.from_numpy(ordered_node_embs).float()
+        all_node_embs.append(ordered_node_embs)
+    all_node_embs = np.stack(all_node_embs)
 
-    return ordered_node_embs
+    return all_node_embs
 
 
 def construct_graph(input1, input2):
@@ -160,9 +157,15 @@ def propagate_labels(features, labels, ):
 
 def propagate_multilabels(features, labels, ):
     preds = []
-    for i in range(labels.shape[1]):
-        pred = propagate_labels(features, labels[:, i])
-        logger.debug(pred)
+    for i in range(labels.shape[0]):
+        pred = propagate_labels(features, labels[i, :])
+
+        pred_argmax = np.argmax(pred, axis=1)
+        test1 = np.ma.masked_where(labels[0] > -1, labels[0])
+        correct = (labels[i, :][test1.mask] == pred_argmax[test1.mask]).sum()
+        total = len(labels[i, :][test1.mask])
+        logger.info(f'Class [{i}] accuracy: [{correct / total}]')
+
         preds.append(pred)
 
     return np.stack(preds).T
