@@ -1,5 +1,5 @@
 # coding=utf-8
-# !/usr/bin/python3.6  # Please use python 3.6
+# !/usr/bin/python3.7  # Please use python 3.7
 """
 __synopsis__    : Short summary of the script.
 __description__ : Details and usage.
@@ -19,8 +19,10 @@ __license__     : "This source code is licensed under the MIT-style license
 
 import torch
 import argparse
+import numpy as np
 import pandas as pd
 import networkx as nx
+from networkx.readwrite.gpickle import write_gpickle, read_gpickle
 from os import environ
 from os.path import join, exists
 from collections import OrderedDict
@@ -31,11 +33,11 @@ from Utils.utils import count_parameters, logit2label, calculate_performance,\
     split_df, freq_tokens_per_class, merge_dicts
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
 from File_Handlers.csv_handler import read_tweet_csv
-from File_Handlers.json_handler import json_keys2df, read_labelled_json
+from File_Handlers.json_handler import save_json, read_json, json_keys2df, read_labelled_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
 from build_corpus_vocab import get_dataset_fields
-from Data_Handlers.graph_data_handler import get_node_features,\
+from Data_Handlers.graph_construction import get_node_features,\
     add_edge_weights, create_tokengraph, get_label_vectors
 from Layers.GCN_forward import GCN_forward, netrowkx2geometric
 from Layers.BERT_multilabel_classifier import BERT_classifier
@@ -159,13 +161,11 @@ def split_target(df=None,
     return df, t_lab_test_df
 
 
-def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
-         labelled_source_name=cfg["data"]["source"]['labelled'],
-         unlabelled_source_name=cfg["data"]["source"]['unlabelled'],
-         # labelled_target_name=cfg["data"]["target"]['labelled'],
-         unlabelled_target_name=cfg["data"]["target"]['unlabelled'],
-         mittens_iter=1000, gcn_hops=5,
-         glove_embs=glove2dict()):
+def create_vocab(data_dir=cfg["paths"]["dataset_dir"][plat][user],
+                 labelled_source_name=cfg["data"]["source"]['labelled'],
+                 unlabelled_source_name=cfg["data"]["source"]['unlabelled'],
+                 # labelled_target_name=cfg["data"]["target"]['labelled'],
+                 unlabelled_target_name=cfg["data"]["target"]['unlabelled'], ):
     ## Read source data
     s_lab_df = read_labelled_json(data_dir, labelled_source_name)
 
@@ -252,24 +252,82 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     # c_iter = MultiIterator([S_iter, T_iter])
     logger.info("Combined vocab size: [{}]".format(len(C_vocab['str2idx_map'])))
 
-    ## Get all OOVs which does not have Glove embedding:
-    high_oov_freqs, low_glove_freqs, corpus, corpus_toks =\
-        preprocess_and_find_oov(
-            (S_dataset, T_dataset), C_vocab, glove_embs=glove_embs,
-            labelled_vocab_set=set(token2label_vec_map.keys()))
+    return C_vocab, C_dataset, S_vocab, S_dataset, S_fields, T_vocab,\
+           T_dataset, T_fields, token2label_vec_map
 
-    # ## Create token graph G using source data:
-    # G = create_src_tokengraph(corpus_toks[0], S_vocab)
-    #
-    # ## Add nodes and edges to the token graph generated using source data:
-    # G, c_i2s = create_tgt_tokengraph(corpus_toks[1], T_vocab, S_vocab, G)
-    G = create_tokengraph(corpus_toks, C_vocab, S_vocab, T_vocab)
 
-    ## Calculate edge weights from cooccurrence stats:
-    G = add_edge_weights(G)
+def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
+         labelled_source_name=cfg["data"]["source"]['labelled'],
+         unlabelled_source_name=cfg["data"]["source"]['unlabelled'],
+         # labelled_target_name=cfg["data"]["target"]['labelled'],
+         unlabelled_target_name=cfg["data"]["target"]['unlabelled'],
+         mittens_iter=1000, gcn_hops=5,
+         glove_embs=glove2dict()):
+    c_data_name = unlabelled_source_name + '_' + unlabelled_target_name\
+                  + "_data.csv"
+    S_data_name = unlabelled_source_name + "_data.csv"
+    T_data_name = unlabelled_target_name + "_data.csv"
+
+    if exists('S_vocab.json') and exists('T_vocab.json') and exists(
+            'labelled_token2vec_map.json'):
+        C_vocab = read_json('C_vocab')
+        S_vocab = read_json('S_vocab')
+        T_vocab = read_json('T_vocab')
+        labelled_token2vec_map = read_json('labelled_token2vec_map')
+
+        # C_dataset, (C_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
+        #                                                   csv_file=c_data_name)
+        S_dataset, (S_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
+                                                          csv_file=S_data_name)
+        T_dataset, (T_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
+                                                          csv_file=T_data_name)
+    else:
+        C_vocab, C_dataset, S_vocab, S_dataset, S_fields, T_vocab,\
+        T_dataset, T_fields, labelled_token2vec_map =\
+            create_vocab(data_dir, labelled_source_name, unlabelled_source_name,
+                         unlabelled_target_name)
+        ## Save vocabs:
+        # save_json(C_vocab, 'C_vocab', overwrite=True)
+        save_json(S_vocab, 'S_vocab', overwrite=True)
+        save_json(T_vocab, 'T_vocab', overwrite=True)
+        save_json(labelled_token2vec_map, 'labelled_token2vec_map',
+                  overwrite=True)
+
+    if exists('high_oov_freqs.json') and exists('corpus.json') and \
+            exists('corpus_toks.json'):
+        high_oov_freqs = read_json('high_oov_freqs')
+        # low_glove_freqs = read_json('low_glove_freqs')
+        corpus = read_json('corpus', convert_ordereddict=False)
+        corpus_toks = read_json('corpus_toks', convert_ordereddict=False)
+    else:
+        ## Get all OOVs which does not have Glove embedding:
+        high_oov_freqs, low_glove_freqs, corpus, corpus_toks =\
+            preprocess_and_find_oov(
+                (S_dataset, T_dataset), C_vocab, glove_embs=glove_embs,
+                labelled_vocab_set=set(labelled_token2vec_map.keys()))
+
+        ## Save token sets: high_oov_freqs, low_glove_freqs, corpus, corpus_toks
+        save_json(high_oov_freqs, 'high_oov_freqs', overwrite=True)
+        # save_json(low_glove_freqs, 'low_glove_freqs', overwrite=True)
+        save_json(corpus, 'corpus', overwrite=True)
+        save_json(corpus_toks, 'corpus_toks', overwrite=True)
+
+        save_json(C_vocab, 'C_vocab', overwrite=True)
+
+    graph_path = "G.pkl"
+    if exists(graph_path):
+        G = nx.read_gpickle(graph_path)
+    else:
+        G = create_tokengraph(corpus_toks, C_vocab, S_vocab, T_vocab)
+        ## Calculate edge weights from cooccurrence stats:
+        G = add_edge_weights(G)
+        nx.write_gpickle(G, graph_path)
 
     logger.info("Number of nodes: [{}]".format(len(G.nodes)))
     logger.info("Number of edges: [{}]".format(len(G.edges)))
+
+    ## Save graph: G
+    # read_graphml(path, node_type=<class 'str'>, edge_key_type=<class 'int'>)
 
     ## Create new embeddings for OOV tokens:
     oov_filename = labelled_source_name + '_OOV_vectors_dict'
@@ -283,13 +341,13 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
         oov_embs = train_model(oov_mat_coo, high_oov_tokens_list, glove_embs,
                                max_iter=mittens_iter)
         save_pickle(oov_embs, pkl_file_path=data_dir,
-                    pkl_file_name=oov_filename, )
+                    pkl_file_name=oov_filename, overwrite=True)
 
     node_list = list(G.nodes)
 
-    X_labels = get_label_vectors(node_list, token2label_vec_map,
-                                 token_txt2token_id_map=C_vocab['idx2str_map'],
-                                 default_fill=-1)
+    # X_labels = get_label_vectors(node_list, labelled_token2vec_map,
+    #                              token_txt2token_id_map=C_vocab['idx2str_map'],
+    #                              default_fill=-1)
     # torch.save(X_labels, 'X_labels_05.pt')
 
     glove_embs = merge_dicts(glove_embs, oov_embs)
@@ -307,19 +365,52 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     #            glove_file='oov_glove.txt')
 
     ## Get adjacency matrix and node embeddings in same order:
-    adj = nx.adjacency_matrix(G, nodelist=node_list, weight='edge_weight')
-    # adj_np = nx.to_numpy_matrix(G)
-    sparse.save_npz("adj.npz", adj)
+    if exists("adj.npz"):
+        adj = sparse.load_npz("adj.npz")
+    else:
+        adj = nx.adjacency_matrix(G, nodelist=node_list, weight='edge_weight')
+        # adj_np = nx.to_numpy_matrix(G)
+        sparse.save_npz("adj.npz", adj)
 
-    from label_propagation import propagate_multilabels, discretize_labels
+    from label_propagation import propagate_multilabels, discretize_labels,\
+        discretize_labelled, undersample_major_class_multi, fetch_all_nodes
 
-    X_labels_discreet_np = discretize_labels(X_labels.numpy().copy())
+    discretized_labels = discretize_labelled(labelled_token2vec_map)
+    balanced_discretized_labels = undersample_major_class_multi(discretized_labels)
+    X_labels = fetch_all_nodes(
+        node_list, balanced_discretized_labels, token_id2token_txt_map=C_vocab[
+            'idx2str_map'], default_fill=-1)
+    # X_labels_discreet_np = discretize_labels(X_labels.numpy().copy())
 
-    X = get_node_features(glove_embs, oov_embs, C_vocab['idx2str_map'],
-                          node_list)
-    labels_propagated = propagate_multilabels(X, X_labels_discreet_np)
+    if exists('X.pt'):
+        X = torch.load('X.pt')
+    else:
+        X = get_node_features(glove_embs, oov_embs, C_vocab['idx2str_map'],
+                              node_list)
+        torch.save(X, 'X.pt')
+    labels_propagated = propagate_multilabels(X, X_labels)
+    # labels_propagated_np = labels_propagated.copy()
 
-    exit(0)
+    node_txt2label_vec = {}
+    for node_id in node_list:
+        node_txt2label_vec[C_vocab['idx2str_map'][node_id]] = {}
+        node_txt2label_vec[C_vocab['idx2str_map'][node_id]]['propagated'] =\
+            labels_propagated[node_id].tolist()
+
+    for node_id, label_vec in enumerate(X_labels):
+        node_txt2label_vec[C_vocab['idx2str_map'][node_id]]['discritized'] =\
+            label_vec.tolist()
+
+    for token_txt, label_vec in labelled_token2vec_map.items():
+        try:
+            node_txt2label_vec[token_txt]['labelled'] = label_vec
+        except KeyError:
+            pass
+
+    save_json(node_txt2label_vec, 'node_txt2label_vec', overwrite=True)
+    node_txt2label_vec_csv = pd.DataFrame.from_dict(node_txt2label_vec,
+                                                    orient='index')
+    node_txt2label_vec_csv.to_csv('node_txt2label_vec.csv')
 
     G_data = netrowkx2geometric(G)
     print(G_data)
