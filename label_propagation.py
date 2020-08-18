@@ -66,6 +66,7 @@ def discretize_labelled(labelled_dict: dict, thresh1=0.1, k=2,
     :param labelled_dict: token:np.array(vector)
     :param label_neg: Value to assign when no class should be assigned [0., -1.]
     """
+    logger.info(f'Discretizing label vector with threshold [{thresh1}].')
     labelled_vecs = np.array(list(labelled_dict.values()))
 
     ## value greater than threshold:
@@ -92,24 +93,77 @@ def discretize_labelled(labelled_dict: dict, thresh1=0.1, k=2,
     return discretized_dict
 
 
-def undersample_major_class(discretized_labels: dict):
-    under_sampler = RandomUnderSampler()
+def unison_shuffled_copies(a: np.ndarray, b: np.ndarray):
+    assert len(a) == len(b)
+    p = np.random.permutation(len(a))
+    return a[p], b[p]
 
-    ## RandomSampler only takes numpy as input, convert:
+
+def undersample_major_class(X: np.ndarray, Y: np.ndarray, k=3):
+    """ Undersamples the majority class k times.
+
+    :param X:
+    :param Y:
+    :param k:
+    :return:
+    """
+    logger.info(f'Undersampling the majority class [{k}] times.')
+    under_sampler = RandomUnderSampler()
+    k_undersampled_list = []
+    for i in range(k):
+        X_resampled, Y_resampled = under_sampler.fit_resample(X, Y)
+        X_resampled, Y_resampled = unison_shuffled_copies(X_resampled,
+                                                          Y_resampled)
+        undersampled_dict = {}
+        for x, y in zip(X_resampled, Y_resampled):
+            x = str(x[0])
+            undersampled_dict[x] = y
+
+        k_undersampled_list.append(undersampled_dict)
+
+    return k_undersampled_list
+
+
+def undersample_major_multiclass(discretized_labels: dict, k=3):
+    """ Undersamples the majority class for each class.
+
+    :param discretized_labels:
+    :param k:
+    :return: List of dict with token to label map
+    """
+    ## RandomSampler only takes numpy as input; converting:
     tokens = np.array(list(discretized_labels.keys())).reshape(-1, 1)
     vecs = np.array(list(discretized_labels.values()))
 
     undersampled_class_sets = []
     for i in range(vecs.shape[1]):
-        tokens_resampled, vecs_resampled = under_sampler.fit_resample(
-            tokens, vecs[:, i])
-        discretized_labels_resampled = {}
-        for token, vec in zip(tokens_resampled, vecs_resampled):
-            token = str(token[0])
-            discretized_labels_resampled[token] = vec
-        undersampled_class_sets.append(discretized_labels_resampled)
+        resampled = undersample_major_class(tokens, vecs[:, i], k=k)
+        undersampled_class_sets.append(resampled)
 
     return undersampled_class_sets
+
+
+def fetch_all_cls_nodes(node_list: list, token2label_vec_map: dict,
+                        token_id2token_txt_map: list, default_fill=-1.):
+    """ Fetches label vectors ordered by node_list for all classes.
+
+    :param token_id2token_txt_map:
+    :param default_fill:
+    :param num_classes: Number of classes
+    :param node_list:
+    :param token2label_vec_map: dict of node to label vectors map
+    :return:
+    """
+    all_node_embs = []
+    for cls_token2label_vec_map in token2label_vec_map:
+        us_embs = []
+        for us_labels in cls_token2label_vec_map:
+            cls_node_embs = fetch_all_nodes(
+                node_list, us_labels, token_id2token_txt_map, default_fill)
+            us_embs.append(cls_node_embs)
+        all_node_embs.append(us_embs)
+
+    return all_node_embs
 
 
 def fetch_all_nodes(node_list: list, token2label_vec_map: dict,
@@ -120,23 +174,18 @@ def fetch_all_nodes(node_list: list, token2label_vec_map: dict,
     :param default_fill:
     :param num_classes: Number of classes
     :param node_list:
-    :param token2label_vec_map: defaultdict of node to label vectors map
+    :param token2label_vec_map: dict of node to label vectors map
     :return:
     """
-    all_node_embs = []
-    for cls_token2label_vec_map in token2label_vec_map:
-        ordered_node_embs = []
-        for node in node_list:
-            try:
-                ordered_node_embs.append(cls_token2label_vec_map[
-                                             token_id2token_txt_map[node]])
-            except KeyError:
-                ordered_node_embs.append(default_fill)
+    ordered_node_embs = []
+    for node in node_list:
+        try:
+            ordered_node_embs.append(token2label_vec_map[
+                                         token_id2token_txt_map[node]])
+        except KeyError:
+            ordered_node_embs.append(default_fill)
 
-        all_node_embs.append(ordered_node_embs)
-    all_node_embs = np.stack(all_node_embs)
-
-    return all_node_embs
+    return ordered_node_embs
 
 
 def construct_graph(input1, input2):
@@ -155,20 +204,58 @@ def propagate_labels(features, labels, ):
     return preds
 
 
+def majority_voting(preds_set):
+    logger.info("Taking majority voting.")
+    if isinstance(preds_set, list):
+        majority_count = (len(preds_set) // 2) + 1
+    elif isinstance(preds_set, np.ndarray):
+        majority_count = (preds_set.shape[0] // 2) + 1
+    else:
+        NotImplementedError(f"datatype {type(preds_set)} not supported.")
+
+    pred_major = []
+    for pred in preds_set:
+        pred_discreet = np.argmax(pred, axis=1)
+        pred_major.append(pred_discreet)
+
+    pred_major = np.sum(pred_major, axis=0)
+
+    pred_major[(pred_major < majority_count)] = 0.
+    pred_major[(pred_major >= majority_count)] = 1.
+
+    return pred_major
+
+
+def lpa_accuracy(preds_set, labels):
+    labels = np.stack(labels)
+    # pred_argmax = []
+    result = {}
+    for cls in range(preds_set.shape[1]):
+        # pred_argmax.append(np.argmax(pred, axis=1))
+        logger.info(f'Calculating accuracy for class: [{cls}]')
+        test1 = np.ma.masked_where(labels[:, cls] > 0, labels[:, cls])
+        correct = (labels[:, cls][test1.mask] ==
+                   preds_set[:, cls][test1.mask]).sum()
+        total = labels[test1.mask].shape[0]
+
+        result[cls] = (correct, total, correct / total)
+        logger.info(f'Accuracy class: [{correct / total, correct, total}]')
+
+    return result
+
+
 def propagate_multilabels(features, labels, ):
-    preds = []
-    for i in range(labels.shape[0]):
-        pred = propagate_labels(features, labels[i, :])
+    all_preds = []
+    for i, labels_cls in enumerate(labels):
+        logger.info(f'Propagating labels for class [{i}].')
+        preds = []
+        for under_set in labels_cls:
+            pred = propagate_labels(features, np.stack(under_set))
+            preds.append(pred)
+        voted_preds = majority_voting(preds)
+        all_preds.append(voted_preds)
 
-        pred_argmax = np.argmax(pred, axis=1)
-        test1 = np.ma.masked_where(labels[0] > -1, labels[0])
-        correct = (labels[i, :][test1.mask] == pred_argmax[test1.mask]).sum()
-        total = len(labels[i, :][test1.mask])
-        logger.info(f'Class [{i}] accuracy: [{correct / total}]')
-
-        preds.append(pred)
-
-    return np.stack(preds).T
+    return np.stack(all_preds).T
 
 
 if __name__ == "__main__":
