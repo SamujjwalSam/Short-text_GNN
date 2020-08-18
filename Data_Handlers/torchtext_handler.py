@@ -1,5 +1,5 @@
 # coding=utf-8
-# !/usr/bin/python3.6  # Please use python 3.6
+# !/usr/bin/python3.7  # Please use python 3.7
 """
 __synopsis__    : Short summary of the script.
 __description__ : Details and usage.
@@ -17,6 +17,7 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 import torch
+import pickle
 import dill
 from pathlib import Path
 from os.path import join
@@ -128,6 +129,31 @@ def split_dataset(dataset, split_size=0.7, stratify=False, strata_name='label'):
     train, test = dataset.split(
         split_ratio=split_size, stratified=stratify, strata_field=strata_name)
     return train, test
+
+
+def save_to_pickle(dataSetObject, PATH):
+    with open(PATH, 'wb') as output:
+        for i in dataSetObject:
+            pickle.dump(vars(i), output, pickle.HIGHEST_PROTOCOL)
+
+
+def load_pickle(PATH, FIELDNAMES, FIELD):
+    dataList = []
+    with open(PATH, "rb") as input_file:
+        while True:
+            try:
+                # Taking the dictionary instance as the input Instance
+                inputInstance = pickle.load(input_file)
+                # plugging it into the list
+                dataInstance = [inputInstance[FIELDNAMES[0]], inputInstance[FIELDNAMES[1]]]
+                # Finally creating an example objects list
+                dataList.append(data.Example().fromlist(dataInstance, fields=FIELD))
+            except EOFError:
+                break
+
+    # At last creating a data Set Object
+    exampleListObject = data.Dataset(dataList, fields=FIELD)
+    return exampleListObject
 
 
 def save_dataset(dataset, save_dir, name, fields=None):
