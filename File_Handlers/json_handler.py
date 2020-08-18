@@ -89,20 +89,23 @@ def json_keys2df(data_keys, json_data=None, json_filename=None,
 
 
 def read_json(file_path: str = join(cfg["paths"]["dataset_dir"][plat][
-                                        user], 'acronym')) -> OrderedDict:
+                                        user], 'acronym'),
+              convert_ordereddict =True) -> OrderedDict:
     """ Reads json file as OrderedDict.
 
     :param file_path:
     :return:
     """
     file_path = Path(file_path + ".json")
-    file_path = Path(file_path)
+    # file_path = Path(file_path)
     logger.info(f"Reading json file [{file_path}].")
 
     if file_path.exists():
         with open(file_path, "r", encoding="utf-8") as file:
-            json_dict = OrderedDict(load(file))
-        return json_dict
+            data = load(file)
+            if convert_ordereddict:
+                data = OrderedDict(data)
+        return data
     else:
         raise FileNotFoundError("File [{}] not found.".format(file_path))
 
