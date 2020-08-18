@@ -277,10 +277,11 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
 
         # C_dataset, (C_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
         #                                                   csv_file=c_data_name)
-        S_dataset, (S_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
-                                                          csv_file=S_data_name)
-        T_dataset, (T_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
-                                                          csv_file=T_data_name)
+        if not exists('high_oov_freqs.json'):
+            S_dataset, (S_fields, LABEL) = get_dataset_fields(
+                csv_dir=data_dir, csv_file=S_data_name)
+            T_dataset, (T_fields, LABEL) = get_dataset_fields(
+                csv_dir=data_dir, csv_file=T_data_name)
     else:
         C_vocab, C_dataset, S_vocab, S_dataset, S_fields, T_vocab,\
         T_dataset, T_fields, labelled_token2vec_map =\
@@ -293,7 +294,7 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
         save_json(labelled_token2vec_map, 'labelled_token2vec_map',
                   overwrite=True)
 
-    if exists('high_oov_freqs.json') and exists('corpus.json') and \
+    if exists('high_oov_freqs.json') and exists('corpus.json') and\
             exists('corpus_toks.json'):
         high_oov_freqs = read_json('high_oov_freqs')
         # low_glove_freqs = read_json('low_glove_freqs')
@@ -373,13 +374,17 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
         sparse.save_npz("adj.npz", adj)
 
     from label_propagation import propagate_multilabels, discretize_labels,\
-        discretize_labelled, undersample_major_class_multi, fetch_all_nodes
+        discretize_labelled, undersample_major_multiclass, fetch_all_cls_nodes,\
+        fetch_all_nodes, lpa_accuracy
 
     discretized_labels = discretize_labelled(labelled_token2vec_map)
-    balanced_discretized_labels = undersample_major_class_multi(discretized_labels)
-    X_labels = fetch_all_nodes(
-        node_list, balanced_discretized_labels, token_id2token_txt_map=C_vocab[
-            'idx2str_map'], default_fill=-1)
+    all_node_labels = fetch_all_nodes(node_list, discretized_labels,
+                                      C_vocab['idx2str_map'],
+                                      default_fill=[-1.,-1.,-1.,-1.])
+    undersampled_discretized_labels = undersample_major_multiclass(discretized_labels)
+    X_labels = fetch_all_cls_nodes(node_list, undersampled_discretized_labels,
+                                   token_id2token_txt_map=C_vocab[
+                                       'idx2str_map'], default_fill=-1)
     # X_labels_discreet_np = discretize_labels(X_labels.numpy().copy())
 
     if exists('X.pt'):
@@ -390,6 +395,9 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
         torch.save(X, 'X.pt')
     labels_propagated = propagate_multilabels(X, X_labels)
     # labels_propagated_np = labels_propagated.copy()
+
+    lpa_perform = lpa_accuracy(labels_propagated, all_node_labels)
+    logger.info(f'LPA performance for labelled tokens: [{lpa_perform}]')
 
     node_txt2label_vec = {}
     for node_id in node_list:
