@@ -26,22 +26,11 @@ from torch_geometric.nn import GCNConv
 from torch_geometric.data import Data
 from torch_geometric import utils as tg_utils
 
+from Utils.utils import sp_coo_sparse2torch_sparse
 
 def netrowkx2geometric(G):
     G_data = tg_utils.from_networkx(G)
     return G_data
-
-
-def sp_sparse2torch_sparse(M):
-    if not isinstance(M, sp.coo_matrix):
-        M = M.tocoo()
-
-    M = torch.sparse.FloatTensor(
-        torch.LongTensor(np.vstack((M.row, M.col))),
-        torch.FloatTensor(M.data),
-        torch.Size(M.shape))
-
-    return M
 
 
 def GCN_forward(adj, X, forward=2):
@@ -53,10 +42,10 @@ def GCN_forward(adj, X, forward=2):
     :return: X' (#tokens x emb_dim)
     """
     if isinstance(adj, sp.csr_matrix):
-        adj = sp_sparse2torch_sparse(adj)
+        adj = sp_coo_sparse2torch_sparse(adj)
 
     sp_eye = sp.eye(*adj.shape)
-    I = sp_sparse2torch_sparse(sp_eye)
+    I = sp_coo_sparse2torch_sparse(sp_eye)
 
     # I = torch.eye(*adj.shape).type(torch.FloatTensor)
     A_hat = adj + I
@@ -66,7 +55,7 @@ def GCN_forward(adj, X, forward=2):
 
     D_inv_np = D_inv.to_dense().numpy()
     D_inv_sp = sp.diags(D_inv_np)
-    D_inv_t = sp_sparse2torch_sparse(D_inv_sp)
+    D_inv_t = sp_coo_sparse2torch_sparse(D_inv_sp)
 
     # D_inv = torch.diag(D_inv).type(torch.FloatTensor)
     A_hat = D_inv_t * A_hat * D_inv_t

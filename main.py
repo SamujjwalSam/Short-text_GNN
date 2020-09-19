@@ -264,8 +264,8 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
          unlabelled_target_name=cfg["data"]["target"]['unlabelled'],
          mittens_iter=1000, gcn_hops=5,
          glove_embs=glove2dict()):
-    c_data_name = unlabelled_source_name + '_' + unlabelled_target_name\
-                  + "_data.csv"
+    # c_data_name = unlabelled_source_name + '_' + unlabelled_target_name\
+    #               + "_data.csv"
     S_data_name = unlabelled_source_name + "_data.csv"
     T_data_name = unlabelled_target_name + "_data.csv"
 
@@ -374,31 +374,33 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
         # adj_np = nx.to_numpy_matrix(G)
         sparse.save_npz("adj.npz", adj)
 
-    from label_propagation import propagate_multilabels, discretize_labels,\
-        discretize_labelled, undersample_major_multiclass, fetch_all_cls_nodes,\
-        fetch_all_nodes, lpa_accuracy
+    from label_propagation import propagate_multilabels, discretize_labelled,\
+        undersample_major_multiclass, fetch_all_cls_nodes,\
+        fetch_all_nodes, lpa_accuracy, label_propagation
 
-    discretized_labels = discretize_labelled(labelled_token2vec_map)
-    all_node_labels = fetch_all_nodes(node_list, discretized_labels,
-                                      C_vocab['idx2str_map'],
-                                      default_fill=[-1.,-1.,-1.,-1.])
-    undersampled_discretized_labels = undersample_major_multiclass(discretized_labels)
-    X_labels = fetch_all_cls_nodes(node_list, undersampled_discretized_labels,
-                                   token_id2token_txt_map=C_vocab[
-                                       'idx2str_map'], default_fill=-1)
+    # discretized_labels = discretize_labelled(labelled_token2vec_map)
+    all_node_labels, labelled_mask = fetch_all_nodes(
+        node_list, labelled_token2vec_map, C_vocab['idx2str_map'],
+        default_fill=[0.,0.,0.,0.])
+    # undersampled_discretized_labels = undersample_major_multiclass(discretized_labels)
+    # X_labels = fetch_all_cls_nodes(node_list, undersampled_discretized_labels,
+    #                                token_id2token_txt_map=C_vocab[
+    #                                    'idx2str_map'], default_fill=-1)
     # X_labels_discreet_np = discretize_labels(X_labels.numpy().copy())
 
-    if exists('X.pt'):
-        X = torch.load('X.pt')
-    else:
-        X = get_node_features(glove_embs, oov_embs, C_vocab['idx2str_map'],
-                              node_list)
-        torch.save(X, 'X.pt')
-    labels_propagated = propagate_multilabels(X, X_labels)
+    # if exists('X.pt'):
+    #     X = torch.load('X.pt')
+    # else:
+    #     X = get_node_features(glove_embs, oov_embs, C_vocab['idx2str_map'],
+    #                           node_list)
+    #     torch.save(X, 'X.pt')
+    # all_node_labels = np.stack(all_node_labels)
+    labels_propagated = label_propagation(adj, all_node_labels,
+                                          labelled_mask)
     # labels_propagated_np = labels_propagated.copy()
 
-    lpa_perform = lpa_accuracy(labels_propagated, all_node_labels)
-    logger.info(f'LPA performance for labelled tokens: [{lpa_perform}]')
+    # lpa_perform = lpa_accuracy(labels_propagated, all_node_labels)
+    # logger.info(f'LPA performance for labelled tokens: [{lpa_perform}]')
 
     node_txt2label_vec = {}
     for node_id in node_list:

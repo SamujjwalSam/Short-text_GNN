@@ -17,46 +17,49 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
+import torch
 import numpy as np
 from scipy import sparse
 from sklearn.semi_supervised import LabelSpreading, LabelPropagation
 from imblearn.under_sampling import RandomUnderSampler
 
+from Layers.LPA import LPALayer
+from Utils.utils import sp_coo_sparse2torch_sparse
 from Logger.logger import logger
 
 
-def discretize_labels(x_vectors: np.ndarray, thresh1=0.2, thresh2=0.1, k=2,
-                      label_neg=0.):
-    """ Converts logit to multi-hot based on threshold per class.
-
-    :param x_vectors:
-    :param label_neg: Value to assign when no class should be assigned [0., -1.]
-    """
-    # ## value greater than threshold:
-    # x_vectors[(x_vectors > 0.0) & (x_vectors <= thresh)] = 0.0
-    x_vectors[(x_vectors > thresh1)] = 1.
-    x_vectors[(thresh2 < x_vectors) & (x_vectors <= thresh1)] = 1.
-    #
-    # ## Maximum of each row is 1.:
-    # x_vectors = (x_vectors == x_vectors.max(axis=1)[:,None]).astype(
-    #     int).astype(float)
-
-    ## Top k values of each row:
-    for row in x_vectors:
-        # for i, val in enumerate(row):
-        row_sum = row.sum()
-        if 0.5 < row_sum <= 1.:  ## for non -1 rows only
-            row_idx = np.argpartition(-row, k)
-            row[row_idx[:k]] = 1.
-            row[row_idx[k:]] = label_neg
-        elif 0. <= row_sum <= 0.5:
-            row_idx = np.argmax(row)
-            row[row_idx] = 1.
-            row[(row != 1.0)] = label_neg
-        elif row_sum > 1.:
-            row[(row < 1.0)] = label_neg
-
-    return x_vectors
+# def discretize_labels(x_vectors: np.ndarray, thresh1=0.2, thresh2=0.1, k=2,
+#                       label_neg=0.):
+#     """ Converts logit to multi-hot based on threshold per class.
+#
+#     :param x_vectors:
+#     :param label_neg: Value to assign when no class should be assigned [0., -1.]
+#     """
+#     # ## value greater than threshold:
+#     # x_vectors[(x_vectors > 0.0) & (x_vectors <= thresh)] = 0.0
+#     x_vectors[(x_vectors > thresh1)] = 1.
+#     x_vectors[(thresh2 < x_vectors) & (x_vectors <= thresh1)] = 1.
+#     #
+#     # ## Maximum of each row is 1.:
+#     # x_vectors = (x_vectors == x_vectors.max(axis=1)[:,None]).astype(
+#     #     int).astype(float)
+#
+#     ## Top k values of each row:
+#     for row in x_vectors:
+#         # for i, val in enumerate(row):
+#         row_sum = row.sum()
+#         if 0.5 < row_sum <= 1.:  ## for non -1 rows only
+#             row_idx = np.argpartition(-row, k)
+#             row[row_idx[:k]] = 1.
+#             row[row_idx[k:]] = label_neg
+#         elif 0. <= row_sum <= 0.5:
+#             row_idx = np.argmax(row)
+#             row[row_idx] = 1.
+#             row[(row != 1.0)] = label_neg
+#         elif row_sum > 1.:
+#             row[(row < 1.0)] = label_neg
+#
+#     return x_vectors
 
 
 def discretize_labelled(labelled_dict: dict, thresh1=0.1, k=2,
@@ -178,14 +181,17 @@ def fetch_all_nodes(node_list: list, token2label_vec_map: dict,
     :return:
     """
     ordered_node_embs = []
+    labelled_node_mask = []
     for node in node_list:
         try:
             ordered_node_embs.append(token2label_vec_map[
                                          token_id2token_txt_map[node]])
+            labelled_node_mask.append(True)
         except KeyError:
             ordered_node_embs.append(default_fill)
+            labelled_node_mask.append(False)
 
-    return ordered_node_embs
+    return ordered_node_embs, labelled_node_mask
 
 
 def construct_graph(input1, input2):
@@ -258,7 +264,33 @@ def propagate_multilabels(features, labels, ):
     return np.stack(all_preds).T
 
 
+def label_propagation(adj, Y, labelled_mask):
+    if isinstance(adj, sparse.csr.csr_matrix):
+        # convert to PyTorch sparse
+        adj = sp_coo_sparse2torch_sparse(adj)
+    if isinstance(Y, list):
+        Y = np.stack(Y)
+    if isinstance(Y, np.ndarray):
+        # convert to PyTorch
+        Y = torch.from_numpy(Y).float()
+
+    # adj = adj.to_dense()
+
+    lpa = LPALayer(labelled_mask)
+    Y_hat = lpa(adj, Y)
+    # Y_hat = Y[labelled_mask]
+
+    return Y_hat
+
+
 if __name__ == "__main__":
+    import torch as t
+    adj = t.rand(4, 4)
+    lpa = LPALayer(adj)
+    inputs = t.rand(4, 3)
+    outputs = lpa(inputs)
+    print(outputs)
+
     data = prepare_features()
     labels = discretize_labels()
     preds = propagate_labels(data, labels, )

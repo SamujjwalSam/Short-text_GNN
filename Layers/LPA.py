@@ -17,14 +17,12 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
-import torch as tf
+import torch as t
+
 # import numpy as np
 # from scipy import sparse
 # from sklearn.semi_supervised import LabelSpreading, LabelPropagation
 # from imblearn.under_sampling import RandomUnderSampler
-
-from Logger.logger import logger
-
 
 # class SparseDropout(tf.nn.Module):
 #     def __init__(self, dprob=0.5):
@@ -54,59 +52,64 @@ from Logger.logger import logger
 #     return res
 
 
-def dot(x: tf.Tensor, y: tf.Tensor, sparse: bool) -> tf.Tensor:
+def dot(x: t.Tensor, y: t.Tensor) -> t.Tensor:
     """ dot product between 2 tensors for dense and sparse format.
 
     :param x:
     :param y:
-    :param sparse:
     :return:
     """
-    if sparse:
-        res = tf.spmm(x, y)
+    if x.is_sparse:
+        res = t.spmm(x, y)
     else:
-        res = tf.matmul(x, y)
+        res = t.matmul(x, y)
     return res
 
 
-class LPALayer(tf.nn.Module):
-    def __init__(self, adj, softmax = tf.nn.Softmax(dim=0)):
+class LPALayer(t.nn.Module):
+    def __init__(self, labelled_mask: list = None) -> None:
         super(LPALayer, self).__init__()
-        self.softmax = softmax
-        self.adj = self.normalize_adj(adj)
+        # self.softmax = t.nn.Softmax(dim=0)
+        self.labelled_mask = labelled_mask
 
-    def forward(self, inputs: tf.Tensor) -> tf.Tensor:
+    def forward(self, adj: t.Tensor, Y: t.Tensor) -> t.Tensor:
         """ Y_hat = A * Y
 
+        :param adj:
+        :param Y:
         :param inputs:
         :return:
         """
-        output = dot(self.adj, inputs, sparse=True)
-        return output
+        adj = self.normalize_adj(adj)
+        Y_hat = dot(adj, Y)
+        Y_hat[self.labelled_mask] = Y[self.labelled_mask]
+        return Y_hat
 
-    def normalize_adj(self, adj: tf.Tensor, eps: float = 1E-9) -> tf.Tensor:
+    @staticmethod
+    def normalize_adj(adj: t.Tensor, eps: float = 1E-9) -> t.Tensor:
         """ Normalize adjacency matrix for LPA:
         A = D^(-1/2) * A * D^(-1/2)
         A = softmax(A)
 
-        :param adj:
-        :param eps:
+        :param adj: adjacency matrix
+        :param eps: small value
         :return:
         """
-        N = adj.shape[0]
-        D = adj.sum(0)
-        D_sqrt_inv = tf.sqrt(1.0 / (D + eps))
-        D1 = tf.unsqueeze(D_sqrt_inv, 1).repeat(1, N)
-        D2 = tf.unsqueeze(D_sqrt_inv, 0).repeat(N, 1)
-        S = D1 * adj * D2
-        S = self.softmax(S)
+        D = t.sparse.sum(adj, dim=0)
+        D = t.sqrt(1.0 / (D.to_dense() + eps))
+        D = t.diag(D).to_sparse()
+        # nz_indices = t.nonzero(D, as_tuple=False)
+        # D = t.sparse.FloatTensor(nz_indices.T, D, adj.shape)
+        adj = dot(D, adj.to_dense()).to_sparse()
+        adj = dot(adj, D.to_dense()).to_sparse()
+        # adj = self.softmax(adj)
 
-        return S
+        return adj
 
 
 if __name__ == "__main__":
-    adj = tf.rand(4, 4)
-    lpa = LPALayer(adj)
-    inputs = tf.rand(4, 3)
-    outputs = lpa(inputs)
-    print(outputs)
+    adj = t.rand(4, 4)
+    lpa = LPALayer()
+    Y = t.rand(4, 3)
+    Y_hat = lpa(adj, Y)
+    print(Y_hat)

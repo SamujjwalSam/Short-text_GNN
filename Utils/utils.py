@@ -20,6 +20,7 @@ __license__     : "This source code is licensed under the MIT-style license
 import torch
 import pandas as pd
 import numpy as np
+import scipy.sparse as sp
 from collections import defaultdict
 from functools import partial
 from json import load, loads
@@ -36,6 +37,18 @@ from skmultilearn.model_selection.measures import\
 from config import configuration as cfg, platform as plat, username as user
 from tweet_normalizer import normalizeTweet
 from Logger.logger import logger
+
+
+def sp_coo_sparse2torch_sparse(M):
+    if isinstance(M, sp.csr_matrix):
+        M = M.tocoo()
+
+    M = torch.sparse.FloatTensor(
+        torch.LongTensor(np.vstack((M.row, M.col))),
+        torch.FloatTensor(M.data),
+        torch.Size(M.shape))
+
+    return M
 
 
 def split_data(lab_tweets, test_size=0.3, stratified=True, random_state=0,
