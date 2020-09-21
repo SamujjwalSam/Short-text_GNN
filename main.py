@@ -33,7 +33,7 @@ from Utils.utils import count_parameters, logit2label, calculate_performance,\
     split_df, freq_tokens_per_class, merge_dicts
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
 from File_Handlers.csv_handler import read_tweet_csv
-from File_Handlers.json_handler import save_json, read_json, json_keys2df, \
+from File_Handlers.json_handler import save_json, read_json, json_keys2df,\
     read_labelled_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
@@ -374,61 +374,41 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
         # adj_np = nx.to_numpy_matrix(G)
         sparse.save_npz("adj.npz", adj)
 
-    from label_propagation import propagate_multilabels, discretize_labelled,\
-        undersample_major_multiclass, fetch_all_cls_nodes,\
-        fetch_all_nodes, lpa_accuracy, label_propagation
+    ## Apply Label Propagation to get label vectors for unlabelled nodes:
+    from label_propagation import fetch_all_nodes, label_propagation
 
     # discretized_labels = discretize_labelled(labelled_token2vec_map)
     all_node_labels, labelled_mask = fetch_all_nodes(
         node_list, labelled_token2vec_map, C_vocab['idx2str_map'],
-        default_fill=[0.,0.,0.,0.])
-    # undersampled_discretized_labels = undersample_major_multiclass(discretized_labels)
-    # X_labels = fetch_all_cls_nodes(node_list, undersampled_discretized_labels,
-    #                                token_id2token_txt_map=C_vocab[
-    #                                    'idx2str_map'], default_fill=-1)
-    # X_labels_discreet_np = discretize_labels(X_labels.numpy().copy())
+        default_fill=[0., 0., 0., 0.])
 
-    # if exists('X.pt'):
-    #     X = torch.load('X.pt')
-    # else:
-    #     X = get_node_features(glove_embs, oov_embs, C_vocab['idx2str_map'],
-    #                           node_list)
-    #     torch.save(X, 'X.pt')
-    # all_node_labels = np.stack(all_node_labels)
-    labels_propagated = label_propagation(adj, all_node_labels,
-                                          labelled_mask)
-    # labels_propagated_np = labels_propagated.copy()
+    ## Create test labels:
+    labelled_mask_train, labelled_mask_test = break_labels(labelled_mask, test_size=0.19)
 
-    # lpa_perform = lpa_accuracy(labels_propagated, all_node_labels)
-    # logger.info(f'LPA performance for labelled tokens: [{lpa_perform}]')
+    if exists("labels_propagated.pt"):
+        labels_propagated = torch.load('labels_propagated.pt')
+    else:
+        labels_propagated = label_propagation(adj, all_node_labels,
+                                              labelled_mask_train)
+        torch.save(labels_propagated, 'labels_propagated.pt')
 
-    node_txt2label_vec = {}
-    for node_id in node_list:
-        node_txt2label_vec[C_vocab['idx2str_map'][node_id]] = {}
-        node_txt2label_vec[C_vocab['idx2str_map'][node_id]]['propagated'] =\
-            labels_propagated[node_id].tolist()
+    ## Create label to propagated vector map:
+    # node_txt2label_vec = {}
+    # for node_id in node_list:
+    #     node_txt2label_vec[C_vocab['idx2str_map'][node_id]] = \
+    #         labels_propagated[node_id].tolist()
 
-    for node_id, label_vec in enumerate(X_labels):
-        node_txt2label_vec[C_vocab['idx2str_map'][node_id]]['discritized'] =\
-            label_vec.tolist()
-
-    for token_txt, label_vec in labelled_token2vec_map.items():
-        try:
-            node_txt2label_vec[token_txt]['labelled'] = label_vec
-        except KeyError:
-            pass
-
-    save_json(node_txt2label_vec, 'node_txt2label_vec', overwrite=True)
-    node_txt2label_vec_csv = pd.DataFrame.from_dict(node_txt2label_vec,
-                                                    orient='index')
-    node_txt2label_vec_csv.to_csv('node_txt2label_vec.csv')
+    # save_json(node_txt2label_vec, 'node_txt2label_vec', overwrite=True)
+    # node_txt2label_vec_csv = pd.DataFrame.from_dict(node_txt2label_vec,
+    #                                                 orient='index')
+    # node_txt2label_vec_csv.to_csv('node_txt2label_vec.csv')
 
     G_data = netrowkx2geometric(G)
     print(G_data)
     print(G_data.weight.dtype)
     print(G_data.edge_index.dtype)
 
-    X_labels_hat = GCN_forward(adj, X_labels, forward=gcn_hops)
+    X_labels_hat = GCN_forward(adj, all_node_labels, forward=gcn_hops)
     torch.save(X_labels_hat, 'X_labels_hat_05.pt')
 
     X = get_node_features(glove_embs, oov_embs, C_vocab['idx2str_map'],

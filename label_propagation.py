@@ -264,7 +264,17 @@ def propagate_multilabels(features, labels, ):
     return np.stack(all_preds).T
 
 
-def label_propagation(adj, Y, labelled_mask):
+def lpa_mse(Y_hat, Y, labelled_mask=None):
+    diff = Y_hat[labelled_mask] - Y[labelled_mask]
+    return diff.abs().sum()
+
+
+def break_labels(labelled_mask, test_size=0.19):
+    pass
+
+
+def label_propagation(adj, Y, labelled_mask, lpa_epoch=1):
+    logger.info("Applying Label Propagation")
     if isinstance(adj, sparse.csr.csr_matrix):
         # convert to PyTorch sparse
         adj = sp_coo_sparse2torch_sparse(adj)
@@ -274,11 +284,13 @@ def label_propagation(adj, Y, labelled_mask):
         # convert to PyTorch
         Y = torch.from_numpy(Y).float()
 
-    # adj = adj.to_dense()
-
-    lpa = LPALayer(labelled_mask)
-    Y_hat = lpa(adj, Y)
-    # Y_hat = Y[labelled_mask]
+    lpa = LPALayer()
+    Y_hat = Y
+    for i in range(lpa_epoch):
+        Y_hat = lpa(adj, Y_hat)
+        mse = lpa_mse(Y_hat[labelled_mask], Y[labelled_mask])
+        logger.info(f'Label Propagation epoch {i} MSE: {mse}')
+        Y_hat[labelled_mask] = Y[labelled_mask]
 
     return Y_hat
 

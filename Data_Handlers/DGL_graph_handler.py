@@ -165,7 +165,7 @@ def graph_multiclass_classification(in_feats=1, hid_feats=4, num_heads=2):
     testset = MiniGCDataset(80, 10, 20)
 
     # # Use PyTorch's DataLoader and the collate function defined before.
-    data_loader = DataLoader(trainset, batch_size=32, shuffle=True,
+    data_loader = DataLoader(trainset, batch_size=8, shuffle=True,
                              collate_fn=batch_graphs)
 
     # Create model

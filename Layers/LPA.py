@@ -67,10 +67,10 @@ def dot(x: t.Tensor, y: t.Tensor) -> t.Tensor:
 
 
 class LPALayer(t.nn.Module):
-    def __init__(self, labelled_mask: list = None) -> None:
+    def __init__(self) -> None:
         super(LPALayer, self).__init__()
         # self.softmax = t.nn.Softmax(dim=0)
-        self.labelled_mask = labelled_mask
+        # self.labelled_mask = labelled_mask
 
     def forward(self, adj: t.Tensor, Y: t.Tensor) -> t.Tensor:
         """ Y_hat = A * Y
@@ -82,7 +82,7 @@ class LPALayer(t.nn.Module):
         """
         adj = self.normalize_adj(adj)
         Y_hat = dot(adj, Y)
-        Y_hat[self.labelled_mask] = Y[self.labelled_mask]
+        # Y_hat[self.labelled_mask] = Y[self.labelled_mask]
         return Y_hat
 
     @staticmethod
