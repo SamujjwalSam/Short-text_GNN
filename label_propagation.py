@@ -17,8 +17,9 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
-import torch
+import torch as t
 import numpy as np
+import random
 from scipy import sparse
 from sklearn.semi_supervised import LabelSpreading, LabelPropagation
 from imblearn.under_sampling import RandomUnderSampler
@@ -66,6 +67,9 @@ def discretize_labelled(labelled_dict: dict, thresh1=0.1, k=2,
                         label_neg=0., label_pos=1.):
     """ Discretize probabilities of labelled tokens.
 
+    :param k:
+    :param thresh1:
+    :param label_pos:
     :param labelled_dict: token:np.array(vector)
     :param label_neg: Value to assign when no class should be assigned [0., -1.]
     """
@@ -170,7 +174,8 @@ def fetch_all_cls_nodes(node_list: list, token2label_vec_map: dict,
 
 
 def fetch_all_nodes(node_list: list, token2label_vec_map: dict,
-                    token_id2token_txt_map: list, default_fill=-1.):
+                    token_id2token_txt_map: list, default_fill=-1.,
+                    test_size=0.2):
     """ Fetches label vectors ordered by node_list.
 
     :param token_id2token_txt_map:
@@ -181,17 +186,26 @@ def fetch_all_nodes(node_list: list, token2label_vec_map: dict,
     :return:
     """
     ordered_node_embs = []
-    labelled_node_mask = []
+    labelled_node_mask_train = []
+    labelled_node_mask_test = []
     for node in node_list:
         try:
             ordered_node_embs.append(token2label_vec_map[
                                          token_id2token_txt_map[node]])
-            labelled_node_mask.append(True)
+            rand = random.random()
+            if rand < test_size:
+                labelled_node_mask_train.append(False)
+                labelled_node_mask_test.append(True)
+            else:
+                labelled_node_mask_train.append(True)
+                labelled_node_mask_test.append(False)
         except KeyError:
             ordered_node_embs.append(default_fill)
-            labelled_node_mask.append(False)
+            labelled_node_mask_train.append(False)
+            labelled_node_mask_test.append(False)
 
-    return ordered_node_embs, labelled_node_mask
+    return ordered_node_embs, (labelled_node_mask_train,
+                               labelled_node_mask_test)
 
 
 def construct_graph(input1, input2):
@@ -232,8 +246,9 @@ def majority_voting(preds_set):
     return pred_major
 
 
-def lpa_accuracy(preds_set, labels):
-    labels = np.stack(labels)
+def lpa_accuracy(preds_set: np.ndarray, labels: np.ndarray) -> dict:
+    preds_set = preds_set.numpy()
+    labels = labels.numpy()
     # pred_argmax = []
     result = {}
     for cls in range(preds_set.shape[1]):
@@ -250,7 +265,13 @@ def lpa_accuracy(preds_set, labels):
     return result
 
 
-def propagate_multilabels(features, labels, ):
+def propagate_multilabels(features: t.Tensor, labels: np.ndarray) -> np.ndarray:
+    """
+
+    :param features:
+    :param labels:
+    :return:
+    """
     all_preds = []
     for i, labels_cls in enumerate(labels):
         logger.info(f'Propagating labels for class [{i}].')
@@ -264,16 +285,13 @@ def propagate_multilabels(features, labels, ):
     return np.stack(all_preds).T
 
 
-def lpa_mse(Y_hat, Y, labelled_mask=None):
+def lpa_mse(Y_hat: t.Tensor, Y: t.Tensor, labelled_mask: list = None) -> t.Tensor:
     diff = Y_hat[labelled_mask] - Y[labelled_mask]
-    return diff.abs().sum()
+    return diff.abs().sum() / len(labelled_mask)
 
 
-def break_labels(labelled_mask, test_size=0.19):
-    pass
-
-
-def label_propagation(adj, Y, labelled_mask, lpa_epoch=1):
+def label_propagation(adj: sparse.csr.csr_matrix, Y: list, labelled_masks: tuple,
+                      lpa_epoch: int = 1) -> t.Tensor:
     logger.info("Applying Label Propagation")
     if isinstance(adj, sparse.csr.csr_matrix):
         # convert to PyTorch sparse
@@ -282,21 +300,23 @@ def label_propagation(adj, Y, labelled_mask, lpa_epoch=1):
         Y = np.stack(Y)
     if isinstance(Y, np.ndarray):
         # convert to PyTorch
-        Y = torch.from_numpy(Y).float()
+        Y = t.from_numpy(Y).float()
 
     lpa = LPALayer()
     Y_hat = Y
     for i in range(lpa_epoch):
         Y_hat = lpa(adj, Y_hat)
-        mse = lpa_mse(Y_hat[labelled_mask], Y[labelled_mask])
+        mse = lpa_mse(Y_hat[labelled_masks[0]], Y[labelled_masks[0]])
+        # lpa_accuracy(Y_hat[labelled_masks[1]], Y[labelled_masks[1]])
         logger.info(f'Label Propagation epoch {i} MSE: {mse}')
+        labelled_mask = [i or j for i, j in zip(labelled_masks[0],
+                                                labelled_masks[1])]
         Y_hat[labelled_mask] = Y[labelled_mask]
 
     return Y_hat
 
 
 if __name__ == "__main__":
-    import torch as t
     adj = t.rand(4, 4)
     lpa = LPALayer(adj)
     inputs = t.rand(4, 3)

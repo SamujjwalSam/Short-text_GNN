@@ -2,7 +2,7 @@
 # !/usr/bin/python3.7  # Please use python 3.7
 """
 __synopsis__    : Code related to applying GNN from DGL library
-__description__ : DGL node and graph classification
+__description__ : node and graph classification written in DGL library
 __project__     : Tweet_GNN_inductive
 __classes__     : Tweet_GNN_inductive
 __variables__   :
@@ -39,7 +39,7 @@ def plot_graph(g):
 
 
 class GATModel(torch.nn.Module):
-    def __init__(self, in_dim, hidden_dim, out_dim, num_heads):
+    def __init__(self, in_dim: int, hidden_dim: int, out_dim: int, num_heads: int) -> None:
         super(GATModel, self).__init__()
         self.layer1 = GATConv(in_dim, hidden_dim, num_heads)
         # Be aware that the input dimension is hidden_dim*num_heads since
@@ -47,7 +47,7 @@ class GATModel(torch.nn.Module):
         # one attention head in the output layer.
         self.layer2 = GATConv(hidden_dim * num_heads, out_dim, 1)
 
-    def forward(self, g, h):
+    def forward(self, g: DGLGraph, h: torch.Tensor) -> torch.Tensor:
         h = self.layer1(g, h)
         ## Concatenating multiple head embeddings
         h = h.view(-1, h.size(1) * h.size(2))
@@ -56,8 +56,10 @@ class GATModel(torch.nn.Module):
         return h
 
 
-def train_node_classifier(g, features, labels, labelled_mask, model, loss_func,
-                          optimizer, epochs=5):
+def train_node_classifier(g: DGLGraph, features: torch.Tensor,
+                          labels: torch.Tensor, labelled_mask: torch.Tensor,
+                          model: GATModel, loss_func,
+                          optimizer: torch.optim.adam.Adam, epochs: int = 5) -> None:
     model.train()
     dur = []
     for epoch in range(epochs):
@@ -76,7 +78,8 @@ def train_node_classifier(g, features, labels, labelled_mask, model, loss_func,
             epoch, loss.item(), np.mean(dur)))
 
 
-def node_binary_classification(hid_feats=4, out_feats=7, num_heads=2):
+def node_binary_classification(hid_feats: int = 4, out_feats: int = 7,
+                               num_heads: int = 2) -> None:
     from dgl.data import citation_graph as citegrh
 
     def load_cora_data():
@@ -112,13 +115,13 @@ def batch_graphs(samples):
 
 
 class GAT_Graph_Classifier(torch.nn.Module):
-    def __init__(self, in_dim, hidden_dim, num_heads, n_classes):
+    def __init__(self, in_dim: int, hidden_dim: int, num_heads: int, n_classes: int) -> None:
         super(GAT_Graph_Classifier, self).__init__()
         self.conv1 = GATConv(in_dim, hidden_dim, num_heads)
         self.conv2 = GATConv(hidden_dim * num_heads, hidden_dim, num_heads)
         self.classify = torch.nn.Linear(hidden_dim * num_heads, n_classes)
 
-    def forward(self, g, h=None):
+    def forward(self, g: DGLGraph, h: None = None) -> torch.Tensor:
         if h is None:
             # Use node degree as the initial node feature. For undirected graphs,
             # the in-degree is the same as the out_degree.
@@ -136,7 +139,10 @@ class GAT_Graph_Classifier(torch.nn.Module):
         return self.classify(hg)
 
 
-def train_graph_classifier(model, data_loader, loss_func, optimizer, epochs=5):
+def train_graph_classifier(model: GAT_Graph_Classifier,
+                           data_loader: torch.utils.data.dataloader.DataLoader,
+                           loss_func: torch.nn.modules.loss.CrossEntropyLoss,
+                           optimizer: torch.optim.adam.Adam, epochs: int = 5) -> None:
     model.train()
     epoch_losses = []
     for epoch in range(epochs):
@@ -157,7 +163,7 @@ def test_graph_classifier():
     pass
 
 
-def graph_multiclass_classification(in_feats=1, hid_feats=4, num_heads=2):
+def graph_multiclass_classification(in_feats: int = 1, hid_feats: int = 4, num_heads: int = 2) -> None:
     from dgl.data import MiniGCDataset
 
     # Create training and test sets.

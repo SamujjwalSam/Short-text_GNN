@@ -17,6 +17,7 @@ __taken_from__  : https://github.com/VinAIResearch/BERTweet
 """
 
 import re
+# import nltk
 from nltk.tokenize import TweetTokenizer
 from nltk.stem import PorterStemmer
 from nltk.stem import WordNetLemmatizer
@@ -53,6 +54,7 @@ def find_numbers(text, replace=True,
                  numexp=re.compile(r'(?:(?:\d+,?)+(?:\.?\d+)?)')):
     """
 
+    :param numexp:
     :param text: strings that contains digit and words
     :param replace: bool to decide if numbers need to be replaced.
     :return: text, list of numbers
@@ -133,8 +135,8 @@ def normalizeToken(token):
             return token
 
 
-def normalizeTweet(tweet, tokenizer=TweetTokenizer(), return_tokens=False,
-                   lower_case=True, remove_linebreaks=True):
+def normalizeTweet(tweet: str, tokenizer: TweetTokenizer = TweetTokenizer(), return_tokens: bool = False,
+                   lower_case: bool = True, remove_linebreaks: bool = True) -> list:
     # tweet2, _ = find_numbers(tweet)
     tokens = tokenizer.tokenize(tweet.replace("’", "'").replace("…", "..."))
     normTweet = " ".join([normalizeToken2(token) for token in tokens])
@@ -179,8 +181,8 @@ if __name__ == "__main__":
          "-5fd3-11ea-9ce4-5f495366cee6.html?utm_medium=social&utm_source="\
          "twitter&utm_campaign=user-share… via @postandcourier"
 
-    t2 = "Here is a list of some of the groups soliciting donations for " \
-         "relief efforts in #Nepal " \
+    t2 = "Here is a list of some of the groups soliciting donations for "\
+         "relief efforts in #Nepal "\
          "#earthquake\nhttp://t.co/ujtFuZAiY9\n@SunnyLeone"
 
     # print(normalizeTweet(t1))

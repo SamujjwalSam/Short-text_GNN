@@ -147,7 +147,7 @@ def plot_graph(G: nx.Graph, plot_name: str = 'H.png', labels: dict = None):
     plt.savefig(plot_name)
 
 
-def find_cooccurrences(txt_window):
+def find_cooccurrences(txt_window: list):
     edges = {}
     for i, token1 in enumerate(txt_window):
         for token2 in txt_window[i + 1:]:

@@ -29,6 +29,8 @@ from collections import OrderedDict
 from json import dumps
 from scipy import sparse
 
+from label_propagation import fetch_all_nodes, label_propagation,\
+    lpa_accuracy
 from Utils.utils import count_parameters, logit2label, calculate_performance,\
     split_df, freq_tokens_per_class, merge_dicts
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
@@ -162,14 +164,23 @@ def split_target(df=None,
     return df, t_lab_test_df
 
 
-def create_vocab(data_dir=cfg["paths"]["dataset_dir"][plat][user],
-                 labelled_source_name=cfg["data"]["source"]['labelled'],
-                 unlabelled_source_name=cfg["data"]["source"]['unlabelled'],
+def create_vocab(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
+                 labelled_source_name: str = cfg["data"]["source"]['labelled'],
+                 unlabelled_source_name: str = cfg["data"]["source"]['unlabelled'],
                  # labelled_target_name=cfg["data"]["target"]['labelled'],
-                 unlabelled_target_name=cfg["data"]["target"]['unlabelled'], ):
+                 unlabelled_target_name: str = cfg["data"]["target"]['unlabelled']):
+    """
+
+    :param data_dir:
+    :param labelled_source_name:
+    :param unlabelled_source_name:
+    :param unlabelled_target_name:
+    :return:
+    """
     ## Read source data
     s_lab_df = read_labelled_json(data_dir, labelled_source_name)
 
+    ## Match label space between two datasets:
     s_lab_df = labels_mapper(s_lab_df)
 
     token2label_vec_map = freq_tokens_per_class(s_lab_df)
@@ -257,13 +268,13 @@ def create_vocab(data_dir=cfg["paths"]["dataset_dir"][plat][user],
            T_dataset, T_fields, token2label_vec_map
 
 
-def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
-         labelled_source_name=cfg["data"]["source"]['labelled'],
-         unlabelled_source_name=cfg["data"]["source"]['unlabelled'],
+def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
+         labelled_source_name: str = cfg["data"]["source"]['labelled'],
+         unlabelled_source_name: str = cfg["data"]["source"]['unlabelled'],
          # labelled_target_name=cfg["data"]["target"]['labelled'],
-         unlabelled_target_name=cfg["data"]["target"]['unlabelled'],
-         mittens_iter=1000, gcn_hops=5,
-         glove_embs=glove2dict()):
+         unlabelled_target_name: str = cfg["data"]["target"]['unlabelled'],
+         mittens_iter: int = 1000, gcn_hops: int = 5,
+         glove_embs: dict = glove2dict()) -> None:
     # c_data_name = unlabelled_source_name + '_' + unlabelled_target_name\
     #               + "_data.csv"
     S_data_name = unlabelled_source_name + "_data.csv"
@@ -375,22 +386,16 @@ def main(data_dir=cfg["paths"]["dataset_dir"][plat][user],
         sparse.save_npz("adj.npz", adj)
 
     ## Apply Label Propagation to get label vectors for unlabelled nodes:
-    from label_propagation import fetch_all_nodes, label_propagation
-
-    # discretized_labels = discretize_labelled(labelled_token2vec_map)
-    all_node_labels, labelled_mask = fetch_all_nodes(
+    all_node_labels, labelled_masks = fetch_all_nodes(
         node_list, labelled_token2vec_map, C_vocab['idx2str_map'],
         default_fill=[0., 0., 0., 0.])
-
-    ## Create test labels:
-    labelled_mask_train, labelled_mask_test = break_labels(labelled_mask, test_size=0.19)
-
-    if exists("labels_propagated.pt"):
-        labels_propagated = torch.load('labels_propagated.pt')
-    else:
-        labels_propagated = label_propagation(adj, all_node_labels,
-                                              labelled_mask_train)
-        torch.save(labels_propagated, 'labels_propagated.pt')
+    #
+    # if exists("labels_propagated.pt"):
+    #     labels_propagated = torch.load('labels_propagated.pt')
+    # else:
+    #     labels_propagated = label_propagation(adj, all_node_labels,
+    #                                           labelled_masks)
+    #     torch.save(labels_propagated, 'labels_propagated.pt')
 
     ## Create label to propagated vector map:
     # node_txt2label_vec = {}
@@ -448,6 +453,26 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
              lr=cfg['model']['optimizer']['learning_rate'],
              train_batch_size=128,
              ):
+    """
+
+    :param train_df:
+    :param test_df:
+    :param stoi:
+    :param vectors:
+    :param dim:
+    :param data_dir:
+    :param train_filename:
+    :param test_filename:
+    :param cls_thresh:
+    :param epoch:
+    :param num_layers:
+    :param num_hidden_nodes:
+    :param dropout:
+    :param default_thresh:
+    :param lr:
+    :param train_batch_size:
+    :return:
+    """
     ## Prepare labelled source data:
     if train_df is None:
         train_df = read_labelled_json(data_dir, train_filename)
@@ -566,6 +591,12 @@ def get_supervised_result(model, train_iterator, val_iterator, test_iterator,
 
 def save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
                glove_file='oov_glove.txt'):
+    """
+
+    :param glove_embs:
+    :param glove_dir:
+    :param glove_file:
+    """
     with open(join(glove_dir, glove_file), 'w', encoding='UTF-8') as glove_f:
         for token, vec in glove_embs.items():
             line = token + ' ' + str(vec)

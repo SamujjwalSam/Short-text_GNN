@@ -30,8 +30,8 @@ from config import configuration as cfg, platform as plat, username as user
 from Logger.logger import logger
 
 
-def glove2dict(embedding_dir=cfg["paths"]["embedding_dir"][plat][user],
-               embedding_file=cfg["embeddings"]["embedding_file"]):
+def glove2dict(embedding_dir: str = cfg["paths"]["embedding_dir"][plat][user],
+               embedding_file: str = cfg["embeddings"]["embedding_file"]) -> np.ndarray:
     """Loads Glove vectors and return dict.
 
     # get it from https://nlp.stanford.edu/projects/glove
@@ -53,11 +53,12 @@ def glove2dict(embedding_dir=cfg["paths"]["embedding_dir"][plat][user],
 def preprocess_and_find_oov(datasets: tuple, common_vocab: dict = None,
                             glove_embs: dict = None, stopwords: list = None,
                             labelled_vocab_set: set = None,
-                            special_tokens = {'<unk>', '<pad>'}
+                            special_tokens={'<unk>', '<pad>'}
                             ):
     """ Process and prepare data by removing stopwords, finding oovs and
      creating corpus.
 
+    :param special_tokens:
     :param labelled_vocab_set: Tokens of labelled data with associate
     label vecs
     :param datasets:
@@ -166,8 +167,8 @@ def process_data(data: list, glove_embs: dict = None,
      creating corpus.
 
     :param glove_embs: Original glove embeddings in key:value format.
-    :param data: List[List[str]]: List of tokenized sentences (list of token
-     str list[str]).
+    :param data: List[list]: List of tokenized sentences (list of token
+     str list).
     :param stopwords:
     :param glove_path: Full path to glove file.
     :param remove_rare_oov: Boolean to signify if tokens with very less freq
@@ -232,6 +233,19 @@ def train_model(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=200,
                 embedding_file=cfg["embeddings"]["embedding_file"],
                 dataset_name=cfg["data"]["source"]['labelled']
                              + cfg["data"]["target"]['labelled']):
+    """
+
+    :param coocc_ar:
+    :param oov_vocabs:
+    :param pre_glove:
+    :param emb_dim:
+    :param max_iter:
+    :param glove_oov_save_path:
+    :param dataset_dir:
+    :param embedding_file:
+    :param dataset_name:
+    :return:
+    """
     mittens_model = Mittens(n=emb_dim, max_iter=max_iter)
 
     new_embeddings = mittens_model.fit(

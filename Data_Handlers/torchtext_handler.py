@@ -1,8 +1,8 @@
 # coding=utf-8
 # !/usr/bin/python3.7  # Please use python 3.7
 """
-__synopsis__    : Short summary of the script.
-__description__ : Details and usage.
+__synopsis__    : Code to handle text datasets using TorchText
+__description__ : Code to handle text datasets using TorchText
 __project__     : Tweet_GNN_inductive
 __classes__     : Tweet_GNN_inductive
 __variables__   :
@@ -16,6 +16,7 @@ __license__     : "This source code is licensed under the MIT-style license
                    found in the LICENSE file in the root directory of this
                    source tree."
 """
+
 import torch
 import pickle
 import dill
@@ -28,8 +29,8 @@ from Logger.logger import logger
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def prepare_fields(text_headers=None, label_headers=None, tokenizer='spacy',
-                   batch_first=True, include_lengths=True, n_classes=4):
+def prepare_fields(text_headers: list = None, label_headers=None, tokenizer='spacy',
+                   batch_first: bool = True, include_lengths: bool = True, n_classes: int = 4):
     """ Generates fields present on the dataset.
 
     Args:
@@ -95,7 +96,8 @@ def create_dataset(examples, fields=None):
     return dataset
 
 
-def create_tabular_dataset(csv_file, data_dir, fields=None, skip_header=True):
+def create_tabular_dataset(csv_file: str, data_dir: str, fields=None,
+                           skip_header: bool = True) -> data.dataset.TabularDataset:
     """ Reads a csv file and returns TorchText TabularDataset format.
 
     Args:
@@ -186,8 +188,9 @@ def load_dataset(load_dir, name):
     return dataset
 
 
-def create_vocab(dataset, TEXT_field, LABEL_field=None, embedding_file=None,
-                 embedding_dir=None, min_freq=1, show_vocab_details=True):
+def create_vocab(dataset: data.dataset.TabularDataset, TEXT_field: data.field.Field,
+                 LABEL_field: data.field.LabelField = None, embedding_file: str = None,
+                 embedding_dir: str = None, min_freq: int = 1, show_vocab_details: bool = True) -> None:
     if embedding_file is not None:
         # initialize embeddings (Glove)
         TEXT_field.build_vocab(

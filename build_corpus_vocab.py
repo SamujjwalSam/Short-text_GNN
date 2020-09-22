@@ -30,11 +30,11 @@ from Data_Handlers.torchtext_handler import prepare_fields, create_vocab,\
 from config import configuration as cfg, platform as plat, username as user
 
 
-def get_dataset_fields(csv_dir, csv_file, return_iter=False, min_freq=2,
-                       text_headers=['text'], batch_size=1, init_vocab=True,
-                       labelled_data=False, target_train_portion=None,
-                       embedding_dir=cfg["paths"]["embedding_dir"][plat][user],
-                       embedding_file=cfg["embeddings"]["embedding_file"],
+def get_dataset_fields(csv_dir: str, csv_file: str, return_iter: bool = False, min_freq: int = 2,
+                       text_headers: list = tuple('text'), batch_size: int = 1, init_vocab: bool = True,
+                       labelled_data: bool = False, target_train_portion=None,
+                       embedding_dir: str = cfg["paths"]["embedding_dir"][plat][user],
+                       embedding_file: str = cfg["embeddings"]["embedding_file"],
                        ):
     ## Create tokenizer:
     tokenizer = partial(normalizeTweet, return_tokens=True)
@@ -75,6 +75,7 @@ def build_corpus(df, txts: list = None, corpus: list = None):
     """Generates corpus (list of str) and vocab with occurrence count (dict of
      set of unique tokens).
 
+    :param df:
     :param txts:
     :param corpus:
     :return:
@@ -116,10 +117,10 @@ class Vocabulary:
         self.token2index = {}
         self.token2count = {}
         self.index2token = {
-            Vocabulary.UNK_token: "<UNK>",
-            Vocabulary.PAD_token: "<PAD>",
-            Vocabulary.SOS_token: "SOS",
-            Vocabulary.EOS_token: "EOS",
+            Vocabulary.UNK_token:  "<UNK>",
+            Vocabulary.PAD_token:  "<PAD>",
+            Vocabulary.SOS_token:  "SOS",
+            Vocabulary.EOS_token:  "EOS",
             Vocabulary.HASH_token: "#HASH",
             Vocabulary.USER_token: "@USER",
         }

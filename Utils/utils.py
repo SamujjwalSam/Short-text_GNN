@@ -39,7 +39,12 @@ from tweet_normalizer import normalizeTweet
 from Logger.logger import logger
 
 
-def sp_coo_sparse2torch_sparse(M):
+def sp_coo_sparse2torch_sparse(M: sp.csr.csr_matrix) -> torch.Tensor:
+    """
+
+    :param M:
+    :return:
+    """
     if isinstance(M, sp.csr_matrix):
         M = M.tocoo()
 
@@ -186,7 +191,7 @@ def token_dist(df, txt_tokenized=False):
     return cls_freq, set(all_tokens)
 
 
-def freq_tokens_per_class(df, normalize=True):
+def freq_tokens_per_class(df: pd.core.frame.DataFrame, normalize: bool = True):
     """ Returns a dict of most freq tokens per class.
 
     :param df: Labelled DataFrame ['text', label_1, label_2, ...]

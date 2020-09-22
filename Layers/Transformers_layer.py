@@ -330,6 +330,16 @@ class TransformerClassifier(torch.nn.Module):
 
     def forward(self, input_ids=None, attention_mask=None, head_mask=None,
                 inputs_embeds=None, token_type_ids=None, pool_output=None):
+        """
+
+        :param input_ids:
+        :param attention_mask:
+        :param head_mask:
+        :param inputs_embeds:
+        :param token_type_ids:
+        :param pool_output:
+        :return:
+        """
         ## Recheck if pooled output to be taken:
         self.pool_output = pool_output if pool_output is not None else self.pool_output
 
@@ -414,6 +424,10 @@ class TransformerPretrain():
         self.optimizer = torch.optim.Adam(params=self.model.parameters(), lr=LEARNING_RATE)
 
     def freeze_weights(self, except_layers=tuple('classifier')):
+        """
+
+        :param except_layers:
+        """
         for name, param in self.model.named_parameters():
             # for layer in except_layers:
             #     if layer not in name:

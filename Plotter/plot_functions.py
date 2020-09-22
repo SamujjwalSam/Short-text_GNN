@@ -62,7 +62,7 @@ def plot_features_tsne(X, tokens: list = None, limit_view: int = -100):
 
 
 def plot_training_loss(training_losses: list, val_losses: list,
-                       plot_name: str='training_loss'):
+                       plot_name: str = 'training_loss'):
     """ Plots loss comparison of training and validation.
 
     :param plot_name:
@@ -82,12 +82,12 @@ def plot_training_loss(training_losses: list, val_losses: list,
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     # plt.show()
-    fig.savefig(plot_name+'.pdf', format='pdf', bbox_inches='tight')
+    fig.savefig(plot_name + '.pdf', format='pdf', bbox_inches='tight')
 
 
 def calculate_sd():
-    for name, dataset in {"FIRE16":FIRE16, "SMERP17":smerp_results,
-                          "Kaggle":kaggle_results}.items():
+    for name, dataset in {"FIRE16": FIRE16, "SMERP17": smerp_results,
+                          "Kaggle": kaggle_results}.items():
         print(f"Dataset: [{name}]")
     for algo, data in dataset.items():
         print(f"\tMetric: [{algo}]")
