@@ -30,7 +30,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def prepare_fields(text_headers: list = None, label_headers=None, tokenizer='spacy',
-                   batch_first: bool = True, include_lengths: bool = True, n_classes: int = 4):
+                   batch_first: bool = True, include_lengths: bool = True,
+                   n_classes: int = 4):
     """ Generates fields present on the dataset.
 
     Args:
@@ -191,6 +192,16 @@ def load_dataset(load_dir, name):
 def create_vocab(dataset: data.dataset.TabularDataset, TEXT_field: data.field.Field,
                  LABEL_field: data.field.LabelField = None, embedding_file: str = None,
                  embedding_dir: str = None, min_freq: int = 1, show_vocab_details: bool = True) -> None:
+    """ Creates vocabulary using TorchText.
+
+    :param dataset:
+    :param TEXT_field:
+    :param LABEL_field:
+    :param embedding_file:
+    :param embedding_dir:
+    :param min_freq:
+    :param show_vocab_details:
+    """
     if embedding_file is not None:
         # initialize embeddings (Glove)
         TEXT_field.build_vocab(
@@ -201,7 +212,7 @@ def create_vocab(dataset: data.dataset.TabularDataset, TEXT_field: data.field.Fi
 
     if LABEL_field:
         LABEL_field.build_vocab(dataset)
-        # No. of unique tokens in label
+        # No. of unique label types
         logger.info("Size of LABEL vocabulary: {}".format(len(
             LABEL_field.vocab)))
 

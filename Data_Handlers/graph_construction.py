@@ -1,8 +1,8 @@
 # coding=utf-8
 # !/usr/bin/python3.7  # Please use python 3.7
 """
-__synopsis__    : Generate token graph
-__description__ : Details and usage.
+__synopsis__    : Graph construction codes
+__description__ : Constructs large token graph and individual instance graphs
 __project__     : Tweet_GNN_inductive
 __classes__     : Tweet_GNN_inductive
 __variables__   :
@@ -20,9 +20,8 @@ __license__     : "This source code is licensed under the MIT-style license
 import torch
 import numpy as np
 import networkx as nx
-import matplotlib.pyplot as plt
-from torch_geometric import utils as tg_utils
-from networkx.readwrite.gpickle import write_gpickle, read_gpickle
+# from torch_geometric import utils as tg_utils
+# from networkx.readwrite.gpickle import write_gpickle, read_gpickle
 
 from Logger.logger import logger
 
@@ -102,49 +101,6 @@ def get_node_features(embs, oov_embs, combined_i2s: list, node_list: list):
     ordered_node_embs = torch.from_numpy(ordered_node_embs).float()
 
     return ordered_node_embs
-
-
-def plot_weighted_graph(G, val=2):
-    elarge = [(u, v) for (u, v, d) in G.edges(data=True) if d["s_co"] > val]
-    esmall = [(u, v) for (u, v, d) in G.edges(data=True) if d["s_co"] <= val]
-
-    pos = nx.spring_layout(G)  # positions for all nodes
-
-    # nodes
-    nx.draw_networkx_nodes(G, pos, node_size=700)
-
-    # edges
-    nx.draw_networkx_edges(G, pos, edgelist=elarge, width=6)
-    nx.draw_networkx_edges(
-        G, pos, edgelist=esmall, width=6, alpha=0.5, edge_color="b",
-        style="dashed"
-    )
-
-    # labels
-    nx.draw_networkx_labels(G, pos, font_size=20, font_family="sans-serif")
-
-    plt.axis("off")
-    plt.show()
-
-
-def plot_graph(G: nx.Graph, plot_name: str = 'H.png', labels: dict = None):
-    """ Plots a networkx graph.
-
-    :param G:
-    :param plot_name:
-    :param labels: Node labels map from id to text.
-    """
-    plt.subplot(121)
-    # labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
-    if labels:
-        nx.draw(G, labels=labels, with_labels=True, font_weight='bold')
-    else:
-        nx.draw(G, with_labels=True, font_weight='bold')
-    # plt.subplot(122)
-    # nx.draw_shell(G, with_labels=True, font_weight='bold')
-    # plt.show()
-    plt.show()
-    plt.savefig(plot_name)
 
 
 def find_cooccurrences(txt_window: list):
@@ -314,6 +270,9 @@ def create_tokengraph(datasets, c_vocab, s_vocab, t_vocab,
      NOTE: This should be called only after create_src_tokengraph() was called
      to create G.
 
+    :param t_vocab:
+    :param s_vocab:
+    :param c_vocab:
     :param edge_attr: Name of the edge attribute, should match with param name
      when calling add_edge().
     :param window_size: Sliding window size
@@ -465,21 +424,20 @@ def generate_window_token_graph(corpus: list, G: nx.Graph = None,
     return G
 
 
-def get_k_hop_subgraph(G: nx.Graph, txt: list, hop: int = 0,
-                       s_weight: float = 1.,
-                       ):
+def get_k_hop_subgraph(G: nx.Graph, txt, hop: int = 0,
+                       s_weight: float = 1.):
     """ Generates 0/1-hop subgraph of a tweet by collecting all the neighbor
     nodes and getting the induced subgraph.
 
     :param hop: Hop count
     :param G:
-    :param txt: list of str
+    :param txt: list of tokens
     :param s_weight: Edge weight for OOV node edges
     :return:
     """
     oov_nodes = []
     all_neighbors = []
-    for pos, token in enumerate(txt):
+    for pos, token in enumerate(txt.text):
         if hop == 0:
             all_neighbors.append(token)
         elif hop == 1:
@@ -493,7 +451,7 @@ def get_k_hop_subgraph(G: nx.Graph, txt: list, hop: int = 0,
         else:
             raise NotImplementedError("Only 0 or 1 hop is supported.")
 
-    G_sub = gen_sample_subgraph(all_neighbors, G)
+    G_sub = gen_sample_subgraph(all_neighbors, H=nx.Graph())
 
     if oov_nodes:
         ## Add oov tokens to graph and connect it to other nodes.
@@ -511,8 +469,7 @@ def get_k_hop_subgraph(G: nx.Graph, txt: list, hop: int = 0,
 
 def ego_graph_nbunch_window(G: nx.Graph, nbunch: list,
                             edge_attr: str = 'cooccure',
-                            s_weight: float = 1.,
-                            ):
+                            s_weight: float = 1.):
     """ Ego_graph for a bunch of nodes, adds edges among them. connects nodes
      in nbunch with original edge weight if exists, s_weight if not.
 
@@ -570,8 +527,10 @@ def gen_sample_subgraph(txt: list, H: nx.Graph, s_weight: float = 1.0):
     return H
 
 
-def generate_sample_subgraphs(txts: list, G: nx.Graph, s_weight: float = 1.):
-    """ Given a sample texts, generate subgraph keeping the sample texts
+def generate_sample_subgraphs(txts: list, G: nx.Graph,
+                              # s_weight: float = 1.
+                              ):
+    """ Given sample texts, generate subgraph keeping the sample texts
      connected.
 
     :param s_weight: Weight for edges in sample text.

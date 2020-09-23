@@ -29,8 +29,7 @@ from collections import OrderedDict
 from json import dumps
 from scipy import sparse
 
-from label_propagation import fetch_all_nodes, label_propagation,\
-    lpa_accuracy
+from label_propagation import fetch_all_nodes
 from Utils.utils import count_parameters, logit2label, calculate_performance,\
     split_df, freq_tokens_per_class, merge_dicts
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
@@ -38,17 +37,17 @@ from File_Handlers.csv_handler import read_tweet_csv
 from File_Handlers.json_handler import save_json, read_json, json_keys2df,\
     read_labelled_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
-from Data_Handlers.torchtext_handler import dataset2bucket_iter
+from Data_Handlers.torchtext_handler import dataset2bucket_iter, dataset2iter
 from build_corpus_vocab import get_dataset_fields
 from Data_Handlers.graph_construction import get_node_features,\
-    add_edge_weights, create_tokengraph, get_label_vectors
+    add_edge_weights, create_tokengraph, get_label_vectors, generate_sample_subgraphs
 from Layers.GCN_forward import GCN_forward, netrowkx2geometric
 from Layers.BERT_multilabel_classifier import BERT_classifier
 from finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
     train_model, preprocess_and_find_oov
 from Trainer.Training import trainer, predict_with_label
 from Class_mapper.FIRE16_SMERP17_map import labels_mapper
-from Plotter.plot_functions import plot_training_loss
+from Plotter.plot_functions import plot_training_loss, plot_graph
 from config import configuration as cfg, platform as plat, username as user
 from Logger.logger import logger
 
@@ -265,7 +264,7 @@ def create_vocab(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
     logger.info("Combined vocab size: [{}]".format(len(C_vocab['str2idx_map'])))
 
     return C_vocab, C_dataset, S_vocab, S_dataset, S_fields, T_vocab,\
-           T_dataset, T_fields, token2label_vec_map
+           T_dataset, T_fields, token2label_vec_map, s_lab_df
 
 
 def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
@@ -282,6 +281,11 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
 
     if exists('S_vocab.json') and exists('T_vocab.json') and exists(
             'labelled_token2vec_map.json'):
+        ## Read labelled source data
+        s_lab_df = read_labelled_json(data_dir, labelled_source_name)
+        ## Match label space between two datasets:
+        s_lab_df = labels_mapper(s_lab_df)
+
         C_vocab = read_json('C_vocab')
         S_vocab = read_json('S_vocab')
         T_vocab = read_json('T_vocab')
@@ -296,7 +300,7 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
                 csv_dir=data_dir, csv_file=T_data_name)
     else:
         C_vocab, C_dataset, S_vocab, S_dataset, S_fields, T_vocab,\
-        T_dataset, T_fields, labelled_token2vec_map =\
+        T_dataset, T_fields, labelled_token2vec_map, s_lab_df =\
             create_vocab(data_dir, labelled_source_name, unlabelled_source_name,
                          unlabelled_target_name)
         ## Save vocabs:
@@ -338,6 +342,12 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
 
     logger.info("Number of nodes: [{}]".format(len(G.nodes)))
     logger.info("Number of edges: [{}]".format(len(G.edges)))
+
+    S_data_name = labelled_source_name + "_data.csv"
+    s_lab_df.to_csv(join(data_dir, S_data_name))
+    s_labelled_dataset, (_, _) = get_dataset_fields(
+        csv_dir=data_dir, csv_file=S_data_name, min_freq=1, labelled_data=True)
+    txts_subgraphs = generate_sample_subgraphs(s_labelled_dataset.examples, G=G)
 
     ## Save graph: G
     # read_graphml(path, node_type=<class 'str'>, edge_key_type=<class 'int'>)
@@ -433,10 +443,10 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
 
     ## Construct tweet subgraph:
     # S_iter, T_iter = dataset2iter((S_dataset, T_dataset), batch_size=1)
-    # txts_subgraphs = generate_sample_subgraphs(s_lab_df.text.to_list(), G=G)
-    # logger.info("Fetching subgraph: [{}]".format(txts_subgraphs))
-    # print(txts_subgraphs[0].nodes)
-    # plot_graph(txts_subgraphs[0])
+    txts_subgraphs = generate_sample_subgraphs(s_lab_df.text.to_list(), G=G)
+    logger.info("Fetching subgraph: [{}]".format(txts_subgraphs))
+    print(txts_subgraphs[0].nodes)
+    plot_graph(txts_subgraphs[0])
 
     return C_vocab['str2idx_map'], X_hat
 

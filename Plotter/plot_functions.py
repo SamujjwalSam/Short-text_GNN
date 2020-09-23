@@ -18,6 +18,7 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import statistics
+import networkx as nx
 from matplotlib import pyplot as plt
 from sklearn.manifold import TSNE
 
@@ -177,6 +178,49 @@ def plot_pr(data, classes=None, n_groups=7, bar_elev=.4, set_ylim=0.35,
 
     # plt.show()
     fig.savefig(dataset + ylabel + '.eps', format='eps', bbox_inches='tight')
+
+
+def plot_weighted_graph(G, val=2):
+    elarge = [(u, v) for (u, v, d) in G.edges(data=True) if d["s_co"] > val]
+    esmall = [(u, v) for (u, v, d) in G.edges(data=True) if d["s_co"] <= val]
+
+    pos = nx.spring_layout(G)  # positions for all nodes
+
+    # nodes
+    nx.draw_networkx_nodes(G, pos, node_size=700)
+
+    # edges
+    nx.draw_networkx_edges(G, pos, edgelist=elarge, width=6)
+    nx.draw_networkx_edges(
+        G, pos, edgelist=esmall, width=6, alpha=0.5, edge_color="b",
+        style="dashed"
+    )
+
+    # labels
+    nx.draw_networkx_labels(G, pos, font_size=20, font_family="sans-serif")
+
+    plt.axis("off")
+    plt.show()
+
+
+def plot_graph(G: nx.Graph, plot_name: str = 'H.png', labels: dict = None):
+    """ Plots a networkx graph.
+
+    :param G:
+    :param plot_name:
+    :param labels: Node labels map from id to text.
+    """
+    plt.subplot(121)
+    # labels = nx.draw_networkx_labels(G, pos=nx.spring_layout(G))
+    if labels:
+        nx.draw(G, labels=labels, with_labels=True, font_weight='bold')
+    else:
+        nx.draw(G, with_labels=True, font_weight='bold')
+    # plt.subplot(122)
+    # nx.draw_shell(G, with_labels=True, font_weight='bold')
+    # plt.show()
+    plt.show()
+    plt.savefig(plot_name)
 
 
 if __name__ == '__main__':
