@@ -269,7 +269,7 @@ class BERT_pretrained_simpletransformers(ClassificationModel):
 
 
 # Defining some key variables that will be used later on in the training
-MAX_LEN = 128
+MAX_LEN = 256
 TRAIN_BATCH_SIZE = 8
 VALID_BATCH_SIZE = 4
 EPOCHS = 3
