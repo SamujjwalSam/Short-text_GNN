@@ -19,17 +19,15 @@ __license__     : "This source code is licensed under the MIT-style license
 
 import torch
 import argparse
-import numpy as np
 import pandas as pd
 import networkx as nx
-from networkx.readwrite.gpickle import write_gpickle, read_gpickle
 from os import environ
 from os.path import join, exists
 from collections import OrderedDict
 from json import dumps
 from scipy import sparse
 
-from label_propagation import fetch_all_nodes
+from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes
 from Utils.utils import count_parameters, logit2label, calculate_performance,\
     split_df, freq_tokens_per_class, merge_dicts
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
@@ -37,10 +35,10 @@ from File_Handlers.csv_handler import read_tweet_csv
 from File_Handlers.json_handler import save_json, read_json, json_keys2df,\
     read_labelled_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
-from Data_Handlers.torchtext_handler import dataset2bucket_iter, dataset2iter
+from Data_Handlers.torchtext_handler import dataset2bucket_iter
 from build_corpus_vocab import get_dataset_fields
 from Data_Handlers.graph_construction import get_node_features,\
-    add_edge_weights, create_tokengraph, get_label_vectors, generate_sample_subgraphs
+    add_edge_weights, create_tokengraph, generate_sample_subgraphs
 from Layers.GCN_forward import GCN_forward, netrowkx2geometric
 from Layers.BERT_multilabel_classifier import BERT_classifier
 from finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\

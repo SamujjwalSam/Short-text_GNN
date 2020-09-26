@@ -21,10 +21,10 @@ import torch as t
 import numpy as np
 import random
 from scipy import sparse
-from sklearn.semi_supervised import LabelSpreading, LabelPropagation
+from sklearn.semi_supervised import LabelSpreading
 from imblearn.under_sampling import RandomUnderSampler
 
-from Layers.LPA import LPALayer
+from Label_Propagation_PyTorch.LPA import LPALayer
 from Utils.utils import sp_coo_sparse2torch_sparse
 from Logger.logger import logger
 
@@ -209,7 +209,7 @@ def fetch_all_nodes(node_list: list, token2label_vec_map: dict,
 
 
 def construct_graph(input1, input2):
-    adj = sparse.load_npz("adj.npz")
+    adj = sparse.load_npz("../adj.npz")
     return adj
 
 
