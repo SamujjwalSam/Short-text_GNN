@@ -20,22 +20,20 @@ __license__     : "This source code is licensed under the MIT-style license
 from os.path import join, exists
 from os import listdir, makedirs
 import random
-import argparse
 import numpy as np
-import pandas as pd
 from sklearn import metrics
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, RandomSampler, TensorDataset
-from transformers import AutoModel, AutoTokenizer, BertTokenizer
+from transformers import AutoModel, AutoTokenizer
 from simpletransformers.classification import ClassificationModel
 from simpletransformers.classification.classification_utils import InputExample, convert_examples_to_features
 
 from config import configuration as cfg, platform as plat, username as user
 from Logger.logger import logger
-from File_Handlers.json_handler import json_keys2df, read_labelled_json
-from Layers.BERT_multilabel_classifier import format_inputs
+from File_Handlers.json_handler import read_labelled_json
+from Transformers_simpletransformers.BERT_multilabel_classifier import format_inputs
 
 ## Setting up the device for GPU usage
 from torch import cuda
@@ -448,7 +446,8 @@ class TransformerPretrain():
         #             param.requires_grad = False
         #         logger.info(f"Froze Layer: {layer_idx}")
 
-    def read_data(self, data_dir=cfg["paths"]["dataset_dir"][plat][user], filename=cfg["data"]["source"]['labelled']):
+    def read_data(self, data_dir=cfg["paths"]["dataset_dir"][plat][user],
+                  filename=cfg["data"]["source"]['labelled']):
         new_df = read_labelled_json(data_dir, filename)
         new_df = format_inputs(new_df)
         return new_df
