@@ -204,6 +204,7 @@ def create_vocab(dataset: data.dataset.TabularDataset, TEXT_field: data.field.Fi
     """
     if embedding_file is not None:
         # initialize embeddings (Glove)
+        logger.info(f'Using embedding file [{embedding_file}]')
         TEXT_field.build_vocab(
             dataset, min_freq=min_freq, vectors=embedding_file,
             vectors_cache=embedding_dir)
@@ -228,7 +229,7 @@ def create_vocab(dataset: data.dataset.TabularDataset, TEXT_field: data.field.Fi
 def dataset2iter(datasets: tuple, batch_size=None, batch_sizes=(128, 256, 256),
                  shuffle=True):
     """
-    Converts DataFrame to TorchText iterator.
+    Converts dataset (DataFrame) to TorchText iterator.
 
     Returns:
 
@@ -262,7 +263,7 @@ def dataset2iter(datasets: tuple, batch_size=None, batch_sizes=(128, 256, 256),
 def dataset2bucket_iter(datasets: tuple, batch_size=None,
                         batch_sizes=(128, 256, 256), ):
     """
-    Converts DataFrame to TorchText iterator.
+    Converts dataset (DataFrame) to TorchText iterator.
 
     Returns:
 

@@ -68,7 +68,7 @@ def load_json(filename: str, filepath: str = '', ext: str = ".json",
 def json_keys2df(data_keys, json_data=None, json_filename=None,
                  dataset_dir: str = '', replace_index=False) ->\
         pd.core.frame.DataFrame:
-    """ Converts json tweet data to a dataframe for only selected data_keys.
+    """ Converts json tweet data to a DataFrame for only selected data_keys.
 
     :param json_filename:
     :param data_keys: list of str to be read from the json and made a column

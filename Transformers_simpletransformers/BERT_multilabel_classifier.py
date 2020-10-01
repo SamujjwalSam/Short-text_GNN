@@ -98,7 +98,7 @@ def BERT_classifier(train_df, test_df, n_classes=4,
                     dataset_name=cfg["data"]["source"]['labelled'],
                     model_name=cfg['transformer']['model_name'],
                     model_type=cfg['transformer']['model_type'],
-                    num_epoch=cfg['sampling']['num_train_epoch'],
+                    num_epoch=cfg['training']['num_train_epoch'],
                     use_cuda=cfg['model']['use_cuda']):
     """Train and Evaluation data needs to be in a Pandas Dataframe containing at
     least two columns, a 'text' and a 'labels' column. The `labels` column
@@ -132,10 +132,10 @@ def BERT_classifier(train_df, test_df, n_classes=4,
     model_args.warmup_ratio = cfg['transformer']['optimizer']['warmup_ratio']
     model_args.warmup_steps = cfg['transformer']['optimizer']['warmup_steps']
     model_args.max_grad_norm = cfg['transformer']['optimizer']['max_grad_norm']
-    model_args.train_batch_size = cfg['sampling']['train_batch_size']
+    model_args.train_batch_size = cfg['training']['train_batch_size']
     model_args.gradient_accumulation_steps = cfg['transformer'][
         'gradient_accumulation_steps']
-    model_args.eval_batch_size = cfg['sampling']['eval_batch_size']
+    model_args.eval_batch_size = cfg['training']['eval_batch_size']
     model_args.evaluate_during_training = False
     model_args.evaluate_during_training_steps = 3000
     model_args.save_steps = 10000
@@ -238,9 +238,9 @@ def BERT_classifier(train_df, test_df, n_classes=4,
         #     'warmup_ratio':                   cfg['transformer']['optimizer']['warmup_ratio'],
         #     'warmup_steps':                   cfg['transformer']['optimizer']['warmup_steps'],
         #     'max_grad_norm':                  cfg['transformer']['optimizer']['max_grad_norm'],
-        #     'train_batch_size':               cfg['sampling']['train_batch_size'],
+        #     'train_batch_size':               cfg['training']['train_batch_size'],
         #     'gradient_accumulation_steps':    cfg['transformer']['gradient_accumulation_steps'],
-        #     'eval_batch_size':                cfg['sampling']['eval_batch_size'],
+        #     'eval_batch_size':                cfg['training']['eval_batch_size'],
         #     'num_train_epochs':               num_epoch,
         #     'evaluate_during_training':       False,
         #     'evaluate_during_training_steps': 3000,
@@ -323,7 +323,7 @@ if __name__ == "__main__":
     parser.add_argument("-mt", "--model_type",
                         default=cfg['transformer']['model_type'], type=str)
     parser.add_argument("-ne", "--num_train_epochs",
-                        default=cfg['sampling']['num_train_epoch'], type=int)
+                        default=cfg['training']['num_train_epoch'], type=int)
     parser.add_argument("-c", "--use_cuda",
                         default=cfg['model']['use_cuda'], action='store_true')
 

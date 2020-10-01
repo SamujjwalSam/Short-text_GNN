@@ -274,8 +274,12 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
          glove_embs: dict = glove2dict()) -> None:
     # c_data_name = unlabelled_source_name + '_' + unlabelled_target_name\
     #               + "_data.csv"
-    S_data_name = unlabelled_source_name + "_data.csv"
-    T_data_name = unlabelled_target_name + "_data.csv"
+    data_dir = Path(data_dir)
+    labelled_source_name = labelled_source_name
+    unlabelled_source_name = unlabelled_source_name
+    unlabelled_target_name = unlabelled_target_name
+    S_data_name = Path(unlabelled_source_name + "_data.csv")
+    T_data_name = Path(unlabelled_target_name + "_data.csv")
 
     if exists('S_vocab.json') and exists('T_vocab.json') and exists(
             'labelled_token2vec_map.json'):
@@ -454,7 +458,7 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
              data_dir=cfg["paths"]["dataset_dir"][plat][user],
              train_filename=cfg["data"]["source"]['labelled'],
              test_filename=cfg["data"]["target"]['labelled'],
-             cls_thresh=None, epoch=cfg['sampling']['num_epochs'],
+             cls_thresh=None, epoch=cfg['training']['num_epochs'],
              num_layers=cfg['lstm_params']['num_layers'],
              num_hidden_nodes=cfg['lstm_params']['hid_size'],
              dropout=cfg['model']['dropout'], default_thresh=0.5,
@@ -627,7 +631,7 @@ if __name__ == "__main__":
     parser.add_argument("-mt", "--model_type",
                         default=cfg['transformer']['model_type'], type=str)
     parser.add_argument("-ne", "--num_train_epochs",
-                        default=cfg['sampling']['num_train_epoch'], type=int)
+                        default=cfg['training']['num_train_epoch'], type=int)
     parser.add_argument("-c", "--use_cuda",
                         default=cfg['model']['use_cuda'], action='store_true')
 

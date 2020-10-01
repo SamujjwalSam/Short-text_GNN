@@ -83,7 +83,7 @@ def main(train_df, test_df, n_classes=4,
          dataset_name=cfg["data"]["source"]['labelled'],
          model_name=cfg['transformer']['model_name'],
          model_type=cfg['transformer']['model_type'],
-         num_epoch=cfg['sampling']['num_train_epoch'],
+         num_epoch=cfg['training']['num_train_epoch'],
          use_cuda=cfg['model']['use_cuda']):
     """Train and Evaluation data needs to be in a Pandas Dataframe containing at
     least two columns, a 'text' and a 'labels' column. The `labels` column
@@ -123,11 +123,11 @@ def main(train_df, test_df, n_classes=4,
                                                   'warmup_steps'],
             'max_grad_norm':                  cfg['transformer'][
                                                   'max_grad_norm'],
-            'train_batch_size':               cfg['sampling'][
+            'train_batch_size':               cfg['training'][
                                                   'train_batch_size'],
             'gradient_accumulation_steps':    cfg['model'][
                                                   'gradient_accumulation_steps'],
-            'eval_batch_size':                cfg['sampling'][
+            'eval_batch_size':                cfg['training'][
                                                   'eval_batch_size'],
             'num_train_epochs':               num_epoch,
             'evaluate_during_training':       False,
@@ -205,7 +205,7 @@ if __name__ == "__main__":
     parser.add_argument("-mt", "--model_type",
                         default=cfg['model']['model_type'], type=str)
     parser.add_argument("-ne", "--num_train_epochs",
-                        default=cfg['sampling']['num_train_epoch'], type=int)
+                        default=cfg['training']['num_train_epoch'], type=int)
     parser.add_argument("-c", "--use_cuda",
                         default=cfg['model']['use_cuda'], action='store_true')
 
