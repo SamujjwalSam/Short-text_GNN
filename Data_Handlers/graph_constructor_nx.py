@@ -416,23 +416,23 @@ def generate_window_token_graph(corpus: list, G: nx.Graph = None,
             j = j + 1
             # j = j + window_size-1
 
-    for cooccure in sample_edges.values():
-        for edge in cooccure:
+    for weight in sample_edges.values():
+        for edge in weight:
             for nodes in edge.keys():
-                G.add_edge(nodes[0], nodes[1], cooccure=cooccure)
+                G.add_edge(nodes[0], nodes[1], weight=weight)
 
     return G
 
 
 def get_k_hop_subgraph(G: nx.Graph, txt, hop: int = 0,
-                       s_weight: float = 1.):
+                       default_edge_weight: float = 1.):
     """ Generates 0/1-hop subgraph of a tweet by collecting all the neighbor
     nodes and getting the induced subgraph.
 
     :param hop: Hop count
     :param G:
     :param txt: list of tokens
-    :param s_weight: Edge weight for OOV node edges
+    :param default_edge_weight: Edge weight for OOV node edges
     :return:
     """
     oov_nodes = []
@@ -446,32 +446,35 @@ def get_k_hop_subgraph(G: nx.Graph, txt, hop: int = 0,
                 for tok in G.neighbors(token):
                     all_neighbors.append(tok)
             except nx.exception.NetworkXError or nx.exception.NodeNotFound:
-                logger.warn(f"Token [{token}] not present in graph.")
+                logger.warn(f"Token [{token}] not present in large token "
+                            f"graph. \nStoring for future use.")
                 oov_nodes.append((pos, token))
         else:
             raise NotImplementedError("Only 0 or 1 hop is supported.")
 
-    G_sub = gen_sample_subgraph(all_neighbors, H=nx.Graph())
+    H = gen_complete_graph(all_neighbors, H=nx.Graph())
+    # H = gen_dependency_tree(txt.text, H=nx.Graph())
+    # H = gen_graph_consecutive_tokens(all_neighbors, H=nx.Graph())
 
     if oov_nodes:
         ## Add oov tokens to graph and connect it to other nodes.
         for pos, token in oov_nodes:
             if pos == 0:  ## if first token is oov
-                G_sub.add_edge(txt[pos], txt[pos + 1], weight=s_weight)
+                H.add_edge(txt[pos], txt[pos + 1], weight=default_edge_weight)
             elif pos == len(txt):  ## if last token if oov
-                G_sub.add_edge(txt[pos - 1], txt[pos], weight=s_weight)
+                H.add_edge(txt[pos - 1], txt[pos], weight=default_edge_weight)
             else:  ## Connect to previous and next node with oov node
-                G_sub.add_edge(txt[pos - 1], txt[pos], weight=s_weight)
-                G_sub.add_edge(txt[pos], txt[pos + 1], weight=s_weight)
+                H.add_edge(txt[pos - 1], txt[pos], weight=default_edge_weight)
+                H.add_edge(txt[pos], txt[pos + 1], weight=default_edge_weight)
 
-    return G_sub
+    return H
 
 
 def ego_graph_nbunch_window(G: nx.Graph, nbunch: list,
-                            edge_attr: str = 'cooccure',
+                            edge_attr: str = 'weight',
                             s_weight: float = 1.):
     """ Ego_graph for a bunch of nodes, adds edges among them. connects nodes
-     in nbunch with original edge weight if exists, s_weight if not.
+     in nbunch with original edge weight if exists, edge_weight if not.
 
      Here, window_size is always 2.
 
@@ -499,10 +502,10 @@ def ego_graph_nbunch_window(G: nx.Graph, nbunch: list,
                             combine[nbunch[i - 1]][nbunch[i]][edge_attr] =\
                                 G[nbunch[i - 1]][nbunch[i]][edge_attr]
                         except KeyError as e:
-                            ## If edge not exist, add edge with [s_weight].
+                            ## If edge not exist, add edge with [edge_weight].
                             combine.add_edge(nbunch[i], nbunch[i - 1],
                                              edge_attr=s_weight)
-                            # combine[node1][node2][edge_attr] = s_weight
+                            # combine[node1][node2][edge_attr] = edge_weight
                 except KeyError as e:
                     continue
             except nx.exception.NodeNotFound as e:
@@ -511,29 +514,36 @@ def ego_graph_nbunch_window(G: nx.Graph, nbunch: list,
                 ## similar to OOV token
                 # print(f"Node [{nbunch[i]}] not found in G.")
                 # if i > 0:
-                #     G.add_edge(nbunch[i-1], nbunch[i], cooccure=s_weight)
-                #     G.add_edge(nbunch[i], nbunch[i+1], cooccure=s_weight)
+                #     G.add_edge(nbunch[i-1], nbunch[i], weight=edge_weight)
+                #     G.add_edge(nbunch[i], nbunch[i+1], weight=edge_weight)
                 # else:
-                #     G.add_edge(nbunch[i], nbunch[i+1], cooccure=s_weight)
+                #     G.add_edge(nbunch[i], nbunch[i+1], weight=edge_weight)
 
     return combine
 
 
-def gen_sample_subgraph(txt: list, H: nx.Graph, s_weight: float = 1.0):
+def gen_complete_graph(txt: list, H: nx.Graph, edge_weight: float = 1.0):
+    """ Given a list of ordered tokens, generates a graph connecting each node to all other nodes.
+
+    :param txt: list of tokens
+    :param H: Empty graph object
+    :param edge_weight: edge weights to assign.
+    :return:
+    """
     # H = G.subgraph(txt)
     for i, token1 in enumerate(txt):
         for token2 in txt[i + 1:]:
-            H.add_edge(token1, token2, cooccure=s_weight)
+            H.add_edge(token1, token2, weight=edge_weight)
     return H
 
 
 def generate_sample_subgraphs(txts: list, G: nx.Graph,
-                              # s_weight: float = 1.
+                              # edge_weight: float = 1.
                               ):
     """ Given sample texts, generate subgraph keeping the sample texts
      connected.
 
-    :param s_weight: Weight for edges in sample text.
+    :param edge_weight: Weight for edges in sample text.
     :param txts: List of texts, each containing list of tokens(nodes).
     :param G: Token graph
     """
@@ -545,10 +555,10 @@ def generate_sample_subgraphs(txts: list, G: nx.Graph,
         # for i, txt in enumerate(txts):
         #     H = G.subgraph(txt)
         #     ## Add sample edges
-        #     H = gen_sample_subgraph(txt, H, s_weight)
+        #     H = gen_complete_graph(txt, H, edge_weight)
         #     # for i, token1 in enumerate(txt):
         #     #     for token2 in txt[i + 1:]:
-        #     #         H.add_edge(token1, token2, cooccure=s_weight)
+        #     #         H.add_edge(token1, token2, weight=edge_weight)
 
         txts_subgraphs[i] = H
     return txts_subgraphs
