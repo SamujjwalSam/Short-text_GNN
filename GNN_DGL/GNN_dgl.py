@@ -39,6 +39,9 @@ def plot_graph(g):
 
 
 class GATModel(torch.nn.Module):
+    """ Graph Attention Network model
+
+    """
     def __init__(self, in_dim: int, hidden_dim: int, out_dim: int, num_heads: int) -> None:
         super(GATModel, self).__init__()
         self.layer1 = GATConv(in_dim, hidden_dim, num_heads)
@@ -60,6 +63,17 @@ def train_node_classifier(g: DGLGraph, features: torch.Tensor,
                           labels: torch.Tensor, labelled_mask: torch.Tensor,
                           model: GATModel, loss_func,
                           optimizer: torch.optim.adam.Adam, epochs: int = 5) -> None:
+    """
+
+    :param g:
+    :param features:
+    :param labels:
+    :param labelled_mask:
+    :param model:
+    :param loss_func:
+    :param optimizer:
+    :param epochs:
+    """
     model.train()
     dur = []
     for epoch in range(epochs):
@@ -80,6 +94,13 @@ def train_node_classifier(g: DGLGraph, features: torch.Tensor,
 
 def node_binary_classification(hid_feats: int = 4, out_feats: int = 7,
                                num_heads: int = 2) -> None:
+    """
+
+    :param hid_feats:
+    :param out_feats:
+    :param num_heads:
+    :return:
+    """
     from dgl.data import citation_graph as citegrh
 
     def load_cora_data():
@@ -121,11 +142,12 @@ class GAT_Graph_Classifier(torch.nn.Module):
         self.conv2 = GATConv(hidden_dim * num_heads, hidden_dim, num_heads)
         self.classify = torch.nn.Linear(hidden_dim * num_heads, n_classes)
 
-    def forward(self, g: DGLGraph, h: None = None) -> torch.Tensor:
+    def forward(self, g: DGLGraph, h: torch.Tensor = None) -> torch.Tensor:
         if h is None:
             # Use node degree as the initial node feature. For undirected graphs,
             # the in-degree is the same as the out_degree.
-            h = g.in_degrees().view(-1, 1).float()
+            # h = g.in_degrees().view(-1, 1).float()
+            h = g.ndata['emb']
 
         # Perform graph convolution and activation function.
         h = F.relu(self.conv1(g, h))

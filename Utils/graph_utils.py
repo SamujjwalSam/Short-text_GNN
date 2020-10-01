@@ -28,9 +28,9 @@ def save_dgl_graphs(path, graphs, labels_dict=None):
 
     :param path:
     :param graphs:
-    :param labels_dict:
+    :param labels_dict: Should be a dict, does not support Tensor directly.
     """
-    save_graphs(path, graphs, labels_dict)
+    save_graphs(str(path), graphs, labels_dict)
 
 
 def load_dgl_graphs(path, idx_list=None):
@@ -40,8 +40,8 @@ def load_dgl_graphs(path, idx_list=None):
     :param idx_list:
     :return:
     """
-    graphs, labels_dict = load_graphs(path, idx_list)
-    labels_tensor_list = labels_dict["glabel"]
+    graphs, labels = load_graphs(path, idx_list)
+    labels_tensor_list = labels["glabel"]
     labels_list = []
     for label in labels_tensor_list:
         labels_list += [label.tolist()]

@@ -36,11 +36,12 @@ from File_Handlers.json_handler import save_json, read_json, json_keys2df,\
     read_labelled_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
+from Data_Handlers.graph_constructor_dgl import DGL_Graph
 from build_corpus_vocab import get_dataset_fields
-from Data_Handlers.graph_construction import get_node_features,\
+from Data_Handlers.graph_constructor_nx import get_node_features,\
     add_edge_weights, create_tokengraph, generate_sample_subgraphs
 from Layers.GCN_forward import GCN_forward, netrowkx2geometric
-from Layers.BERT_multilabel_classifier import BERT_classifier
+from Transformers_simpletransformers.BERT_multilabel_classifier import BERT_classifier
 from finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
     train_model, preprocess_and_find_oov
 from Trainer.Training import trainer, predict_with_label

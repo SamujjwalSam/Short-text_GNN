@@ -32,6 +32,7 @@ seed = 0
 global configuration
 configuration = {
     "data":         {
+        'name': 'fire16_smerp17',
         "source":     {
             'labelled':   'fire16_labeled',
             'unlabelled': 'fire16_unlabeled'
@@ -40,8 +41,8 @@ configuration = {
             'labelled':   'smerp17_labeled',
             'unlabelled': 'smerp17_unlabeled'},
         # "dataset_name": "fire16_labeled",
-        "val_split":  0.1,
-        "test_split": 0.3,
+        "val_split":  0.15,
+        "test_split": 0.25,
         "show_stat":  False
     },
 
@@ -68,12 +69,12 @@ configuration = {
             "optimizer_type": "AdamW",
             "learning_rate_scheduler":  "linear_warmup",
             "learning_rate":  5e-5,
-            "lr_decay":       0,
-            "weight_decay":   0,
+            "lr_decay":       0.,
+            "weight_decay":   0.,
             "max_grad_norm":  1.0,
             "adam_epsilon":   1e-8,
             'warmup_ratio':   0.06,
-            'warmup_steps':   0,
+            'warmup_steps':   0.,
             "momentum":       0.9,
             "dampening":      0.9,
             "alpha":          0.99,
@@ -120,6 +121,7 @@ configuration = {
 
     "embeddings":   {
         'embedding_file': 'glove.6B.100d',
+        'saved_emb_file': 'merged_100d',
         'emb_dim':        100,
     },
 
@@ -138,7 +140,7 @@ configuration = {
         "bias":        True,
     },
 
-    "sampling":     {
+    "training":     {
         "num_epochs":            20,
         "num_train_epoch":       20,
         "train_batch_size":      128,
