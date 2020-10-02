@@ -66,13 +66,13 @@ def macro_f1(labels, preds, threshold=0.5):
                     cfg['model']['model_type'] + '_preds.txt'),
                preds)
 
-    logger.info("labels:\n[{}]".format(labels))
-    logger.info("preds:\n[{}]".format(preds))
+    logger.info(f"labels:\n[{labels}]")
+    logger.info(f"preds:\n[{preds}]")
 
     preds[preds > threshold] = 1
     preds[preds <= threshold] = 0
 
-    logger.info("preds with threshold [{}]:\n[{}]".format(threshold, preds))
+    logger.info(f"preds with threshold [{threshold}]:\n[{preds}]")
 
     scores = calculate_performance(labels, preds)
 
@@ -151,21 +151,19 @@ def main(train_df, test_df, n_classes=4,
     prediction_time = timeit.default_timer() - start_time
 
     ## Analyze wrong predictions
-    logger.info("Wrong prediction count: [{}]".format(len(wrong_predictions)))
+    logger.info(f"Wrong prediction count: [{len(wrong_predictions)}]")
     logger.info("Wrong predictions: ")
     miss_ids = []
     miss_texts = []
     # misses = {"ids": miss_ids,"texts":miss_texts}
     for example in wrong_predictions:
-        logger.info("Misclassification sample id: [{}], text: [{}]".format(
-            example.guid, example.text_a))
+        logger.info(f"Misclassification sample id: [{example.guid}], text: [{example.text_a}]")
         miss_ids.append(example.guid)
         miss_texts.append(example.text_a)
 
     missed_samples = pd.DataFrame({"ids": miss_ids, "texts": miss_texts})
     missed_file = dataset_name + model_type + num_epoch + "missed_samples.csv"
-    logger.info("Saving wrongly classified samples in file: [{}]"
-                .format(missed_file))
+    logger.info(f"Saving wrongly classified samples in file: [{missed_file}]")
     missed_samples.to_csv(missed_file)
 
     logger.info(dumps(result, indent=4))
@@ -174,15 +172,11 @@ def main(train_df, test_df, n_classes=4,
                    '_result.json'), 'w') as f:
         dump(result, f)
 
-    logger.info("Total training time for [{}] with [{}] samples: [{} sec]"
-                "\nPer sample: [{} sec] for model: [{}]"
-                .format(num_epoch, train_df.shape[0], train_time, train_time /
-                        train_df.shape[0], model_type))
+    logger.info(f"Total training time for [{num_epoch}] with [{train_df.shape[0]}] samples: [{train_time} sec]"
+                f"\nPer sample: [{train_time / train_df.shape[0]} sec] for model: [{model_type}]")
 
-    logger.info("Total prediction time for [{}] samples: [{} sec]"
-                "\nPer sample: [{} sec] for model: [{}]"
-                .format(test_df.shape[0], prediction_time, prediction_time /
-                        test_df.shape[0], model_type))
+    logger.info(f"Total prediction time for [{test_df.shape[0]}] samples: [{prediction_time} sec]"
+                f"\nPer sample: [{prediction_time / test_df.shape[0]} sec] for model: [{model_type}]")
 
     ## For prediction just pass a list of texts.
     # predictions, raw_outputs = model.predict(

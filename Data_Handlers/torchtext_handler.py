@@ -214,12 +214,11 @@ def create_vocab(dataset: data.dataset.TabularDataset, TEXT_field: data.field.Fi
     if LABEL_field:
         LABEL_field.build_vocab(dataset)
         # No. of unique label types
-        logger.info("Size of LABEL vocabulary: {}".format(len(
-            LABEL_field.vocab)))
+        logger.info(f"Size of LABEL vocabulary: {len(LABEL_field.vocab)}")
 
     if show_vocab_details:
         # No. of unique tokens in text
-        logger.info("Size of TEXT vocabulary: {}".format(len(TEXT_field.vocab)))
+        logger.info(f"Size of TEXT vocabulary: {len(TEXT_field.vocab)}")
 
         # Commonly used tokens
         logger.info("10 most common tokens in vocabulary: {}".format(

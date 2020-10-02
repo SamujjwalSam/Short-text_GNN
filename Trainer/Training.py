@@ -242,42 +242,35 @@ def load_model(model, saved_model_dir, saved_model_name='model'):
     return model
 
 
-def get_optimizer(self, model, new_lr,
+def get_optimizer(model, lr,
                   optimizer_type=cfg["model"]["optimizer"]["optimizer_type"],
                   weight_decay=cfg["model"]["optimizer"]["weight_decay"],
                   rho=cfg["model"]["optimizer"]["rho"],
+                  lr_decay=cfg["model"]["optimizer"]["lr_decay"],
                   momentum=cfg["model"]["optimizer"]["momentum"],
                   dampening=cfg["model"]["optimizer"]["dampening"],
                   alpha=cfg["model"]["optimizer"]["alpha"],
                   centered=cfg["model"]["optimizer"]["centered"]):
     """Setup optimizer_type"""
     if optimizer_type == 'sgd':
-        optimizer = torch.optim.SGD(model.parameters(),
-                                    lr=new_lr,
-                                    momentum=momentum,
-                                    dampening=dampening,
-                                    weight_decay=weight_decay)
+        optimizer = torch.optim.SGD(
+            model.parameters(), lr=lr, momentum=momentum,
+            dampening=dampening, weight_decay=weight_decay)
     elif optimizer_type == 'adam':
-        optimizer = torch.optim.Adam(model.parameters(),
-                                     lr=new_lr,
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr,
                                      weight_decay=weight_decay)
     elif optimizer_type == 'adadelta':
-        optimizer = torch.optim.Adadelta(model.parameters(),
-                                         lr=new_lr,
-                                         rho=rho,
+        optimizer = torch.optim.Adadelta(model.parameters(), lr=lr, rho=rho,
                                          weight_decay=weight_decay)
     elif optimizer_type == 'adagrad':
-        optimizer = torch.optim.Adagrad(model.parameters(),
-                                        lr=new_lr,
-                                        lr_decay=self.lr_decay,
+        optimizer = torch.optim.Adagrad(model.parameters(), lr=lr,
+                                        lr_decay=lr_decay,
                                         weight_decay=weight_decay)
     elif optimizer_type == 'rmsprop':
-        optimizer = torch.optim.RMSprop(model.parameters(),
-                                        lr=new_lr,
-                                        alpha=alpha,
-                                        momentum=0.9,
-                                        centered=centered,
-                                        weight_decay=weight_decay)
+        optimizer = torch.optim.RMSprop(
+            model.parameters(), lr=lr, alpha=alpha, momentum=0.9,
+            centered=centered, weight_decay=weight_decay)
     else:
-        raise Exception('Optimizer not supported: [{0}]'.format(optimizer_type))
+        raise Exception(f'Optimizer not supported: [{optimizer_type}]')
     return optimizer
+

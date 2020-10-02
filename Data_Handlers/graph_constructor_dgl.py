@@ -46,7 +46,7 @@ class DGL_Graph(object):
         ## Process tokens:
         self.S_dataset, self.S_vocab = self.create_vocab()
 
-        logger.info("Processed {} tokens.".format(5))
+        logger.info("Processed tokens.")
 
     def create_vocab(self, dataset_df=None):
         if dataset_df is None:
@@ -65,7 +65,7 @@ class DGL_Graph(object):
         }
 
         # logger.info("Number of tokens in corpus: [{}]".format(len(corpus)))
-        logger.info("Source vocab size: [{}]".format(len(S_fields.vocab)))
+        logger.info(f"Source vocab size: [{len(S_fields.vocab)}]")
 
         return S_dataset, S_vocab
 
