@@ -20,10 +20,12 @@ __license__     : "This source code is licensed under the MIT-style license
 import torch
 import torch.optim as optim
 import torch.nn as nn
+from os.path import join
 from collections import OrderedDict
 
 from Logger.logger import logger
 from Utils.utils import save_model, load_model
+from config import configuration as cfg, platform as plat, username as user
 
 
 # check whether cuda is available
@@ -214,3 +216,68 @@ def trainer(model, train_iterator, val_iterator, N_EPOCHS=5, optimizer=None,
     }
 
     return model_best, val_preds_trues_best, val_preds_trues_all, losses
+
+
+def save_model(model, saved_model_dir, saved_model_name='model'):
+    try:
+        torch.save(model.state_dict(), join(saved_model_dir, saved_model_name))
+    except Exception as e:
+        logger.fatal(
+            "Could not save model at [{}] due to Error: [{}]".format(join(
+                saved_model_dir, saved_model_name), e))
+        return False
+    return True
+
+
+def load_model(model, saved_model_dir, saved_model_name='model'):
+    try:
+        model.load_state_dict(
+            torch.load(join(saved_model_dir, saved_model_name)))
+    except Exception as e:
+        logger.fatal(
+            "Could not load model from [{}] due to Error: [{}]".format(join(
+                saved_model_dir, saved_model_name), e))
+        return False
+    model.eval()
+    return model
+
+
+def get_optimizer(self, model, new_lr,
+                  optimizer_type=cfg["model"]["optimizer"]["optimizer_type"],
+                  weight_decay=cfg["model"]["optimizer"]["weight_decay"],
+                  rho=cfg["model"]["optimizer"]["rho"],
+                  momentum=cfg["model"]["optimizer"]["momentum"],
+                  dampening=cfg["model"]["optimizer"]["dampening"],
+                  alpha=cfg["model"]["optimizer"]["alpha"],
+                  centered=cfg["model"]["optimizer"]["centered"]):
+    """Setup optimizer_type"""
+    if optimizer_type == 'sgd':
+        optimizer = torch.optim.SGD(model.parameters(),
+                                    lr=new_lr,
+                                    momentum=momentum,
+                                    dampening=dampening,
+                                    weight_decay=weight_decay)
+    elif optimizer_type == 'adam':
+        optimizer = torch.optim.Adam(model.parameters(),
+                                     lr=new_lr,
+                                     weight_decay=weight_decay)
+    elif optimizer_type == 'adadelta':
+        optimizer = torch.optim.Adadelta(model.parameters(),
+                                         lr=new_lr,
+                                         rho=rho,
+                                         weight_decay=weight_decay)
+    elif optimizer_type == 'adagrad':
+        optimizer = torch.optim.Adagrad(model.parameters(),
+                                        lr=new_lr,
+                                        lr_decay=self.lr_decay,
+                                        weight_decay=weight_decay)
+    elif optimizer_type == 'rmsprop':
+        optimizer = torch.optim.RMSprop(model.parameters(),
+                                        lr=new_lr,
+                                        alpha=alpha,
+                                        momentum=0.9,
+                                        centered=centered,
+                                        weight_decay=weight_decay)
+    else:
+        raise Exception('Optimizer not supported: [{0}]'.format(optimizer_type))
+    return optimizer
