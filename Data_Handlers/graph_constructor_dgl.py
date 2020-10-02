@@ -86,7 +86,7 @@ class DGL_Graph(object):
             doc_uniq_tokens.append(doc_tokens)
             class_vals = []
             for cls in class_names:
-                class_vals.append(int(item.__getattribute__(cls)))
+                class_vals.append(float(item.__getattribute__(cls)))
             labels.append(class_vals)
         return graphs, doc_uniq_tokens, labels
 
@@ -179,6 +179,8 @@ class DGL_Graph(object):
         g = dgl.DGLGraph()
         g.add_nodes(len(token2ids_map))
         g.add_edges(torch.tensor(edges_sources), torch.tensor(edges_dest))
+        ## Adding self-loops:
+        g = dgl.add_self_loop(g)
 
         ## Add node embeddings to the graph:
         if embeddings is not None:

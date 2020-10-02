@@ -220,15 +220,3 @@ class GraphDataset(torch.utils.data.Dataset):
             The graph and its label.
         """
         return self.graphs[idx], self.labels[idx]
-
-    def get_graphs(self):
-        """
-        Returns the graphs array
-        """
-        return list(self.graphs)
-
-    def get_labels(self):
-        """
-        Return the labels
-        """
-        return list(self.labels)

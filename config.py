@@ -142,9 +142,9 @@ configuration = {
 
     "training":     {
         "num_epochs":            20,
-        "num_train_epoch":       20,
-        "train_batch_size":      128,
-        "eval_batch_size":       256,
+        "num_train_epoch":       10,
+        "train_batch_size":      32,
+        "eval_batch_size":       64,
         "categories_per_batch":  2,
         "supports_per_category": 2,
         "targets_per_category":  2

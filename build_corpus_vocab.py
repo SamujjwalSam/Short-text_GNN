@@ -30,13 +30,14 @@ from Data_Handlers.torchtext_handler import prepare_fields, create_vocab,\
 from config import configuration as cfg, platform as plat, username as user
 
 
-def get_dataset_fields(csv_dir: str, csv_file: str, return_iter: bool = False,
-                       min_freq: int = 2, text_headers: list = ['text'],
-                       batch_size: int = 1, init_vocab: bool = True,
-                       labelled_data: bool = False, target_train_portion=None,
-                       embedding_dir: str = cfg["paths"]["embedding_dir"][plat][user],
-                       embedding_file: str = cfg["embeddings"]["embedding_file"],
-                       ):
+def get_dataset_fields(
+        csv_dir: str, csv_file: str, return_iter: bool = False,
+        min_freq: int = 2, text_headers: list = ['text'], batch_size: int = 1,
+        init_vocab: bool = True, labelled_data: bool = False,
+        target_train_portion=None,
+        embedding_dir: str = cfg["paths"]["embedding_dir"][plat][user],
+        embedding_file: str = cfg["embeddings"]["embedding_file"],
+        ):
     ## Create tokenizer:
     tokenizer = partial(normalizeTweet, return_tokens=True)
 
