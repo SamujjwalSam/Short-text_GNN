@@ -19,6 +19,7 @@ __license__     : "This source code is licensed under the MIT-style license
 
 import statistics
 import networkx as nx
+from os.path import join
 from matplotlib import pyplot as plt
 from sklearn.manifold import TSNE
 
@@ -221,6 +222,40 @@ def plot_graph(G: nx.Graph, plot_name: str = 'H.png', labels: dict = None):
     # plt.show()
     plt.show()
     plt.savefig(plot_name)
+
+
+def plot_occurance(losses: list, title="Losses", ylabel="Loss", xlabel="Epoch", clear=True, log_scale=False,
+                   plot_name=None,
+                   plot_dir="", show_plot=False):
+    """ Plots the validation loss against epochs.
+
+    :param plot_name:
+    :param plot_dir:
+    :param xlabel:
+    :param ylabel:
+    :param title:
+    :param losses:
+    :param clear:
+    :param log_scale:
+    """
+    ## Turn interactive plotting off
+    plt.ioff()
+
+    fig = plt.figure()
+    plt.plot(losses)
+    plt.xlabel(xlabel)
+    if log_scale:
+        plt.yscale('log')
+    plt.ylabel(ylabel)
+    plt.title(title)
+    if plot_name is None: plot_name = title + "_" + ylabel + "_" + xlabel + ".jpg"
+    plt.savefig(join(plot_dir, plot_name))
+    logger.info(f"Saved plot with title [{title}] and ylabel [{ylabel}] and "
+                f"xlabel [{xlabel}] at [{join(plot_dir, plot_name)}].")
+    if clear:
+        plt.cla()
+    if show_plot: plt.show()
+    plt.close(fig)  # Closing the figure so it won't get displayed in console.
 
 
 if __name__ == '__main__':
