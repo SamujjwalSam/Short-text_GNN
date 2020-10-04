@@ -21,8 +21,9 @@ import time
 import dgl
 import torch
 import numpy as np
-import networkx as nx
-import matplotlib.pyplot as plt
+# import networkx as nx
+# from json import dumps
+# import matplotlib.pyplot as plt
 from collections import OrderedDict
 from dgl import DGLGraph, batch as g_batch, mean_nodes
 from dgl.nn.pytorch.conv import GATConv, GraphConv
@@ -30,15 +31,10 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+from Metrics.metrics import calculate_performance_pl_sk
+from Utils.utils import logit2label
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user
-
-
-def plot_graph(g):
-    plt.subplot(122)
-    nx.draw(g.to_networkx(), with_labels=True)
-
-    plt.show()
 
 
 class GCN_Node_Classifier(torch.nn.Module):
@@ -198,7 +194,8 @@ def train_graph_classifier(model: GAT_Graph_Classifier,
     epoch_predictions_dict = OrderedDict()
     for epoch in range(epochs):
         epoch_loss = 0
-        iter_predictions = []
+        preds = []
+        trues = []
         for iter, (graph_batch, label) in enumerate(data_loader):
             ## Store emb in a separate file as self_loop removes emb info:
             emb = graph_batch.ndata['emb']
@@ -209,11 +206,26 @@ def train_graph_classifier(model: GAT_Graph_Classifier,
             loss.backward()
             optimizer.step()
             epoch_loss += loss.detach().item()
-            iter_predictions.append(prediction.item())
+            preds.append(prediction.detach())
+            trues.append(label.detach())
         epoch_loss /= (iter + 1)
         logger.info('Epoch {}, loss {:.4f}'.format(epoch, epoch_loss))
         epoch_losses.append(epoch_loss)
-        epoch_predictions_dict[epoch] = torch.stack(iter_predictions)
+        preds = torch.cat(preds)
+
+        ## Converting raw scores to probabilities using Sigmoid:
+        preds = torch.sigmoid(preds)
+
+        ## Converting probabilities to class labels:
+        preds = logit2label(preds.detach(), cls_thresh=0.5)
+        trues = torch.cat(trues)
+        result_dict = calculate_performance_pl_sk(trues, preds)
+        epoch_predictions_dict[epoch] = {
+            'preds': preds,
+            'trues': trues,
+            'result': result_dict
+        }
+        logger.info(f'Epoch {epoch} result: \n{result_dict}')
 
     return epoch_losses, epoch_predictions_dict
 
