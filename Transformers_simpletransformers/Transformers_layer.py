@@ -560,7 +560,7 @@ if __name__ == "__main__":
     # parser.add_argument("-mt", "--model_type",
     #                     default=cfg['model']['model_type'], type=str)
     # parser.add_argument("-ne", "--num_train_epochs",
-    #                     default=cfg['training']['num_train_epoch'], type=int)
+    #                     default=cfg['training']['num_epoch'], type=int)
     # parser.add_argument("-c", "--use_cuda",
     #                     default=cfg['model']['use_cuda'], action='store_true')
     #

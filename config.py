@@ -68,7 +68,7 @@ configuration = {
         "optimizer":            {
             "optimizer_type": "AdamW",
             "learning_rate_scheduler":  "linear_warmup",
-            "learning_rate":  5e-5,
+            "lr":  5e-5,
             "lr_decay":       0.,
             "weight_decay":   0.,
             "max_grad_norm":  1.0,
@@ -93,20 +93,16 @@ configuration = {
         "dropout_external":     0.0,
         "clipnorm":             1.0,
         "data_slice":           5120,
-
-        "g_encoder":            "cnn",
         "use_cuda":             True,
         "normalize_inputs":     False,
-        "tfidf_avg":            False,
         "kernel_size":          1,
         "stride":               1,
         "padding":              1,
         "context":              10,
         "classify_count":       0,
-        "fce":                  True,
         "optimizer":            {
             "optimizer_type": "adam",
-            "learning_rate":  3e-4,
+            "lr":             0.001,
             "lr_decay":       0,
             "weight_decay":   0,
             "momentum":       0.9,
@@ -141,13 +137,10 @@ configuration = {
     },
 
     "training":     {
-        "num_epochs":            20,
+        "num_epoch":             10,
         "num_train_epoch":       10,
         "train_batch_size":      32,
         "eval_batch_size":       64,
-        "categories_per_batch":  2,
-        "supports_per_category": 2,
-        "targets_per_category":  2
     },
 
     "prep_vecs":    {

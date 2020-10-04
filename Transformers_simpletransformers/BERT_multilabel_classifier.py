@@ -98,7 +98,7 @@ def BERT_classifier(train_df, test_df, n_classes=4,
                     dataset_name=cfg["data"]["source"]['labelled'],
                     model_name=cfg['transformer']['model_name'],
                     model_type=cfg['transformer']['model_type'],
-                    num_epoch=cfg['training']['num_train_epoch'],
+                    num_epoch=cfg['training']['num_epoch'],
                     use_cuda=cfg['model']['use_cuda']):
     """Train and Evaluation data needs to be in a Pandas Dataframe containing at
     least two columns, a 'text' and a 'labels' column. The `labels` column
@@ -233,7 +233,7 @@ def BERT_classifier(train_df, test_df, n_classes=4,
         #     'fp16_opt_level':                 'O1',
         #     'max_seq_length':                 cfg['transformer']['max_seq_len'],
         #     'weight_decay':                   cfg['transformer']['optimizer']['weight_decay'],
-        #     'learning_rate':                  cfg['transformer']['optimizer']['learning_rate'],
+        #     'learning_rate':                  cfg['transformer']['optimizer']['lr'],
         #     'adam_epsilon':                   cfg['transformer']['optimizer']['adam_epsilon'],
         #     'warmup_ratio':                   cfg['transformer']['optimizer']['warmup_ratio'],
         #     'warmup_steps':                   cfg['transformer']['optimizer']['warmup_steps'],
@@ -323,7 +323,7 @@ if __name__ == "__main__":
     parser.add_argument("-mt", "--model_type",
                         default=cfg['transformer']['model_type'], type=str)
     parser.add_argument("-ne", "--num_train_epochs",
-                        default=cfg['training']['num_train_epoch'], type=int)
+                        default=cfg['training']['num_epoch'], type=int)
     parser.add_argument("-c", "--use_cuda",
                         default=cfg['model']['use_cuda'], action='store_true')
 

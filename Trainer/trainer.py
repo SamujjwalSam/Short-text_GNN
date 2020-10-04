@@ -64,7 +64,7 @@ def training(model, iterator, optimizer, criterion):
     # initialize every epoch
     epoch_loss = 0
 
-    stores = {'preds': [], 'trues': [], 'ids': []}
+    output = {'preds': [], 'trues': [], 'ids': []}
 
     # set the model in training phase
     model.train()
@@ -81,9 +81,9 @@ def training(model, iterator, optimizer, criterion):
 
         # compute the loss
         batch_labels = torchtext_batch2multilabel(batch)
-        stores['preds'].append(predictions)
-        stores['trues'].append(batch_labels)
-        stores['ids'].append(batch.ids)
+        output['preds'].append(predictions)
+        output['trues'].append(batch_labels)
+        output['ids'].append(batch.ids)
         loss = criterion(predictions, batch_labels)
 
         # backpropage the loss and compute the gradients
@@ -96,11 +96,11 @@ def training(model, iterator, optimizer, criterion):
         epoch_loss += loss.item()
         # logger.info(f"Train batch [{i}] loss: [{loss.item()}]")
 
-    stores['preds'] = torch.cat(stores['preds'])
-    stores['trues'] = torch.cat(stores['trues'])
-    stores['ids'] = torch.cat(stores['ids'])
+    output['preds'] = torch.cat(output['preds'])
+    output['trues'] = torch.cat(output['trues'])
+    output['ids'] = torch.cat(output['ids'])
 
-    return epoch_loss / len(iterator), stores  # , epoch_acc / len(iterator)
+    return epoch_loss / len(iterator), output  # , epoch_acc / len(iterator)
 
 
 def predict_with_label(model, iterator, criterion=None):
@@ -154,9 +154,10 @@ def predict_with_label(model, iterator, criterion=None):
 
 
 def trainer(model, train_iterator, val_iterator, N_EPOCHS=5, optimizer=None,
-            criterion=None, best_val_loss=float('inf'), lr=0.001):
+            criterion=None, best_val_loss=float('inf'), lr=cfg["model"]["optimizer"]["lr"]):
     """ Trains the model.
 
+    :param lr:
     :param model:
     :param train_iterator:
     :param val_iterator:
@@ -242,7 +243,7 @@ def load_model(model, saved_model_dir, saved_model_name='model'):
     return model
 
 
-def get_optimizer(model, lr,
+def get_optimizer(model, lr=cfg["model"]["optimizer"]["lr"],
                   optimizer_type=cfg["model"]["optimizer"]["optimizer_type"],
                   weight_decay=cfg["model"]["optimizer"]["weight_decay"],
                   rho=cfg["model"]["optimizer"]["rho"],

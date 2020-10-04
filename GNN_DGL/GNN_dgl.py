@@ -191,7 +191,7 @@ def train_graph_classifier(model: GAT_Graph_Classifier,
                            optimizer, epochs: int = 5):
     model.train()
     epoch_losses = []
-    epoch_predictions_dict = OrderedDict()
+    train_epoch_dict = OrderedDict()
     for epoch in range(epochs):
         epoch_loss = 0
         preds = []
@@ -220,18 +220,65 @@ def train_graph_classifier(model: GAT_Graph_Classifier,
         preds = logit2label(preds.detach(), cls_thresh=0.5)
         trues = torch.cat(trues)
         result_dict = calculate_performance_pl_sk(trues, preds)
-        epoch_predictions_dict[epoch] = {
-            'preds': preds,
-            'trues': trues,
+        train_epoch_dict[epoch] = {
+            'preds':  preds,
+            'trues':  trues,
             'result': result_dict
         }
         logger.info(f'Epoch {epoch} result: \n{result_dict}')
 
-    return epoch_losses, epoch_predictions_dict
+    return epoch_losses, train_epoch_dict
 
 
-def test_graph_classifier():
-    pass
+def test_graph_classifier(model: GAT_Graph_Classifier,
+                          data_loader: torch.utils.data.dataloader.DataLoader):
+    model.eval()
+    preds = []
+    trues = []
+    for iter, (graph_batch, label) in enumerate(data_loader):
+        ## Store emb in a separate file as self_loop removes emb info:
+        emb = graph_batch.ndata['emb']
+        # graph_batch = dgl.add_self_loop(graph_batch)
+        prediction = model(graph_batch, emb)
+        preds.append(prediction.detach())
+        trues.append(label.detach())
+    preds = torch.cat(preds)
+
+    ## Converting raw scores to probabilities using Sigmoid:
+    preds = torch.sigmoid(preds)
+
+    ## Converting probabilities to class labels:
+    preds = logit2label(preds.detach(), cls_thresh=0.5)
+    trues = torch.cat(trues)
+    result_dict = calculate_performance_pl_sk(trues, preds)
+    test_output = {
+        'preds':  preds,
+        'trues':  trues,
+        'result': result_dict
+    }
+    logger.info(f'Test result: \n{result_dict}')
+
+    return test_output
+
+
+def graph_multilabel_classification(
+        gdh, in_feats: int = 100, hid_feats: int = 50, num_heads: int = 2,
+        epochs=cfg['training']['num_epoch']):
+    model = GAT_Graph_Classifier(in_feats, hid_feats, num_heads=num_heads,
+                                 n_classes=gdh.num_classes)
+    logger.info(model)
+
+    # loss_func = torch.nn.CrossEntropyLoss()
+    loss_func = torch.nn.BCEWithLogitsLoss()
+    optimizer = optim.Adam(model.parameters(), lr=cfg["model"]["optimizer"]["lr"])
+
+    epoch_losses, train_epochs_output_dict = train_graph_classifier(
+        model, gdh.train_dataloader(), loss_func=loss_func,
+        optimizer=optimizer, epochs=epochs)
+
+    test_output = test_graph_classifier(model, gdh.test_dataloader())
+
+    return train_epochs_output_dict, test_output
 
 
 def graph_multiclass_classification(in_feats: int = 1, hid_feats: int = 4, num_heads: int = 2) -> None:
@@ -255,24 +302,6 @@ def graph_multiclass_classification(in_feats: int = 1, hid_feats: int = 4, num_h
 
     epoch_losses, epoch_predictions_dict = train_graph_classifier(
         model, data_loader, loss_func=loss_func, optimizer=optimizer, epochs=5)
-
-
-def graph_multilabel_classification(
-        gdh, in_feats: int = 100, hid_feats: int = 50, num_heads: int = 2,
-        epochs=cfg['training']['num_train_epoch']):
-    model = GAT_Graph_Classifier(in_feats, hid_feats, num_heads=num_heads,
-                                 n_classes=gdh.num_classes)
-    logger.info(model)
-
-    # loss_func = torch.nn.CrossEntropyLoss()
-    loss_func = torch.nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-
-    epoch_losses, epoch_predictions_dict = train_graph_classifier(
-        model, gdh.train_dataloader(), loss_func=loss_func,
-        optimizer=optimizer, epochs=epochs)
-
-    return epoch_losses, epoch_predictions_dict
 
 
 def main():

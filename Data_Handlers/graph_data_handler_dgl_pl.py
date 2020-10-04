@@ -68,6 +68,11 @@ class Graph_Data_Handler(pl.LightningDataModule):
             self.graph_test = GraphDataset(
                 dataset_dir=self.dataset_dir, domain='target',
                 dataset_file=self.dataset_info["target"]['labelled'])
+
+            ## Calculate test data size:
+            test_frac = 1000.0 / len(self.graph_test)
+
+            _, self.graph_test = self.graph_test.split_data(test_size=test_frac)
         else:
             graph_train_val, self.graph_test = self.graph_data.split_data(
                 test_size=cfg['data']['test_split'])

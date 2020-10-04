@@ -83,7 +83,7 @@ def main(train_df, test_df, n_classes=4,
          dataset_name=cfg["data"]["source"]['labelled'],
          model_name=cfg['transformer']['model_name'],
          model_type=cfg['transformer']['model_type'],
-         num_epoch=cfg['training']['num_train_epoch'],
+         num_epoch=cfg['training']['num_epoch'],
          use_cuda=cfg['model']['use_cuda']):
     """Train and Evaluation data needs to be in a Pandas Dataframe containing at
     least two columns, a 'text' and a 'labels' column. The `labels` column
@@ -114,7 +114,7 @@ def main(train_df, test_df, n_classes=4,
             'weight_decay':                   cfg['transformer'][
                                                   'weight_decay'],
             'learning_rate':                  cfg['transformer'][
-                                                  'learning_rate'],
+                                                  'lr'],
             'adam_epsilon':                   cfg['transformer'][
                                                   'adam_epsilon'],
             'warmup_ratio':                   cfg['transformer'][
@@ -199,7 +199,7 @@ if __name__ == "__main__":
     parser.add_argument("-mt", "--model_type",
                         default=cfg['model']['model_type'], type=str)
     parser.add_argument("-ne", "--num_train_epochs",
-                        default=cfg['training']['num_train_epoch'], type=int)
+                        default=cfg['training']['num_epoch'], type=int)
     parser.add_argument("-c", "--use_cuda",
                         default=cfg['model']['use_cuda'], action='store_true')
 
