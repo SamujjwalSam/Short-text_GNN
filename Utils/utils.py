@@ -17,6 +17,7 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
+import nltk
 import torch
 import pandas as pd
 import numpy as np
@@ -28,11 +29,10 @@ from os.path import join, exists
 from collections import OrderedDict, Counter
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
-from sklearn.metrics import accuracy_score, recall_score, precision_score,\
-    f1_score, precision_recall_fscore_support, classification_report
 from skmultilearn.model_selection import iterative_train_test_split
 from skmultilearn.model_selection.measures import\
     get_combination_wise_output_matrix
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 from config import configuration as cfg, platform as plat, username as user
 from tweet_normalizer import normalizeTweet
@@ -54,6 +54,55 @@ def sp_coo_sparse2torch_sparse(M: sp.csr.csr_matrix) -> torch.Tensor:
         torch.Size(M.shape))
 
     return M
+
+
+def logit2label(predictions_df: pd.core.frame.DataFrame, cls_thresh: list,
+                drop_irrelevant=False, return_df=False):
+    """ Converts logit to multi-hot based on threshold per class.
+
+    :param predictions_df: can be pd.DataFrame or np.NDArray or torch.tensor
+    :param cls_thresh: List of floats as threshold for each class
+    :param drop_irrelevant: Remove samples for which no class crossed it's
+    threshold. i.e. [0.,0.,0.,0.]
+    """
+    if isinstance(predictions_df, pd.core.frame.DataFrame):
+        logger.debug((predictions_df.values.min(), predictions_df.values.max()))
+        df_np = predictions_df.to_numpy()
+    elif isinstance(predictions_df, (np.ndarray, torch.Tensor)):
+        df_np = predictions_df
+    else:
+        NotImplementedError(f'Only supports pd.DataFrame or np.ndarray or '
+                            f'torch.Tensor but received [{type(predictions_df)}]')
+
+    ## Create threshold list for all classes if only one threshold float is provided:
+    if isinstance(cls_thresh, float):
+        cls_thresh = [cls_thresh for i in range(df_np.shape[1])]
+
+    for col in range(df_np.shape[1]):
+        df_np[:, col][df_np[:, col] > cls_thresh[col]] = 1.
+        df_np[:, col][df_np[:, col] <= cls_thresh[col]] = 0.
+
+    if return_df:
+        predictions_df = pd.DataFrame(df_np, index=predictions_df.index)
+
+        if drop_irrelevant:
+            # delete all rows where sum == 0
+            irrelevant_rows = []
+            for i, row in predictions_df.iterrows():
+                if sum(row) < 1:
+                    irrelevant_rows.append(i)
+
+            predictions_df = predictions_df.drop(irrelevant_rows)
+        return predictions_df
+    else:
+        return df_np
+
+
+# No. of trianable parameters
+def count_parameters(model):
+    param_count = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logger.info(f'The model has {param_count:,} trainable parameters')
+    return param_count
 
 
 def split_data(lab_tweets, test_size=0.3, stratified=True, random_state=0,
