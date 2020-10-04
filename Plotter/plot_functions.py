@@ -28,6 +28,13 @@ from Logger.logger import logger
 plt.rcParams.update({'font.size': 15})
 
 
+def plot_graph(g):
+    plt.subplot(122)
+    nx.draw(g.to_networkx(), with_labels=True)
+
+    plt.show()
+
+
 def plot_features_tsne(X, tokens: list = None, limit_view: int = -100):
     """ Plots TSNE representations of tokens and their embeddings.
 

@@ -17,6 +17,7 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
+import dgl
 import json
 import numpy as np
 import pandas as pd
@@ -41,40 +42,41 @@ class GraphDataset(torch.utils.data.Dataset):
     Class for parsing data from files and storing dataframe
     """
 
-    def __init__(self, graphs=None, labels=None, dataset_info=cfg['data'],
-                 dataset_dir=Path(cfg["paths"]["dataset_dir"][plat][user]),
-                 dataset_df_name="_df.csv", graph_file_name="_graph.bin",
-                 label_txt2id_name="_label_txt2id.json"
-                 ):
+    def __init__(self, graphs: [dgl.DGLGraph] = None, labels: [float] = None,
+                 dataset_file: [str, Path] = cfg["data"]["source"]['labelled'],
+                 dataset_dir: [str, Path] = Path(cfg["paths"]["dataset_dir"][plat][user]),
+                 dataset_df_name: str = "_data.csv", graph_file_name: str = "_graph.bin",
+                 label_txt2id_name: str = "_label_txt2id.json", domain = 'source'
+                 ) -> None:
         """
         Initializes the loader
 
         Args:
             dataset_dir: Path to the file containing the dataset.
-            dataset_info: Dictionary consisting of one field 'dataset_name'
-            graph_file_path: path to the bin file containing the saved DGL graph
+            dataset_file: Filename of the dataset
+            graph_file_name: path to the .bin file containing the saved DGL graph
         """
+        self.domain = domain
         self.dataset_dir = dataset_dir
-        self.dataset_info = dataset_info
-        dataset_df_path = Path(dataset_dir / (self.dataset_info['name'] + dataset_df_name))
-        graph_file_path = Path(dataset_dir / (self.dataset_info['name'] + graph_file_name))
-        label_txt2id_path = Path(dataset_dir / (self.dataset_info['name'] + label_txt2id_name))
-        assert ((dataset_df_path is not None and label_txt2id_path is not None)
-                or (graph_file_path is not None and label_txt2id_path is not None)
-                or (self.dataset_dir is not None and self.dataset_info is not None)
-                or (graphs is not None and labels is not None)),\
-            "Either labels and graphs array should be given or graph_file_path \
-            should be specified or dataset_path and dataset_info should be specified"
+        dataset_df_path = Path(self.dataset_dir / (dataset_file + dataset_df_name))
+        graph_file_path = Path(self.dataset_dir / (dataset_file + graph_file_name))
+        label_txt2id_path = Path(self.dataset_dir / (dataset_file + label_txt2id_name))
+        self.dataset_file = Path(dataset_file)
 
-        ## if graph and labels are exists:
+        assert (dataset_df_path.exists() or graph_file_path.exists() or
+                (graphs is not None and labels is not None)),\
+            "Either labels and graphs array should be given or graph_file_path \
+            should be specified or dataset_path and dataset_file should be specified"
+
+        ## if graphs and labels exist:
         if graphs is not None and labels is not None:
             self.graphs = graphs
             self.labels = labels
             self.classes = len(self.labels)
 
-        ## If generated graph file exists:
+        ## Read if saved graph file exists:
         elif graph_file_path.exists() and label_txt2id_path.exists():
-            label_txt2id = self.read_label_txt2id_dict(label_txt2id_path)
+            # label_txt2id = self.read_label_txt2id_dict(label_txt2id_path)
             self.graphs, self.labels = graph_utils.load_dgl_graphs(graph_file_path)
             logger.info("Read graphs from " + graph_file_path)
 
@@ -83,8 +85,8 @@ class GraphDataset(torch.utils.data.Dataset):
             df = pd.read_csv(dataset_df_path)
             # df, label_txt2id = self.read_datasets(dataset_df_path)
             logger.info("Read dataset from " + dataset_df_path)
-            label_txt2id = self.read_label_txt2id_dict(label_txt2id_path)
-            self.save_label_txt2id_dict(label_txt2id)
+            # label_txt2id = self.read_label_txt2id_dict(label_txt2id_path)
+            # self.save_label_txt2id_dict(label_txt2id)
             # self.print_dataset_statistics(df, label_txt2id)
 
             graph_ob = DGL_Graph(df)
@@ -94,7 +96,7 @@ class GraphDataset(torch.utils.data.Dataset):
         ## Read and generate graphs:
         else:
             assert self.dataset_dir.exists(), "dataset_dir must exist."
-            df = self.read_datasets(dataset_name=self.dataset_info["source"]['labelled'])
+            df = self.read_datasets(dataset_name=self.dataset_file)
             # df, label_txt2id = self.prune_dataset_df(df, label_txt2id)
             # label_txt2id = self.read_label_text_to_label_id_dict(label_txt2id_path)
             # self.save_dataset_df(df)
@@ -105,13 +107,20 @@ class GraphDataset(torch.utils.data.Dataset):
         # atleast one document is expected
         self.classes = len(self.labels[0])
 
-    def read_source_labelled(self, data_dir, labelled_source_name):
-        if labelled_source_name is None:
-            labelled_source_name = self.dataset_info["name"]
+    def read_labelled_df(self, data_dir, labelled_data_name):
+        """ Reads labelled data files.
+
+        :param data_dir:
+        :param labelled_data_name:
+        :return:
+        """
+        if labelled_data_name is None:
+            labelled_data_name = self.dataset_file
         ## Read labelled source data
-        s_lab_df = read_labelled_json(data_dir, labelled_source_name)
+        s_lab_df = read_labelled_json(str(data_dir), str(labelled_data_name))
         ## Match label space between two datasets:
-        s_lab_df = labels_mapper(s_lab_df)
+        if self.domain == 'source':
+            s_lab_df = labels_mapper(s_lab_df)
 
         return s_lab_df
 
@@ -130,24 +139,24 @@ class GraphDataset(torch.utils.data.Dataset):
           Label to ID mapping maps index of label list to the label name
         """
         if dataset_name is None:
-            dataset_name = self.dataset_info["name"]
+            dataset_name = self.dataset_file
         # if self.dataset_info["name"] == "source":
-        return self.read_source_labelled(self.dataset_dir, dataset_name)
+        return self.read_labelled_df(self.dataset_dir, dataset_name)
         # elif self.dataset_info["name"] == "target":
-        #     return self.read_source_labelled(self.dataset_dir, dataset_name)
+        #     return self.read_labelled_df(self.dataset_dir, dataset_name)
         # else:
         #     logger.error("{} dataset not yet supported".format(self.dataset_info["name"]))
         #     return NotImplemented
 
     def save_label_txt2id_dict(self, label_txt2id):
-        with open(cfg['paths']['data_root'] + self.dataset_info['name'] +
+        with open(cfg['paths']['data_root'] + self.dataset_file +
                   "_label_txt2id.json", "w") as f:
             json_dict = json.dumps(label_txt2id)
             f.write(json_dict)
         logger.info("Generated Label to ID mapping and stored at " + cfg['paths']['data_root'])
 
     def save_dataset_df(self, df):
-        df.to_csv(cfg['paths']['data_root'] + self.dataset_info['name'] + "_dataset.csv")
+        df.to_csv(cfg['paths']['data_root'] + self.dataset_file + "_dataset.csv")
         logger.info("Generated dataset and stored at " + cfg['paths']['data_root'])
 
     def read_label_txt2id_dict(self, label_txt2id_path):
@@ -165,13 +174,12 @@ class GraphDataset(torch.utils.data.Dataset):
     #     df, label_txt2id = utils.prune_dataset_df(df, label_txt2id)
     #     return df, label_txt2id
 
-    def split_data(self, test_size=0.3, stratified=False, random_state=0):
+    def split_data(self, test_size: float = 0.3, stratified: bool = False,
+                   random_state: int = 0) -> [DGL_Graph, DGL_Graph]:
         """
         Splits dataset into train and test with optional stratified splitting
         returns 2 GraphDataset, one for train, one for test
         """
-        # graphs = self.graphs
-
         if stratified is False:
             x_graphs, y_graphs, x_labels, y_labels = train_test_split(
                 self.graphs, self.labels, test_size=test_size,

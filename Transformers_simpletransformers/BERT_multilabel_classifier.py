@@ -29,7 +29,7 @@ from simpletransformers.classification import MultiLabelClassificationModel
 from simpletransformers.classification import MultiLabelClassificationArgs
 
 from config import configuration as cfg, platform as plat, username as user
-from Utils.utils import calculate_performance
+from Metrics.metrics import calculate_performance_pl_sk
 from Logger.logger import logger
 
 
@@ -89,7 +89,7 @@ def macro_f1(labels, preds, threshold=0.5):
 
     logger.info("preds with threshold [{}]:\n[{}]".format(threshold, preds))
 
-    scores = calculate_performance(labels, preds)
+    scores = calculate_performance_pl_sk(labels, preds)
 
     return scores
 
