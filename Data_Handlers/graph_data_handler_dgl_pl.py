@@ -35,9 +35,10 @@ class Graph_Data_Handler(pl.LightningDataModule):
     def __init__(self, dataset_dir=cfg["paths"]["dataset_dir"][plat][user],
                  dataset_info=cfg['data']):
         super().__init__()
+        self.dataset_dir = dataset_dir
         self.dataset_info = dataset_info
         self.graph_data = GraphDataset(dataset_dir=dataset_dir,
-                                       dataset_info=self.dataset_info)
+                                       dataset_file=dataset_info["source"]['labelled'])
 
     def batch_graphs(self, samples):
         """
@@ -52,15 +53,27 @@ class Graph_Data_Handler(pl.LightningDataModule):
     #     MNIST(os.getcwd(), train=False, download=True)
 
     # OPTIONAL, called for every GPU/machine (assigning state is OK)
-    def setup(self, stage='fit'):
-        """
-        Split data into train, val and test
-        """
-        graph_train_val, self.graph_test = self.graph_data.split_data(
-            test_size=cfg['data']['test_split'])
+    def setup(self, stage='da'):
+        """ Split data into train, val and test.
 
-        self.graph_train, self.graph_val = graph_train_val.split_data(
-            test_size=cfg['data']['val_split'])
+        stage = 'da' signifies Domain adaptation application, load target data for test.
+        """
+        ## Split source data to train and validation if da is True
+        if stage == 'da':
+            self.graph_train, self.graph_val = self.graph_data.split_data(
+                test_size=cfg['data']['test_split'])
+
+            ## Use target data for testing:
+            # TODO: set target data properly:
+            self.graph_test = GraphDataset(
+                dataset_dir=self.dataset_dir, domain='target',
+                dataset_file=self.dataset_info["target"]['labelled'])
+        else:
+            graph_train_val, self.graph_test = self.graph_data.split_data(
+                test_size=cfg['data']['test_split'])
+
+            self.graph_train, self.graph_val = graph_train_val.split_data(
+                test_size=cfg['data']['val_split'])
 
     def train_dataloader(self, train_batch_size=cfg['training']['train_batch_size']):
         """
