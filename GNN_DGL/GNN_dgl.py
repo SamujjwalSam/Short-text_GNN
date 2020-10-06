@@ -188,11 +188,12 @@ class GAT_Graph_Classifier(torch.nn.Module):
 def train_graph_classifier(model: GAT_Graph_Classifier,
                            data_loader: torch.utils.data.dataloader.DataLoader,
                            loss_func: torch.nn.modules.loss.BCEWithLogitsLoss,
-                           optimizer, epochs: int = 5):
-    model.train()
-    epoch_losses = []
+                           optimizer, epochs: int = 5,
+                           eval_data_loader: torch.utils.data.dataloader.DataLoader = None, ):
+    train_epoch_losses = []
     train_epoch_dict = OrderedDict()
     for epoch in range(epochs):
+        model.train()
         epoch_loss = 0
         preds = []
         trues = []
@@ -209,8 +210,10 @@ def train_graph_classifier(model: GAT_Graph_Classifier,
             preds.append(prediction.detach())
             trues.append(label.detach())
         epoch_loss /= (iter + 1)
-        logger.info('Epoch {}, loss {:.4f}'.format(epoch, epoch_loss))
-        epoch_losses.append(epoch_loss)
+        losses, test_output = test_graph_classifier(
+            model,loss_func=loss_func, data_loader=eval_data_loader)
+        logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, Eval loss {losses} F1 {test_output['result']['f1']['macro'].item()}")
+        train_epoch_losses.append(epoch_loss)
         preds = torch.cat(preds)
 
         ## Converting raw scores to probabilities using Sigmoid:
@@ -225,23 +228,27 @@ def train_graph_classifier(model: GAT_Graph_Classifier,
             'trues':  trues,
             'result': result_dict
         }
-        logger.info(f'Epoch {epoch} result: \n{result_dict}')
+        # logger.info(f'Epoch {epoch} result: \n{result_dict}')
 
-    return epoch_losses, train_epoch_dict
+    return train_epoch_losses, train_epoch_dict
 
 
-def test_graph_classifier(model: GAT_Graph_Classifier,
+def test_graph_classifier(model: GAT_Graph_Classifier, loss_func,
                           data_loader: torch.utils.data.dataloader.DataLoader):
     model.eval()
     preds = []
     trues = []
+    losses = []
     for iter, (graph_batch, label) in enumerate(data_loader):
         ## Store emb in a separate file as self_loop removes emb info:
         emb = graph_batch.ndata['emb']
         # graph_batch = dgl.add_self_loop(graph_batch)
         prediction = model(graph_batch, emb)
+        loss = loss_func(prediction, label)
         preds.append(prediction.detach())
         trues.append(label.detach())
+        losses.append(loss.detach())
+    losses = torch.mean(torch.stack(losses))
     preds = torch.cat(preds)
 
     ## Converting raw scores to probabilities using Sigmoid:
@@ -256,9 +263,9 @@ def test_graph_classifier(model: GAT_Graph_Classifier,
         'trues':  trues,
         'result': result_dict
     }
-    logger.info(f'Test result: \n{result_dict}')
+    # logger.info(f'Test result: \n{result_dict}')
 
-    return test_output
+    return losses, test_output
 
 
 def graph_multilabel_classification(
@@ -274,9 +281,11 @@ def graph_multilabel_classification(
 
     epoch_losses, train_epochs_output_dict = train_graph_classifier(
         model, gdh.train_dataloader(), loss_func=loss_func,
-        optimizer=optimizer, epochs=epochs)
+        optimizer=optimizer, epochs=epochs,
+        eval_data_loader=gdh.test_dataloader())
 
-    test_output = test_graph_classifier(model, gdh.test_dataloader())
+    test_output = test_graph_classifier(model, loss_func=loss_func,
+                                        data_loader=gdh.test_dataloader())
 
     return train_epochs_output_dict, test_output
 
