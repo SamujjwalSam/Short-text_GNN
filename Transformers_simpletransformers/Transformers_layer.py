@@ -31,6 +31,7 @@ from simpletransformers.classification import ClassificationModel
 from simpletransformers.classification.classification_utils import InputExample, convert_examples_to_features
 
 from config import configuration as cfg, platform as plat, username as user
+from Metrics.metrics import calculate_performance_pl_sk
 from Logger.logger import logger
 from File_Handlers.json_handler import read_labelled_json
 from Transformers_simpletransformers.BERT_multilabel_classifier import format_inputs
