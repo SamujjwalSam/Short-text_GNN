@@ -104,7 +104,6 @@ def BERT_classifier(train_df: pd.core.frame.DataFrame,
     """
     train_df = format_inputs(train_df)
     test_df = format_inputs(test_df)
-    test_df = test_df.sample(frac=1)
 
     ## Add arguments:
     model_args = MultiLabelClassificationArgs()
@@ -181,11 +180,11 @@ def BERT_classifier(train_df: pd.core.frame.DataFrame,
     logger.info(f"Saving wrongly classified examples in file: [{missed_examples_path}]")
     missed_examples.to_csv(missed_examples_path)
 
-    logger.info(dumps(result, indent=4))
-    with open(join(cfg['paths']["dataset_dir"][plat][user],
-                   cfg["data"]["source"]['labelled'] + "_" + model_name +
-                   '_result.json'), 'w') as f:
-        dump(result, f)
+    # logger.info(dumps(result, indent=4))
+    # with open(join(cfg['paths']["dataset_dir"][plat][user],
+    #                cfg["data"]["source"]['labelled'] + "_" + model_name +
+    #                '_result.json'), 'w') as f:
+    #     dump(result, f)
 
     logger.info(f"Total training time for [{num_epoch}] with [{train_df.shape[0]}] examples: [{train_time} sec]"
                 f"\nPer example: [{train_time / train_df.shape[0]} sec] for model: [{model_type}]")
@@ -229,6 +228,7 @@ if __name__ == "__main__":
     train_df = labels_mapper(train_df)
 
     test_df = read_labelled_json(data_dir, cfg['data']['target']['labelled'])
+    test_df = test_df.sample(frac=1)
 
     result, model_outputs = BERT_classifier(
         train_df=train_df, test_df=test_df, dataset_name=args.dataset_name,

@@ -190,8 +190,7 @@ def fetch_all_nodes(node_list: list, token2label_vec_map: dict,
     labelled_node_mask_test = []
     for node in node_list:
         try:
-            ordered_node_embs.append(token2label_vec_map[
-                                         token_id2token_txt_map[node]])
+            ordered_node_embs.append(token2label_vec_map[token_id2token_txt_map[node]])
             rand = random.random()
             if rand < test_size:
                 labelled_node_mask_train.append(False)
@@ -285,9 +284,8 @@ def propagate_multilabels(features: t.Tensor, labels: np.ndarray) -> np.ndarray:
     return np.stack(all_preds).T
 
 
-def lpa_mse(Y_hat: t.Tensor, Y: t.Tensor, labelled_mask: list = None) -> t.Tensor:
-    diff = Y_hat[labelled_mask] - Y[labelled_mask]
-    return diff.abs().sum() / len(labelled_mask)
+def lpa_mse(Y_hat: t.Tensor, Y: t.Tensor) -> t.Tensor:
+    return (Y_hat - Y).abs().mean()
 
 
 def label_propagation(adj: sparse.csr.csr_matrix, Y: list, labelled_masks: tuple,

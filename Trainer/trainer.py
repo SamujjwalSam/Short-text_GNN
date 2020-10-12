@@ -219,7 +219,8 @@ def trainer(model, train_iterator, val_iterator, N_EPOCHS=5, optimizer=None,
     return model_best, val_preds_trues_best, val_preds_trues_all, losses
 
 
-def save_model(model, saved_model_dir, saved_model_name='model'):
+def save_model(model, saved_model_dir=cfg["paths"]["dataset_dir"][plat][user],
+               saved_model_name='model'):
     try:
         torch.save(model.state_dict(), join(saved_model_dir, saved_model_name))
     except Exception as e:

@@ -31,7 +31,7 @@ from Logger.logger import logger
 
 
 def glove2dict(embedding_dir: str = cfg["paths"]["embedding_dir"][plat][user],
-               embedding_file: str = cfg["embeddings"]["embedding_file"]) -> np.ndarray:
+               embedding_file: str = cfg["embeddings"]["embedding_file"]) -> dict:
     """Loads Glove vectors and return dict.
 
     # get it from https://nlp.stanford.edu/projects/glove
@@ -227,12 +227,12 @@ def calculate_cooccurrence_mat(oov_vocab: list, corpus_str: list):
     return coocc_ar
 
 
-def train_model(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=200,
-                glove_oov_save_path=None,
-                dataset_dir=cfg["paths"]["dataset_dir"][plat][user],
-                embedding_file=cfg["embeddings"]["embedding_file"],
-                dataset_name=cfg["data"]["source"]['labelled']
-                             + cfg["data"]["target"]['labelled']):
+def train_mittens(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=200,
+                  glove_oov_save_path=None,
+                  dataset_dir=cfg["paths"]["dataset_dir"][plat][user],
+                  embedding_file=cfg["embeddings"]["embedding_file"],
+                  dataset_name=cfg["data"]["source"]['labelled']
+                               + cfg["data"]["target"]['labelled']):
     """
 
     :param coocc_ar:
@@ -269,7 +269,7 @@ def main():
     oov_vocabs, corpus = process_data(brown.words()[:2000],
                                       glove_embs=glove_embs)
     coo_mat = calculate_cooccurrence_mat(oov_vocabs, corpus)
-    new_glove_embs = train_model(coo_mat, oov_vocabs, glove_embs)
+    new_glove_embs = train_mittens(coo_mat, oov_vocabs, glove_embs)
     return new_glove_embs
 
 

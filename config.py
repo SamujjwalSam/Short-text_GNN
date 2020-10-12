@@ -57,7 +57,7 @@ configuration = {
         "dropout_external":     0.0,
         "clipnorm":             1.0,
         "data_slice":           5120,
-        "use_cuda":             True,
+        "use_cuda":             False,
         "normalize_inputs":     False,
         "kernel_size":          1,
         "stride":               1,
@@ -68,7 +68,7 @@ configuration = {
         "optimizer":            {
             "optimizer_type": "AdamW",
             "learning_rate_scheduler":  "linear_warmup",
-            "lr":  5e-5,
+            "lr":             3e-4,
             "lr_decay":       0.,
             "weight_decay":   0.,
             "max_grad_norm":  1.0,
@@ -93,7 +93,7 @@ configuration = {
         "dropout_external":     0.0,
         "clipnorm":             1.0,
         "data_slice":           5120,
-        "use_cuda":             True,
+        "use_cuda":             False,
         "normalize_inputs":     False,
         "kernel_size":          1,
         "stride":               1,
@@ -130,6 +130,8 @@ configuration = {
     },
 
     "gnn_params":   {
+        "hid_dim":     70,
+        "num_heads":   2,
         "padding":     1,
         "stride":      1,
         "kernel_size": 1,
