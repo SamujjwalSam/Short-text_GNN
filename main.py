@@ -21,15 +21,16 @@ import torch
 import argparse
 import pandas as pd
 import networkx as nx
+from pathlib import Path
 from os import environ
 from os.path import join, exists
 from collections import OrderedDict
 from json import dumps
 from scipy import sparse
 
-from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes
-from Utils.utils import count_parameters, logit2label, calculate_performance,\
-    split_df, freq_tokens_per_class, merge_dicts
+from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_propagation
+from Utils.utils import count_parameters, logit2label, split_df,\
+    freq_tokens_per_class, merge_dicts
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
 from File_Handlers.csv_handler import read_tweet_csv
 from File_Handlers.json_handler import save_json, read_json, json_keys2df,\
@@ -41,12 +42,14 @@ from build_corpus_vocab import get_dataset_fields
 from Data_Handlers.graph_constructor_nx import get_node_features,\
     add_edge_weights, create_tokengraph, generate_sample_subgraphs
 from Layers.GCN_forward import GCN_forward, netrowkx2geometric
+from GNN_DGL.GNN_dgl import graph_multilabel_classification
 from Transformers_simpletransformers.BERT_multilabel_classifier import BERT_classifier
 from finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
-    train_model, preprocess_and_find_oov
-from Trainer.Training import trainer, predict_with_label
+    train_mittens, preprocess_and_find_oov
+from Trainer.trainer import trainer, predict_with_label
 from Class_mapper.FIRE16_SMERP17_map import labels_mapper
 from Plotter.plot_functions import plot_training_loss, plot_graph
+from Metrics.metrics import calculate_performance_pl_sk
 from config import configuration as cfg, platform as plat, username as user
 from Logger.logger import logger
 
@@ -103,35 +106,7 @@ if device.type == 'cuda':
 """
 
 
-def map_nodetxt2GCNvec(G, node_list, X, id2txt_map, return_format='pytorch'):
-    """ Creates a dict from token (node_id) to it's vectors.
-
-    :param G:
-    :param node_list:
-    :param X:
-    :param return_format:
-    :return:
-    """
-    GCNvec_dict = OrderedDict()
-    # stoi_dict = OrderedDict()
-    for i, node_id in enumerate(node_list):
-        # node_txt = G.nodes[node_id]['node_txt']
-        node_txt = id2txt_map[node_id]
-        # stoi_dict[node_txt] = node_id
-        if return_format == 'numpy':
-            GCNvec_dict[node_txt] = X[i].numpy()
-        elif return_format == 'list':
-            GCNvec_dict[node_txt] = X[i].tolist()
-        elif return_format == 'pytorch':
-            GCNvec_dict[node_txt] = X[i]
-        else:
-            raise NotImplementedError(f'Unknown format: [{return_format}].')
-
-    return GCNvec_dict  # , stoi_dict
-
-
-def split_target(df=None,
-                 data_dir=cfg["paths"]["dataset_dir"][plat][user],
+def split_target(df=None, data_dir=cfg["paths"]["dataset_dir"][plat][user],
                  labelled_data_name=cfg["data"]["target"]['labelled'],
                  test_size=0.3, train_size=1.0, n_classes=4):
     """ Splits labelled target data to train and test set.
@@ -146,9 +121,8 @@ def split_target(df=None,
     ## Read target data
     if df is None:
         df = read_labelled_json(data_dir, labelled_data_name)
-    df, t_lab_test_df = split_df(df, test_size=test_size,
-                                 stratified=True, order=2,
-                                 n_classes=n_classes)
+    df, t_lab_test_df = split_df(df, test_size=test_size, stratified=False,
+                                 order=2, n_classes=n_classes)
 
     logger.info(f'Number of TEST samples: [{t_lab_test_df.shape[0]}]')
 
@@ -269,12 +243,10 @@ def create_vocab(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
 def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
          labelled_source_name: str = cfg["data"]["source"]['labelled'],
          unlabelled_source_name: str = cfg["data"]["source"]['unlabelled'],
-         # labelled_target_name=cfg["data"]["target"]['labelled'],
+         labelled_target_name: str = cfg["data"]["target"]['labelled'],
          unlabelled_target_name: str = cfg["data"]["target"]['unlabelled'],
          mittens_iter: int = 1000, gcn_hops: int = 5,
-         glove_embs: dict = glove2dict()) -> None:
-    # c_data_name = unlabelled_source_name + '_' + unlabelled_target_name\
-    #               + "_data.csv"
+         glove_embs: dict = glove2dict()):
     data_dir = Path(data_dir)
     labelled_source_name = labelled_source_name
     unlabelled_source_name = unlabelled_source_name
@@ -287,15 +259,14 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
         ## Read labelled source data
         s_lab_df = read_labelled_json(data_dir, labelled_source_name)
         ## Match label space between two datasets:
-        s_lab_df = labels_mapper(s_lab_df)
+        if str(labelled_source_name).startswith('fire16'):
+            s_lab_df = labels_mapper(s_lab_df)
 
         C_vocab = read_json('C_vocab')
         S_vocab = read_json('S_vocab')
         T_vocab = read_json('T_vocab')
         labelled_token2vec_map = read_json('labelled_token2vec_map')
 
-        # C_dataset, (C_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
-        #                                                   csv_file=c_data_name)
         if not exists('high_oov_freqs.json'):
             S_dataset, (S_fields, LABEL) = get_dataset_fields(
                 csv_dir=data_dir, csv_file=S_data_name)
@@ -345,17 +316,9 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
 
     logger.info("Number of nodes: [{}]".format(len(G.nodes)))
     logger.info("Number of edges: [{}]".format(len(G.edges)))
+    node_list = list(G.nodes)
 
-    S_data_name = labelled_source_name + "_data.csv"
-    s_lab_df.to_csv(join(data_dir, S_data_name))
-    s_labelled_dataset, (_, _) = get_dataset_fields(
-        csv_dir=data_dir, csv_file=S_data_name, min_freq=1, labelled_data=True)
-    txts_subgraphs = generate_sample_subgraphs(s_labelled_dataset.examples, G=G)
-
-    ## Save graph: G
-    # read_graphml(path, node_type=<class 'str'>, edge_key_type=<class 'int'>)
-
-    ## Create new embeddings for OOV tokens:
+    # ## Create new embeddings for OOV tokens:
     oov_filename = labelled_source_name + '_OOV_vectors_dict'
     if exists(join(data_dir, oov_filename + '.pkl')):
         oov_embs = load_pickle(pkl_file_path=data_dir,
@@ -364,31 +327,23 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
         high_oov_tokens_list = list(high_oov_freqs.keys())
         c_corpus = corpus[0] + corpus[1]
         oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens_list, c_corpus)
-        oov_embs = train_model(oov_mat_coo, high_oov_tokens_list, glove_embs,
-                               max_iter=mittens_iter)
+        oov_embs = train_mittens(oov_mat_coo, high_oov_tokens_list, glove_embs, max_iter=mittens_iter)
         save_pickle(oov_embs, pkl_file_path=data_dir,
                     pkl_file_name=oov_filename, overwrite=True)
 
-    node_list = list(G.nodes)
+    merged_embs = merge_dicts(glove_embs, oov_embs)
+    save_pickle(merged_embs, cfg["embeddings"]["saved_emb_file"], data_dir)
 
-    # X_labels = get_label_vectors(node_list, labelled_token2vec_map,
-    #                              token_txt2token_id_map=C_vocab['idx2str_map'],
-    #                              default_fill=-1)
-    # torch.save(X_labels, 'X_labels_05.pt')
+    from Data_Handlers.graph_data_handler_dgl_pl import Graph_Data_Handler
 
-    glove_embs = merge_dicts(glove_embs, oov_embs)
+    gdh = Graph_Data_Handler(dataset_dir=data_dir, dataset_info=cfg['data'])
+    gdh.setup(stage='da')
+    # gdh.train_dataloader()
+    train_epochs_output_dict, test_output = graph_multilabel_classification(
+        gdh, in_feats=100, hid_feats=cfg['gnn_params']['hid_dim'],
+        num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'])
 
     ## TODO: Generate <UNK> embedding from low freq tokens:
-    ## Save embedding with OOV tokens:
-    # save_pickle(glove_embs, pkl_file_name=cfg["embeddings"][
-    # "embedding_file"] +
-    #                                       labelled_source_filename + '_' +
-    #                                       labelled_target_filename,
-    #             pkl_file_path=cfg["paths"]["embedding_dir"][plat][user])
-
-    # save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][
-    # user],
-    #            glove_file='oov_glove.txt')
 
     ## Get adjacency matrix and node embeddings in same order:
     if exists("adj.npz"):
@@ -402,54 +357,27 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
     all_node_labels, labelled_masks = fetch_all_nodes(
         node_list, labelled_token2vec_map, C_vocab['idx2str_map'],
         default_fill=[0., 0., 0., 0.])
-    #
-    # if exists("labels_propagated.pt"):
-    #     labels_propagated = torch.load('labels_propagated.pt')
-    # else:
-    #     labels_propagated = label_propagation(adj, all_node_labels,
-    #                                           labelled_masks)
-    #     torch.save(labels_propagated, 'labels_propagated.pt')
 
-    ## Create label to propagated vector map:
-    # node_txt2label_vec = {}
-    # for node_id in node_list:
-    #     node_txt2label_vec[C_vocab['idx2str_map'][node_id]] = \
-    #         labels_propagated[node_id].tolist()
+    if exists("labels_propagated.pt"):
+        labels_propagated = torch.load('labels_propagated.pt')
+    else:
+        labels_propagated = label_propagation(adj, all_node_labels,
+                                              labelled_masks)
+        torch.save(labels_propagated, 'labels_propagated.pt')
 
-    # save_json(node_txt2label_vec, 'node_txt2label_vec', overwrite=True)
-    # node_txt2label_vec_csv = pd.DataFrame.from_dict(node_txt2label_vec,
-    #                                                 orient='index')
-    # node_txt2label_vec_csv.to_csv('node_txt2label_vec.csv')
+    # Create label to propagated vector map:
+    node_txt2label_vec = {}
+    for node_id in node_list:
+        node_txt2label_vec[C_vocab['idx2str_map'][node_id]] =\
+            labels_propagated[node_id].tolist()
+    pd.DataFrame.from_dict(node_txt2label_vec, orient='index').to_csv('node_txt2label_vec.csv')
 
-    G_data = netrowkx2geometric(G)
-    print(G_data)
-    print(G_data.weight.dtype)
-    print(G_data.edge_index.dtype)
+    # ## Propagating label vectors using GCN forward instead of LPA:
+    # X_labels_hat = GCN_forward(adj, all_node_labels, forward=gcn_hops)
+    # torch.save(X_labels_hat, 'X_labels_hat_05.pt')
 
-    X_labels_hat = GCN_forward(adj, all_node_labels, forward=gcn_hops)
-    torch.save(X_labels_hat, 'X_labels_hat_05.pt')
-
-    X = get_node_features(glove_embs, oov_embs, C_vocab['idx2str_map'],
-                          node_list)
+    X = get_node_features(merged_embs, oov_embs, C_vocab['idx2str_map'], node_list)
     X_hat = GCN_forward(adj, X, forward=gcn_hops)
-
-    ## Create text to GCN forward vectors:
-    # X_dict = map_nodetxt2GCNvec(G, node_list, X_hat, C_vocab['idx2str_map'])
-
-    ## Save GCN forwarded vectors for future use:
-    # save_pickle(X_dict, pkl_file_name='X_dict.t', pkl_file_path=data_dir)
-    # torch.save(X_dict, join(data_dir, 'X_dict.pt'))
-    # X_dict = torch.load(join(data_dir, 'X_dict.pt'))
-    # save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][
-    # user],
-    #            glove_file='oov_glove.txt')
-
-    ## Construct tweet subgraph:
-    # S_iter, T_iter = dataset2iter((S_dataset, T_dataset), batch_size=1)
-    txts_subgraphs = generate_sample_subgraphs(s_lab_df.text.to_list(), G=G)
-    logger.info("Fetching subgraph: [{}]".format(txts_subgraphs))
-    print(txts_subgraphs[0].nodes)
-    plot_graph(txts_subgraphs[0])
 
     return C_vocab['str2idx_map'], X_hat
 
@@ -459,11 +387,11 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
              data_dir=cfg["paths"]["dataset_dir"][plat][user],
              train_filename=cfg["data"]["source"]['labelled'],
              test_filename=cfg["data"]["target"]['labelled'],
-             cls_thresh=None, epoch=cfg['training']['num_epochs'],
+             cls_thresh=None, epoch=cfg['training']['num_epoch'],
              num_layers=cfg['lstm_params']['num_layers'],
              num_hidden_nodes=cfg['lstm_params']['hid_size'],
              dropout=cfg['model']['dropout'], default_thresh=0.5,
-             lr=cfg['model']['optimizer']['learning_rate'],
+             lr=cfg['model']['optimizer']['lr'],
              train_batch_size=128,
              ):
     """
@@ -560,10 +488,10 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
         pd.DataFrame(val_preds_trues_best['preds'].cpu().numpy()), cls_thresh,
         drop_irrelevant=False)
 
-    result = calculate_performance(val_preds_trues_best['trues'].cpu().numpy(),
-                                   predicted_labels)
+    result = calculate_performance_pl_sk(val_preds_trues_best['trues'],
+                                         predicted_labels)
 
-    logger.info("Result: {}".format(dumps(result, indent=4)))
+    logger.info("Result: {}".format(result))
 
     # result_df = flatten_results(result)
     # result_df.round(decimals=4).to_csv(
@@ -595,8 +523,8 @@ def get_supervised_result(model, train_iterator, val_iterator, test_iterator,
         pd.DataFrame(test_preds_trues['preds'].numpy()), cls_thresh,
         drop_irrelevant=False)
 
-    result = calculate_performance(test_preds_trues['trues'].numpy(),
-                                   predicted_labels)
+    result = calculate_performance_pl_sk(test_preds_trues['trues'],
+                                         predicted_labels)
 
     logger.info("Supervised result: {}".format(dumps(result, indent=4)))
     return result, model_best
@@ -617,11 +545,6 @@ def save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
 
 
 if __name__ == "__main__":
-    glove_embs = glove2dict()
-    s2i_dict, X_hat = main(glove_embs=glove_embs)
-
-    exit(0)
-
     parser = argparse.ArgumentParser()
 
     ## Required parameters
@@ -632,7 +555,7 @@ if __name__ == "__main__":
     parser.add_argument("-mt", "--model_type",
                         default=cfg['transformer']['model_type'], type=str)
     parser.add_argument("-ne", "--num_train_epochs",
-                        default=cfg['training']['num_train_epoch'], type=int)
+                        default=cfg['training']['num_epoch'], type=int)
     parser.add_argument("-c", "--use_cuda",
                         default=cfg['model']['use_cuda'], action='store_true')
 
@@ -645,58 +568,11 @@ if __name__ == "__main__":
 
     test_df = read_labelled_json(data_dir, cfg['data']['target']['labelled'])
 
-    result, model_outputs = BERT_classifier(
-        train_df=train_df, test_df=test_df, dataset_name=args.dataset_name,
-        model_name=args.model_name, model_type=args.model_type,
-        num_epoch=args.num_train_epochs, use_cuda=True)
-    exit(0)
-    # cls_freqs = freq_tokens_per_class(df)
-    # label_vec = token_dist2token_labels(cls_freq, vocab_set)
-    #
+    # result, model_outputs = BERT_classifier(
+    #     train_df=train_df, test_df=test_df, dataset_name=args.dataset_name,
+    #     model_name=args.model_name, model_type=args.model_type,
+    #     num_epoch=args.num_train_epochs, use_cuda=False)
 
-    # glove_embs = glove2dict()
-    # # df = labels_mapper(df)
-    # train_portions = [0.2, 0.5, 1.0]
-    # final_result = []
-    # for train_portion in train_portions:
-    #     s2i_dict, X_hat = main(glove_embs=glove_embs)
-    #
-    #     train, test = split_target(df, test_size=0.3,
-    #     train_size=train_portion)
-    #
-    #     GCN_result = classify(test_df=test, stoi=s2i_dict, vectors=X_hat,
-    #                           lr=1e-5, dropout=0.5)
-    #
-    #     glove_result = classify(train_df=train, test_df=test)
-    #
-    #     params = {
-    #         'train_portion': train_portion,
-    #     }
-    #     result_dict = {
-    #         'params': params,
-    #         'glove':  glove_result,
-    #         'gcn':    GCN_result
-    #     }
-    #     final_result.append(result_dict)
-    #
-    # logger.info(dumps(final_result, indent=4))
-    #
-    # exit(0)
-    # result = load(open('Tweet_GCN_results.json'))
-    # flatten_results(result)
-    ## TODO:
-    # 4. Ways to pretrain GCN:
-    #   4.1 Domain classification
-    #   4.2 Link prediction
-    # 5. Restrict GCN propagation using class information
-    # 6. Integrate various plotting functions
-    # 7. Think about adversarial setting
-    # 8. Use BERT for local embedding
-    # 9. Concatenate Glove and GCN embedding and evaluate POC
-    # 10. Think about pre-training GCN and GNN
-    # 11. Add option to read hyper-params from config
-
-    ## Generate embeddings for OOV tokens:
     glove_embs = glove2dict()
 
     epochs = [10, 25]
@@ -710,11 +586,10 @@ if __name__ == "__main__":
 
     train_portions = [0.2, 0.5, 1.0]
     for train_portion in train_portions:
-        train, test = split_target(df, test_size=0.3,
+        train, test = split_target(test_df, test_size=0.3,
                                    train_size=train_portion)
         for c in gcn_forward:
-            s2i_dict, X_hat = main(  # mittens_iter=20,
-                gcn_hops=c, glove_embs=glove_embs)
+            s2i_dict, X_hat = main(gcn_hops=c, glove_embs=glove_embs)
 
             for a in epochs:
                 for b in layer_sizes:
@@ -764,10 +639,9 @@ if __name__ == "__main__":
                                 }
                                 final_result.append(result_dict)
 
-                                logger.info("Result: {}".format(dumps(
-                                    result_dict, indent=4)))
+                                logger.info("Result: {}".format(result_dict))
 
-    logger.info("ALL Results: {}".format(dumps(final_result, indent=4)))
+    logger.info("ALL Results: {}".format(final_result))
 
     # present_result(final_result)
 
