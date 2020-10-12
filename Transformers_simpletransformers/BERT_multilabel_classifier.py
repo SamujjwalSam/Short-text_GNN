@@ -29,7 +29,7 @@ from simpletransformers.classification import MultiLabelClassificationModel
 from simpletransformers.classification import MultiLabelClassificationArgs
 
 from config import configuration as cfg, platform as plat, username as user
-from Metrics.metrics import calculate_performance_pl_sk
+from Metrics.metrics import calculate_performance_sk
 from Logger.logger import logger
 
 
@@ -74,7 +74,8 @@ def macro_f1(labels, preds, threshold=0.5):
 
     logger.info("preds with threshold [{}]:\n[{}]".format(threshold, preds))
 
-    scores = calculate_performance_pl_sk(labels, preds)
+    scores = calculate_performance_sk(labels, preds)
+    logger.info(f"Scores: [{threshold}]:\n[{scores}]")
 
     return scores
 
@@ -103,6 +104,7 @@ def BERT_classifier(train_df: pd.core.frame.DataFrame,
     """
     train_df = format_inputs(train_df)
     test_df = format_inputs(test_df)
+    test_df = test_df.sample(frac=1)
 
     ## Add arguments:
     model_args = MultiLabelClassificationArgs()
@@ -144,7 +146,7 @@ def BERT_classifier(train_df: pd.core.frame.DataFrame,
 
     ## Create a MultiLabelClassificationModel
     model = MultiLabelClassificationModel(
-        model_type=model_type, model_name=model_name, # num_labels=n_classes,
+        model_type=model_type, model_name=model_name, num_labels=n_classes,
         use_cuda=use_cuda, args=model_args,)
 
     if use_cuda and torch.cuda.is_available():
@@ -169,11 +171,12 @@ def BERT_classifier(train_df: pd.core.frame.DataFrame,
     miss_texts = []
     # misses = {"ids": miss_ids,"texts":miss_texts}
     for example in wrong_predictions:
-        logger.info(f"Misclassification example id: [{example.guid}], text: [{example.text_a}]")
+        # logger.info(f"id: [{example.guid}], text: [{example.text_a}]")
         miss_ids.append(example.guid)
         miss_texts.append(example.text_a)
 
     missed_examples = pd.DataFrame({"ids": miss_ids, "texts": miss_texts})
+    logger.info(f'Misclassified examples: {missed_examples}')
     missed_examples_path = dataset_name + model_type + str(num_epoch) + "missed_examples.csv"
     logger.info(f"Saving wrongly classified examples in file: [{missed_examples_path}]")
     missed_examples.to_csv(missed_examples_path)
