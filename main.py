@@ -41,7 +41,7 @@ from Data_Handlers.graph_constructor_dgl import DGL_Graph
 from build_corpus_vocab import get_dataset_fields
 from Data_Handlers.graph_constructor_nx import get_node_features,\
     add_edge_weights, create_tokengraph, generate_sample_subgraphs
-from Layers.GCN_forward import GCN_forward, netrowkx2geometric
+from Layers.GCN_forward import GCN_forward
 from GNN_DGL.GNN_dgl import graph_multilabel_classification
 from Transformers_simpletransformers.BERT_multilabel_classifier import BERT_classifier
 from finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
@@ -246,7 +246,9 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
          labelled_target_name: str = cfg["data"]["target"]['labelled'],
          unlabelled_target_name: str = cfg["data"]["target"]['unlabelled'],
          mittens_iter: int = 1000, gcn_hops: int = 5,
-         glove_embs: dict = glove2dict()):
+         glove_embs=None):
+    if glove_embs is None:
+        glove_embs = glove2dict()
     data_dir = Path(data_dir)
     labelled_source_name = labelled_source_name
     unlabelled_source_name = unlabelled_source_name

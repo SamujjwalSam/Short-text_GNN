@@ -24,7 +24,7 @@ from scipy import sparse
 from sklearn.semi_supervised import LabelSpreading
 from imblearn.under_sampling import RandomUnderSampler
 
-from Label_Propagation_PyTorch.LPA import LPALayer
+from Label_Propagation_PyTorch.adj_propagator import Adj_Propagator
 from Utils.utils import sp_coo_sparse2torch_sparse
 from Logger.logger import logger
 
@@ -300,7 +300,7 @@ def label_propagation(adj: sparse.csr.csr_matrix, Y: list, labelled_masks: tuple
         # convert to PyTorch
         Y = t.from_numpy(Y).float()
 
-    lpa = LPALayer()
+    lpa = Adj_Propagator()
     Y_hat = Y
     for i in range(lpa_epoch):
         Y_hat = lpa(adj, Y_hat)
@@ -316,7 +316,7 @@ def label_propagation(adj: sparse.csr.csr_matrix, Y: list, labelled_masks: tuple
 
 if __name__ == "__main__":
     adj = t.rand(4, 4)
-    lpa = LPALayer(adj)
+    lpa = Adj_Propagator(adj)
     inputs = t.rand(4, 3)
     outputs = lpa(inputs)
     print(outputs)

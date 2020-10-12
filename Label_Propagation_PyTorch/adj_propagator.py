@@ -66,9 +66,9 @@ def dot(x: t.Tensor, y: t.Tensor) -> t.Tensor:
     return res
 
 
-class LPALayer(t.nn.Module):
+class Adj_Propagator(t.nn.Module):
     def __init__(self) -> None:
-        super(LPALayer, self).__init__()
+        super(Adj_Propagator, self).__init__()
         # self.softmax = t.nn.Softmax(dim=0)
         # self.labelled_mask = labelled_mask
 
@@ -109,7 +109,7 @@ class LPALayer(t.nn.Module):
 
 if __name__ == "__main__":
     adj = t.rand(4, 4)
-    lpa = LPALayer()
+    lpa = Adj_Propagator()
     Y = t.rand(4, 3)
     Y_hat = lpa(adj, Y)
     print(Y_hat)
