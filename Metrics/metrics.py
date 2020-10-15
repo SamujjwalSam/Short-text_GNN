@@ -20,14 +20,14 @@ __license__     : "This source code is licensed under the MIT-style license
 import torch
 import numpy as np
 import pandas as pd
-from pytorch_lightning.metrics.functional import f1_score as f1, precision, recall, accuracy as accuracy_pl
-from pytorch_lightning.metrics.sklearns import F1, Accuracy, Precision, Recall
-
+from pytorch_lightning.metrics.functional import f1_score as f1_pl, precision, recall, accuracy as accuracy_pl
 from sklearn.metrics import accuracy_score, recall_score, precision_score,\
     f1_score, precision_recall_fscore_support, classification_report
 
+from Logger.logger import logger
 
-def calculate_performance_sk(true: np.ndarray, pred: np.ndarray) -> dict:
+
+def calculate_performance_sk(true: (np.ndarray, torch.tensor), pred: (np.ndarray, torch.tensor)) -> dict:
     """
 
     Parameters
@@ -44,18 +44,14 @@ def calculate_performance_sk(true: np.ndarray, pred: np.ndarray) -> dict:
     scores["accuracy"]["normalize"] = accuracy_score(true, pred, normalize=True)
 
     scores["precision"] = {}
-    scores["precision"]["classes"] = precision_score(true, pred,
-                                                     average=None).tolist()
-    scores["precision"]["weighted"] = precision_score(true, pred,
-                                                      average='weighted')
+    scores["precision"]["classes"] = precision_score(true, pred, average=None).tolist()
+    scores["precision"]["weighted"] = precision_score(true, pred, average='weighted')
     scores["precision"]["micro"] = precision_score(true, pred, average='micro')
     scores["precision"]["macro"] = precision_score(true, pred, average='macro')
-    scores["precision"]["samples"] = precision_score(true, pred,
-                                                     average='samples')
+    scores["precision"]["samples"] = precision_score(true, pred, average='samples')
 
     scores["recall"] = {}
-    scores["recall"]["classes"] = recall_score(true, pred,
-                                               average=None).tolist()
+    scores["recall"]["classes"] = recall_score(true, pred, average=None).tolist()
     scores["recall"]["weighted"] = recall_score(true, pred, average='weighted')
     scores["recall"]["micro"] = recall_score(true, pred, average='micro')
     scores["recall"]["macro"] = recall_score(true, pred, average='macro')
@@ -67,6 +63,8 @@ def calculate_performance_sk(true: np.ndarray, pred: np.ndarray) -> dict:
     scores["f1"]["micro"] = f1_score(true, pred, average='micro')
     scores["f1"]["macro"] = f1_score(true, pred, average='macro')
     scores["f1"]["samples"] = f1_score(true, pred, average='samples')
+
+    logger.info(scores)
 
     return scores
 
@@ -98,7 +96,8 @@ def flatten_results(results: dict):
     return result_df
 
 
-def calculate_performance_pl(true: torch.tensor, pred: torch.tensor) -> dict:
+def calculate_performance_pl(true: torch.tensor, pred: torch.tensor,
+                             return_list=True) -> dict:
     """
 
     Parameters
@@ -108,93 +107,54 @@ def calculate_performance_pl(true: torch.tensor, pred: torch.tensor) -> dict:
 
     Returns
     -------
+    :param true:
+    :param pred:
+    :param return_list:
 
     """
     scores = {}
     scores["accuracy"] = accuracy_pl(true, pred)
 
     scores["precision"] = {}
-    scores["precision"]["classes"] = precision(true, pred, reduction='none')
-    # scores["precision"]["micro"] = precision(true, pred, class_reduction='micro')
-    # scores["precision"]["macro"] = precision(true, pred, reduction='macro')
-    # scores["precision"]["weighted"] = precision(true, pred, reduction='weighted')
+    scores["precision"]["classes"] = precision(true, pred, class_reduction='none')
+    scores["precision"]["micro"] = precision(true, pred, class_reduction='micro')
+    scores["precision"]["macro"] = precision(true, pred, class_reduction='macro')
+    scores["precision"]["weighted"] = precision(true, pred, class_reduction='weighted')
     # scores["precision"]["samples"] = precision(true, pred, reduction='samples')
 
     scores["recall"] = {}
-    scores["recall"]["classes"] = recall(true, pred, reduction='none')
-    # scores["recall"]["micro"] = recall(true, pred, reduction='micro')
-    # scores["recall"]["macro"] = recall(true, pred, reduction='macro')
-    # scores["recall"]["weighted"] = recall(true, pred, reduction='weighted')
+    scores["recall"]["classes"] = recall(true, pred, class_reduction='none')
+    scores["recall"]["micro"] = recall(true, pred, class_reduction='micro')
+    scores["recall"]["macro"] = recall(true, pred, class_reduction='macro')
+    scores["recall"]["weighted"] = recall(true, pred, class_reduction='weighted')
     # scores["recall"]["samples"] = recall(true, pred, reduction='samples')
 
     scores["f1"] = {}
-    scores["f1"]["classes"] = f1(true, pred, reduction='none')
-    # scores["f1"]["micro"] = f1_score(true, pred, reduction='micro')
-    # scores["f1"]["macro"] = f1_score(pred, true, reduction='macro')
-    # scores["f1"]["weighted"] = f1_score(true, pred, reduction='weighted')
-    # scores["f1"]["samples"] = f1_score(true, pred, reduction='samples')
+    scores["f1"]["classes"] = f1_pl(true, pred, class_reduction='none')
+    scores["f1"]["micro"] = f1_pl(true, pred, class_reduction='micro')
+    scores["f1"]["macro"] = f1_pl(pred, true, class_reduction='macro')
+    scores["f1"]["weighted"] = f1_pl(true, pred, class_reduction='weighted')
+    # scores["f1"]["samples"] = f1_pl(true, pred, reduction='samples')
 
-    return scores
+    if return_list:
+        scores["accuracy"] = scores["accuracy"].tolist()
 
+        scores["precision"]["classes"] = scores["precision"]["classes"].tolist()
+        scores["precision"]["micro"] = scores["precision"]["micro"].tolist()
+        scores["precision"]["macro"] = scores["precision"]["macro"].tolist()
+        scores["precision"]["weighted"] = scores["precision"]["weighted"].tolist()
 
-def calculate_performance_pl_sk(true: torch.tensor, pred: torch.tensor) -> dict:
-    """
+        scores["recall"]["classes"] = scores["recall"]["classes"].tolist()
+        scores["recall"]["micro"] = scores["recall"]["micro"].tolist()
+        scores["recall"]["macro"] = scores["recall"]["macro"].tolist()
+        scores["recall"]["weighted"] = scores["recall"]["weighted"].tolist()
 
-    Parameters
-    ----------
-    true: Multi-hot
-    pred: Multi-hot
+        scores["f1"]["classes"] = scores["f1"]["classes"].tolist()
+        scores["f1"]["micro"] = scores["f1"]["micro"].tolist()
+        scores["f1"]["macro"] = scores["f1"]["macro"].tolist()
+        scores["f1"]["weighted"] = scores["f1"]["weighted"].tolist()
 
-    Returns
-    -------
-
-    """
-    scores = {}
-
-    accuracy = Accuracy()
-    scores["accuracy"] = accuracy(true, pred)
-
-    # Precision
-    precision_classes = Precision(average=None)
-    precision_weighted = Precision(average='weighted')
-    precision_micro = Precision(average='micro')
-    precision_macro = Precision(average='macro')
-    precision_samples = Precision(average='samples')
-
-    scores["precision"] = {}
-    scores["precision"]["classes"] = precision_classes(true, pred)
-    scores["precision"]["weighted"] = precision_weighted(true, pred)
-    scores["precision"]["micro"] = precision_micro(true, pred)
-    scores["precision"]["macro"] = precision_macro(true, pred)
-    scores["precision"]["samples"] = precision_samples(true, pred)
-
-    # Recall
-    recall_classes = Recall(average=None)
-    recall_weighted = Recall(average='weighted')
-    recall_micro = Recall(average='micro')
-    recall_macro = Recall(average='macro')
-    recall_samples = Recall(average='samples')
-
-    scores["recall"] = {}
-    scores["recall"]["classes"] = recall_classes(true, pred)
-    scores["recall"]["weighted"] = recall_weighted(true, pred)
-    scores["recall"]["micro"] = recall_micro(true, pred)
-    scores["recall"]["macro"] = recall_macro(true, pred)
-    scores["recall"]["samples"] = recall_samples(true, pred)
-
-    # F1
-    f1_classes = F1(average=None)
-    f1_weighted = F1(average='weighted')
-    f1_micro = F1(average='micro')
-    f1_macro = F1(average='macro')
-    f1_samples = F1(average='samples')
-
-    scores["f1"] = {}
-    scores["f1"]["classes"] = f1_classes(true, pred)
-    scores["f1"]["weighted"] = f1_weighted(true, pred)
-    scores["f1"]["micro"] = f1_micro(true, pred)
-    scores["f1"]["macro"] = f1_macro(true, pred)
-    scores["f1"]["samples"] = f1_samples(true, pred)
+    logger.info(scores)
 
     return scores
 
@@ -214,16 +174,15 @@ def precision_at_k(actuals, predictions, k=5, pos_label=1):
         precision @ k for a given ground truth - prediction pair.
     """
     assert len(actuals) == len(predictions),\
-        "P@k: Length mismatch: len(actuals) [{}] != [{}] len(predictions)"\
-            .format(len(actuals), len(predictions))
+        f"P@k: Length mismatch: len(actuals) [{len(actuals)}] != [{len(predictions)}] len(predictions)"
 
     ## Converting to Numpy as it has supported funcions.
     if torch.is_tensor(actuals):
-        print("'actuals' is of [{}] type. Converting to Numpy.".format(type(actuals)))
+        print(f"'actuals' is of [{type(actuals)}] type. Converting to Numpy.")
         actuals = actuals.numpy()
         print(actuals)
     if torch.is_tensor(predictions):
-        print("'predictions' is of [{}] type. Converting to Numpy.".format(type(predictions)))
+        print(f"'predictions' is of [{type(predictions)}] type. Converting to Numpy.")
         predictions = predictions.data.numpy()
         print(predictions)
 
@@ -384,7 +343,7 @@ def main():
     pred = torch.tensor([[0, 1], [0, 0]])
     pl_dict = calculate_performance_pl(true, pred)
     print(pl_dict)
-    pl_sk_dict = calculate_performance_pl_sk(true, pred)
+    pl_sk_dict = calculate_performance_sk(true, pred)
     print(pl_sk_dict)
     sk_dict = calculate_performance_sk(true.numpy(), pred.numpy())
     print(sk_dict)
