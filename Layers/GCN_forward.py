@@ -25,6 +25,43 @@ from Utils.utils import sp_coo_sparse2torch_sparse
 from Label_Propagation_PyTorch.adj_propagator import Adj_Propagator
 
 
+def GCN_forward_old(adj: sp.csr.csr_matrix, X: torch.Tensor, forward: int = 2
+                    ) -> torch.Tensor:
+    """ Forward pass of GCN.
+
+    :param forward: Number of times GCN multiplication should be applied
+    :param adj: Adjacency matrix (#tokens x #tokens)
+    :param X: Feature representation (#tokens x emb_dim)
+    :return: X' (#tokens x emb_dim)
+    """
+    if isinstance(adj, sp.csr_matrix):
+        adj = sp_coo_sparse2torch_sparse(adj)
+
+    I = sp.eye(*adj.shape).tocsr()
+    I = sp_coo_sparse2torch_sparse(I)
+
+    # I = torch.eye(*adj.shape).type(torch.FloatTensor)
+    A_hat = adj + I
+    # D = A_hat.sum(dim=0)
+    D = torch.sparse.sum(A_hat, dim=0)
+    D = D ** -0.5
+
+    D = D.to_dense().numpy()
+    D = sp.diags(D).tocsr()
+    D = sp_coo_sparse2torch_sparse(D)
+
+    # D_inv = torch.diag(D_inv).type(torch.FloatTensor)
+    A_hat = D * A_hat * D
+
+    for i in range(forward):
+        if X.dtype == torch.float64:
+            X = torch.spmm(A_hat, X.float())
+        else:
+            X = torch.spmm(A_hat, X)
+
+    return X
+
+
 def GCN_forward(adj, X, forward=2):
     """ Forward pass of GCN.
 
