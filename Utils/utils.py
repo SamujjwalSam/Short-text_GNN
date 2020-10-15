@@ -22,9 +22,7 @@ import torch
 import pandas as pd
 import numpy as np
 import scipy.sparse as sp
-from collections import defaultdict
 from functools import partial
-from json import load, loads
 from os.path import join, exists
 from collections import OrderedDict, Counter
 from sklearn.model_selection import train_test_split
@@ -39,7 +37,7 @@ from tweet_normalizer import normalizeTweet
 from Logger.logger import logger
 
 
-def sp_coo_sparse2torch_sparse(M: sp.csr.csr_matrix) -> torch.Tensor:
+def sp_coo_sparse2torch_sparse(M: sp.csr.csr_matrix) -> torch.sparse:
     """
 
     :param M:
