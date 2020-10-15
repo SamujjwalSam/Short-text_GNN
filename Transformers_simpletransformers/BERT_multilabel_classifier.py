@@ -22,14 +22,12 @@ import timeit
 import argparse
 import numpy as np
 import pandas as pd
-from os.path import join
-from json import dumps, dump
-
-from simpletransformers.classification import MultiLabelClassificationModel
-from simpletransformers.classification import MultiLabelClassificationArgs
+# from os.path import join
+# from json import dumps, dump
+from simpletransformers.classification import MultiLabelClassificationModel, MultiLabelClassificationArgs
 
 from config import configuration as cfg, platform as plat, username as user
-from Metrics.metrics import calculate_performance_sk
+from Metrics.metrics import calculate_performance_pl, calculate_performance_sk
 from Logger.logger import logger
 
 
@@ -146,11 +144,9 @@ def BERT_classifier(train_df: pd.core.frame.DataFrame,
     ## Create a MultiLabelClassificationModel
     model = MultiLabelClassificationModel(
         model_type=model_type, model_name=model_name, num_labels=n_classes,
-        use_cuda=use_cuda, args=model_args,)
+        use_cuda=use_cuda and torch.cuda.is_available(), args=model_args,)
 
-    if use_cuda and torch.cuda.is_available():
-        device = torch.device("cuda")
-        model.to(device)
+    device = torch.device('cuda' if use_cuda and torch.cuda.is_available() else 'cpu')
 
     ## Train the model
     start_time = timeit.default_timer()
