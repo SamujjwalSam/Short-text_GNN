@@ -18,7 +18,7 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import time
-import dgl
+# import dgl
 import torch
 import numpy as np
 # import networkx as nx
@@ -31,7 +31,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from Metrics.metrics import calculate_performance_pl_sk
+from Metrics.metrics import calculate_performance_sk as calculate_performance
 from Utils.utils import logit2label
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user
@@ -213,6 +213,7 @@ def train_graph_classifier(model: GAT_Graph_Classifier,
         losses, test_output = test_graph_classifier(
             model,loss_func=loss_func, data_loader=eval_data_loader)
         logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, Eval loss {losses} F1 {test_output['result']['f1']['macro'].item()}")
+        logger.info(test_output)
         train_epoch_losses.append(epoch_loss)
         preds = torch.cat(preds)
 
@@ -222,7 +223,7 @@ def train_graph_classifier(model: GAT_Graph_Classifier,
         ## Converting probabilities to class labels:
         preds = logit2label(preds.detach(), cls_thresh=0.5)
         trues = torch.cat(trues)
-        result_dict = calculate_performance_pl_sk(trues, preds)
+        result_dict = calculate_performance(trues, preds)
         train_epoch_dict[epoch] = {
             'preds':  preds,
             'trues':  trues,
@@ -257,7 +258,7 @@ def test_graph_classifier(model: GAT_Graph_Classifier, loss_func,
     ## Converting probabilities to class labels:
     preds = logit2label(preds.detach(), cls_thresh=0.5)
     trues = torch.cat(trues)
-    result_dict = calculate_performance_pl_sk(trues, preds)
+    result_dict = calculate_performance(trues, preds)
     test_output = {
         'preds':  preds,
         'trues':  trues,

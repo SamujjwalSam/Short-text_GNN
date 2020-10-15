@@ -32,8 +32,8 @@ class Graph_Data_Handler(pl.LightningDataModule):
     https://pytorch-lightning.readthedocs.io/en/latest/datamodules.html
     """
 
-    def __init__(self, dataset_dir=cfg["paths"]["dataset_dir"][plat][user],
-                 dataset_info=cfg['data']):
+    def __init__(self, dataset_dir: str = cfg["paths"]["dataset_dir"][plat][user],
+                 dataset_info: dict = cfg['data']) -> None:
         super().__init__()
         self.dataset_dir = dataset_dir
         self.dataset_info = dataset_info

@@ -119,7 +119,7 @@ class GraphDataset(torch.utils.data.Dataset):
         ## Read labelled source data
         s_lab_df = read_labelled_json(str(data_dir), str(labelled_data_name))
         ## Match label space between two datasets:
-        if self.domain == 'source':
+        if str(labelled_data_name).startswith('fire16'):
             s_lab_df = labels_mapper(s_lab_df)
 
         return s_lab_df
