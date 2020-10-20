@@ -38,10 +38,10 @@ from config import configuration as cfg, platform as plat, username as user
 
 
 class GCN_Node_Classifier(torch.nn.Module):
-    def __init__(self, in_feats, hidden_size, num_classes):
+    def __init__(self, in_dim, hidden_dim, out_dim):
         super(GCN_Node_Classifier, self).__init__()
-        self.conv1 = GraphConv(in_feats, hidden_size)
-        self.conv2 = GraphConv(hidden_size, num_classes)
+        self.conv1 = GraphConv(in_dim, hidden_dim)
+        self.conv2 = GraphConv(hidden_dim, out_dim)
 
     def forward(self, g, emb):
         if emb is None:
@@ -161,8 +161,10 @@ def batch_graphs(samples):
 class GNN_Combined(torch.nn.Module):
     def __init__(self, in_dim, hidden_dim, num_heads, out_dim, num_classes):
         super(GNN_Combined, self).__init__()
-        self.gat_graph = GAT_Graph_Classifier(in_dim, hidden_dim, num_heads, out_dim)
-        self.gcn_node = GCN_Node_Classifier(in_dim, hidden_dim, out_dim)
+        self.gat_graph = GAT_Graph_Classifier(in_dim=in_dim, hidden_dim=hidden_dim,
+                                              num_heads=num_heads, out_dim=out_dim)
+        self.gcn_node = GCN_Node_Classifier(in_dim=in_dim, hidden_dim=hidden_dim,
+                                            out_dim=out_dim)
 
         self.classify = torch.nn.Linear(2 * out_dim, num_classes)
 
@@ -192,6 +194,9 @@ class GNN_Combined(torch.nn.Module):
         ## Fetch embeddings from large graph of tokens present in instance batch only:
         token_embs_large = token_embs_large[token_idx_batch]
 
+        ## Replicating embeddings for as per the order of tokens in instance batch:
+        # TODO: Repeat embeddings to get same dim.
+
         ## Combines both embeddings:
         if combine == 'concat':
             embs = torch.cat([token_embs_small, token_embs_large])
@@ -204,11 +209,11 @@ class GNN_Combined(torch.nn.Module):
 
 
 class GAT_Graph_Classifier(torch.nn.Module):
-    def __init__(self, in_dim: int, hidden_dim: int, num_heads: int, n_classes: int) -> None:
+    def __init__(self, in_dim: int, hidden_dim: int, num_heads: int, out_dim: int) -> None:
         super(GAT_Graph_Classifier, self).__init__()
         self.conv1 = GATConv(in_dim, hidden_dim, num_heads)
         self.conv2 = GATConv(hidden_dim * num_heads, hidden_dim, num_heads)
-        self.classify = torch.nn.Linear(hidden_dim * num_heads, n_classes)
+        self.classify = torch.nn.Linear(hidden_dim * num_heads, out_dim)
 
     def forward(self, g: DGLGraph, emb: torch.Tensor = None) -> torch.Tensor:
         if emb is None:
@@ -320,7 +325,7 @@ def graph_multilabel_classification(
         gdh, in_feats: int = 100, hid_feats: int = 50, num_heads: int = 2,
         epochs=cfg['training']['num_epoch']):
     model = GAT_Graph_Classifier(in_feats, hid_feats, num_heads=num_heads,
-                                 n_classes=gdh.num_classes)
+                                 out_dim=gdh.num_classes)
     logger.info(model)
 
     # loss_func = torch.nn.CrossEntropyLoss()
@@ -352,7 +357,7 @@ def graph_multiclass_classification(in_feats: int = 1, hid_feats: int = 4, num_h
 
     # Create model
     model = GAT_Graph_Classifier(in_feats, hid_feats, num_heads=num_heads,
-                                 n_classes=trainset.num_classes)
+                                 out_dim=trainset.num_classes)
     logger.info(model)
 
     loss_func = torch.nn.CrossEntropyLoss()
