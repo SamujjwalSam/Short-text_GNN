@@ -175,20 +175,28 @@ class GNN_Combined(torch.nn.Module):
         Arrange small tokens and large tokens in same order.
 
         :param combine: How to combine two embeddings (Default: concatenate)
-        :param token_idx_batch: token indices present in current instance graph batch
+        :param token_idx_batch: token indices present in current instance graph batch.
+        Should be boolean mask indicating the tokens present in the current batch of instances.
+        List of size: number of tokens in the large graph.
         :param small_batch_embs: Embeddings from instance GAT
         :param small_batch_graphs: Instance graph batch
         :param large_embs: Embeddings from large GCN
         :param large_graph: Large token graph
         """
+        ## Fetch embeddings from instance graphs:
         token_embs_small = self.gat_graph(small_batch_graphs, small_batch_embs)
+
+        ## Fetch embeddings from large token graph
         token_embs_large = self.gcn_node(large_graph, large_embs)
 
+        ## Fetch embeddings from large graph of tokens present in instance batch only:
         token_embs_large = token_embs_large[token_idx_batch]
+
+        ## Combines both embeddings:
         if combine == 'concat':
-            embs = torch.cat(token_embs_small, token_embs_large)
+            embs = torch.cat([token_embs_small, token_embs_large])
         elif combine == 'avg':
-            embs = torch.mean(token_embs_small, token_embs_large)
+            embs = torch.mean(torch.stack([token_embs_small, token_embs_large]), dim=0)
         else:
             raise NotImplementedError(f'combine supports either concat or avg.'
                                       f' [{combine}] provided.')
