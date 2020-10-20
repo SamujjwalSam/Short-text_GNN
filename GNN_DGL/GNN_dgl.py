@@ -158,56 +158,6 @@ def batch_graphs(samples):
     return batched_graph, torch.tensor(labels)
 
 
-class GNN_Combined(torch.nn.Module):
-    def __init__(self, in_dim, hidden_dim, num_heads, out_dim, num_classes):
-        super(GNN_Combined, self).__init__()
-        self.gat_graph = GAT_Graph_Classifier(in_dim=in_dim, hidden_dim=hidden_dim,
-                                              num_heads=num_heads, out_dim=out_dim)
-        self.gcn_node = GCN_Node_Classifier(in_dim=in_dim, hidden_dim=hidden_dim,
-                                            out_dim=out_dim)
-
-        self.classify = torch.nn.Linear(2 * out_dim, num_classes)
-
-    def forward(self, small_batch_graphs, small_batch_embs, token_idx_batch,
-                large_graph, large_embs, combine='concat'):
-        """ Combines embeddings of tokens from large and small graph by concatenating.
-
-        Take embeddings from large graph for tokens present in the small graph batch.
-        Need token to index information to fetch from large graph.
-        Arrange small tokens and large tokens in same order.
-
-        :param combine: How to combine two embeddings (Default: concatenate)
-        :param token_idx_batch: token indices present in current instance graph batch.
-        Should be boolean mask indicating the tokens present in the current batch of instances.
-        List of size: number of tokens in the large graph.
-        :param small_batch_embs: Embeddings from instance GAT
-        :param small_batch_graphs: Instance graph batch
-        :param large_embs: Embeddings from large GCN
-        :param large_graph: Large token graph
-        """
-        ## Fetch embeddings from instance graphs:
-        token_embs_small = self.gat_graph(small_batch_graphs, small_batch_embs)
-
-        ## Fetch embeddings from large token graph
-        token_embs_large = self.gcn_node(large_graph, large_embs)
-
-        ## Fetch embeddings from large graph of tokens present in instance batch only:
-        token_embs_large = token_embs_large[token_idx_batch]
-
-        ## Replicating embeddings for as per the order of tokens in instance batch:
-        # TODO: Repeat embeddings to get same dim.
-
-        ## Combines both embeddings:
-        if combine == 'concat':
-            embs = torch.cat([token_embs_small, token_embs_large])
-        elif combine == 'avg':
-            embs = torch.mean(torch.stack([token_embs_small, token_embs_large]), dim=0)
-        else:
-            raise NotImplementedError(f'combine supports either concat or avg.'
-                                      f' [{combine}] provided.')
-        return self.classify(embs)
-
-
 class GAT_Graph_Classifier(torch.nn.Module):
     def __init__(self, in_dim: int, hidden_dim: int, num_heads: int, out_dim: int) -> None:
         super(GAT_Graph_Classifier, self).__init__()
