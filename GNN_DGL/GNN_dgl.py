@@ -22,7 +22,7 @@ import time
 import torch
 import numpy as np
 # import networkx as nx
-# from json import dumps
+from json import dumps
 # import matplotlib.pyplot as plt
 from collections import OrderedDict
 from dgl import DGLGraph, batch as g_batch, mean_nodes
@@ -158,6 +158,43 @@ def batch_graphs(samples):
     return batched_graph, torch.tensor(labels)
 
 
+class GNN_Combined(torch.nn.Module):
+    def __init__(self, in_dim, hidden_dim, num_heads, out_dim, num_classes):
+        super(GNN_Combined, self).__init__()
+        self.gat_graph = GAT_Graph_Classifier(in_dim, hidden_dim, num_heads, out_dim)
+        self.gcn_node = GCN_Node_Classifier(in_dim, hidden_dim, out_dim)
+
+        self.classify = torch.nn.Linear(2 * out_dim, num_classes)
+
+    def forward(self, small_batch_graphs, small_batch_embs, token_idx_batch,
+                large_graph, large_embs, combine='concat'):
+        """ Combines embeddings of tokens from large and small graph by concatenating.
+
+        Take embeddings from large graph for tokens present in the small graph batch.
+        Need token to index information to fetch from large graph.
+        Arrange small tokens and large tokens in same order.
+
+        :param combine: How to combine two embeddings (Default: concatenate)
+        :param token_idx_batch: token indices present in current instance graph batch
+        :param small_batch_embs: Embeddings from instance GAT
+        :param small_batch_graphs: Instance graph batch
+        :param large_embs: Embeddings from large GCN
+        :param large_graph: Large token graph
+        """
+        token_embs_small = self.gat_graph(small_batch_graphs, small_batch_embs)
+        token_embs_large = self.gcn_node(large_graph, large_embs)
+
+        token_embs_large = token_embs_large[token_idx_batch]
+        if combine == 'concat':
+            embs = torch.cat(token_embs_small, token_embs_large)
+        elif combine == 'avg':
+            embs = torch.mean(token_embs_small, token_embs_large)
+        else:
+            raise NotImplementedError(f'combine supports either concat or avg.'
+                                      f' [{combine}] provided.')
+        return self.classify(embs)
+
+
 class GAT_Graph_Classifier(torch.nn.Module):
     def __init__(self, in_dim: int, hidden_dim: int, num_heads: int, n_classes: int) -> None:
         super(GAT_Graph_Classifier, self).__init__()
@@ -211,9 +248,10 @@ def train_graph_classifier(model: GAT_Graph_Classifier,
             trues.append(label.detach())
         epoch_loss /= (iter + 1)
         losses, test_output = test_graph_classifier(
-            model,loss_func=loss_func, data_loader=eval_data_loader)
-        logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, Eval loss {losses} F1 {test_output['result']['f1']['macro'].item()}")
-        logger.info(test_output)
+            model, loss_func=loss_func, data_loader=eval_data_loader)
+        logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, Eval loss {losses},"
+                    f" Macro F1 {test_output['result']['f1']['macro'].item()}")
+        # logger.info(dumps(test_output['result'], indent=4))
         train_epoch_losses.append(epoch_loss)
         preds = torch.cat(preds)
 
@@ -224,6 +262,7 @@ def train_graph_classifier(model: GAT_Graph_Classifier,
         preds = logit2label(preds.detach(), cls_thresh=0.5)
         trues = torch.cat(trues)
         result_dict = calculate_performance(trues, preds)
+        # logger.info(dumps(result_dict, indent=4))
         train_epoch_dict[epoch] = {
             'preds':  preds,
             'trues':  trues,
@@ -264,7 +303,7 @@ def test_graph_classifier(model: GAT_Graph_Classifier, loss_func,
         'trues':  trues,
         'result': result_dict
     }
-    # logger.info(f'Test result: \n{result_dict}')
+    # logger.info(dumps(result_dict, indent=4))
 
     return losses, test_output
 
@@ -285,8 +324,9 @@ def graph_multilabel_classification(
         optimizer=optimizer, epochs=epochs,
         eval_data_loader=gdh.test_dataloader())
 
-    test_output = test_graph_classifier(model, loss_func=loss_func,
-                                        data_loader=gdh.test_dataloader())
+    losses, test_output = test_graph_classifier(model, loss_func=loss_func,
+                                                data_loader=gdh.test_dataloader())
+    logger.info(dumps(test_output['result'], indent=4))
 
     return train_epochs_output_dict, test_output
 
