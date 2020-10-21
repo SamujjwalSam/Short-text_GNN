@@ -24,7 +24,7 @@ from dgl.nn.pytorch.conv import GATConv, GraphConv
 
 
 class Instance_Graphs_GAT(torch.nn.Module):
-    def __init__(self, in_dim: int, hidden_dim: int, num_heads: int, out_dim: int) -> None:
+    def __init__(self, in_dim: int, hidden_dim: int, num_heads: int, out_dim: int):
         super(Instance_Graphs_GAT, self).__init__()
         self.conv1 = GATConv(in_dim, hidden_dim, num_heads)
         self.conv2 = GATConv(hidden_dim * num_heads, out_dim, 1)
@@ -57,6 +57,70 @@ class Token_Graph_GCN(torch.nn.Module):
         return emb
 
 
+class BiLSTM_Classifier(torch.nn.Module):
+    """ BiLSTM for classification.
+
+    """
+
+    # define all the layers used in model
+    def __init__(self, hidden_dim, output_dim, embedding_dim=100,
+                 n_layers=2, bidirectional=True, dropout=0.2, num_linear=1):
+        super().__init__()
+        self.lstm = torch.nn.LSTM(embedding_dim, hidden_dim, num_layers=n_layers,
+                                  bidirectional=bidirectional, dropout=dropout,
+                                  batch_first=True)
+
+        self.linear_layers = []
+        for _ in range(num_linear - 1):
+            if bidirectional:
+                self.linear_layers.append(torch.nn.Linear(hidden_dim * 2,
+                                                          hidden_dim * 2))
+            else:
+                self.linear_layers.append(torch.nn.Linear(hidden_dim,
+                                                          hidden_dim))
+
+        self.linear_layers = torch.nn.ModuleList(self.linear_layers)
+
+        # Final dense layer
+        if bidirectional:
+            self.fc = torch.nn.Linear(hidden_dim * 2, output_dim)
+        else:
+            self.fc = torch.nn.Linear(hidden_dim, output_dim)
+
+        # activation function
+        ## NOTE: Sigmoid not required as BCEWithLogitsLoss calculates sigmoid
+        # self.act = torch.nn.Sigmoid()
+
+    def forward(self, text, text_lengths):
+        """ Takes ids of input text, pads them and predict using BiLSTM.
+
+        Args:
+            text:
+            text_lengths:
+
+        Returns:
+
+        """
+        packed_output, (hidden, cell) = self.lstm(text)
+        # hidden = [batch size, num num_lstm_layers * num directions, hid dim]
+        # cell = [batch size, num num_lstm_layers * num directions, hid dim]
+
+        # concat the final forward and backward hidden state
+        hidden = torch.cat((hidden[-2, :, :], hidden[-1, :, :]), dim=1)
+
+        for layer in self.linear_layers:
+            hidden = layer(hidden)
+
+        # hidden = [batch size, hid dim * num directions]
+        logits = self.fc(hidden)
+
+        # Final activation function
+        ## NOTE: Sigmoid not required as BCEWithLogitsLoss calculates sigmoid
+        # logits = self.act(logits)
+
+        return logits
+
+
 class GNN_Combined(torch.nn.Module):
     def __init__(self, in_dim, hidden_dim, num_heads, out_dim, num_classes):
         super(GNN_Combined, self).__init__()
@@ -66,7 +130,7 @@ class GNN_Combined(torch.nn.Module):
                                                       num_heads=num_heads, out_dim=out_dim)
         ## We may have different out_dim's from 2 GNNs and concat them.
 
-        self.classify = torch.nn.Linear(2 * out_dim, num_classes)
+        self.bilstm_classifier = BiLSTM_Classifier(2 * out_dim, num_classes)
 
     def forward(self, small_batch_graphs, small_batch_embs, token_idx_batch,
                 large_graph, large_embs, combine='concat'):
@@ -96,7 +160,9 @@ class GNN_Combined(torch.nn.Module):
         token_idx_batch_uniq = list(set(token_idx_batch))
 
         ## Converting unique tokens to boolean mask of size token_embs_large.shape[0]:
+        ## TODO: Get boolean mask:
         token_idx_batch_uniq_mask = token_idx_batch_uniq
+        mask = (torch.BoolTensor(token_embs_large.shape[0]).floor()).type(torch.bool)
 
         ## Fetch embeddings from large graph of tokens present in instance batch only:
         token_embs_large = token_embs_large[token_idx_batch_uniq_mask]
@@ -104,7 +170,7 @@ class GNN_Combined(torch.nn.Module):
         ## Replicating embeddings for as per the order of tokens in instance batch:
         # TODO: Repeat embeddings to get same dim.
 
-        ## Combines both embeddings:
+        ## Combine both embeddings:
         if combine == 'concat':
             embs = torch.cat([token_embs_small, token_embs_large])
         elif combine == 'avg':
@@ -112,7 +178,7 @@ class GNN_Combined(torch.nn.Module):
         else:
             raise NotImplementedError(f'combine supports either concat or avg.'
                                       f' [{combine}] provided.')
-        return self.classify(embs)
+        return self.bilstm_classifier(embs)
 
 
 if __name__ == "__main__":
