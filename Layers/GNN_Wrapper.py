@@ -29,7 +29,7 @@ class Instance_Graphs_GAT(torch.nn.Module):
         self.conv1 = GATConv(in_dim, hidden_dim, num_heads)
         self.conv2 = GATConv(hidden_dim * num_heads, out_dim, 1)
 
-    def forward(self, g: DGLGraph, emb: torch.Tensor = None) -> (DGLGraph, torch.Tensor):
+    def forward(self, g: DGLGraph, emb: torch.Tensor = None) -> torch.Tensor:
         if emb is None:
             emb = g.ndata['emb']
 
@@ -38,8 +38,8 @@ class Instance_Graphs_GAT(torch.nn.Module):
         emb = emb.view(-1, emb.size(1) * emb.size(2)).float()
         emb = F.relu(self.conv2(g, emb))
         emb = emb.view(-1, emb.size(1) * emb.size(2)).float()
-        g.ndata['emb'] = emb
-        return g, emb
+        # g.ndata['emb'] = emb
+        return emb
 
 
 class Token_Graph_GCN(torch.nn.Module):
@@ -50,9 +50,6 @@ class Token_Graph_GCN(torch.nn.Module):
 
     def forward(self, g, emb):
         if emb is None:
-            # Use node degree as the initial node feature. For undirected graphs,
-            # the in-degree is the same as the out_degree.
-            # emb = g.in_degrees().view(-1, 1).float()
             emb = g.ndata['emb']
         emb = self.conv1(g, emb)
         emb = torch.relu(emb)
@@ -80,9 +77,10 @@ class GNN_Combined(torch.nn.Module):
         Arrange small tokens and large tokens in same order.
 
         :param combine: How to combine two embeddings (Default: concatenate)
-        :param token_idx_batch: token indices present in current instance graph batch.
-        Should be boolean mask indicating the tokens present in the current batch of instances.
-        List of size: number of tokens in the large graph.
+        :param token_idx_batch: Ordered set of token ids present in the current batch of instance graph
+        Should be converted to set of unique tokens before fetching from large graph.
+        Convert to boolean mask indicating the tokens present in the current batch of instances.
+        Boolean mask size: List of number of tokens in the large graph.
         :param small_batch_embs: Embeddings from instance GAT
         :param small_batch_graphs: Instance graph batch
         :param large_embs: Embeddings from large GCN
@@ -94,8 +92,14 @@ class GNN_Combined(torch.nn.Module):
         ## Fetch embeddings from large token graph
         token_embs_large = self.large_token_gcn(large_graph, large_embs)
 
+        ## Get unique token ids before fetching from large graph:
+        token_idx_batch_uniq = list(set(token_idx_batch))
+
+        ## Converting unique tokens to boolean mask of size token_embs_large.shape[0]:
+        token_idx_batch_uniq_mask = token_idx_batch_uniq
+
         ## Fetch embeddings from large graph of tokens present in instance batch only:
-        token_embs_large = token_embs_large[token_idx_batch]
+        token_embs_large = token_embs_large[token_idx_batch_uniq_mask]
 
         ## Replicating embeddings for as per the order of tokens in instance batch:
         # TODO: Repeat embeddings to get same dim.
