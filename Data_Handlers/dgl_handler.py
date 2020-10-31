@@ -17,19 +17,16 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
-import dgl
-import torch
-from torch.utils.data import DataLoader
-# from torch.utils.data import Dataset
-# from torchtext.data import Dataset
+from os.path import join, exists
+from torch import tensor, stack
 from collections import OrderedDict
-import os
-from dgl import save_graphs, load_graphs
+from dgl import graph, add_self_loop, save_graphs, load_graphs, batch as g_batch
 from dgl.data.utils import makedirs, save_info, load_info
-from dgl import batch as g_batch
 from dgl.data import DGLDataset
 from sklearn.model_selection import train_test_split
-from skmultilearn.model_selection.iterative_stratification import iterative_train_test_split
+
+from Utils.utils import iterative_train_test_split
+from Logger.logger import logger
 
 
 class Token_Dataset_DGL(DGLDataset):
@@ -48,10 +45,10 @@ class Token_Dataset_DGL(DGLDataset):
             name=dataname + '_Token_Dataset_DGL', url=self._url, raw_dir=raw_dir,
             force_reload=force_reload, verbose=verbose)
         if graph_path is None:
-            self.graph_path = os.path.join(self.save_path, dataname + '_token_dgl.bin')
+            self.graph_path = join(self.save_path, dataname + '_token_dgl.bin')
         else:
             self.graph_path = graph_path
-        self.info_path = os.path.join(self.save_path, dataname + '_info.bin')
+        self.info_path = join(self.save_path, dataname + '_info.bin')
         self.G, self.label = None, None
 
     def process(self, datasets, vocab, window_size=2):
@@ -81,6 +78,8 @@ class Token_Dataset_DGL(DGLDataset):
         :return:
         """
         us, vs = [], []
+        # TODO: Convert to Weighted token graph
+
         ## Add edges based on token co-occurrence within sliding window:
         for i, dataset in enumerate(datasets):
             for example in dataset:
@@ -88,14 +87,14 @@ class Token_Dataset_DGL(DGLDataset):
                 us.extend(u)
                 vs.extend(v)
 
-        G = dgl.graph(data=(us, vs))
+        G = graph(data=(us, vs))
 
         ## Adding self-loops:
-        G = dgl.add_self_loop(G)
+        G = add_self_loop(G)
 
         ## Add node (tokens) vectors to the graph:
         if c_vocab['vectors'] is not None:
-            G.ndata['emb'] = torch.stack(c_vocab['vectors'])
+            G.ndata['emb'] = stack(c_vocab['vectors'])
 
         return G
 
@@ -146,10 +145,10 @@ class Instance_Dataset_DGL(DGLDataset):
         self.class_names = class_names
         self.num_labels = len(self.class_names)
         if graph_path is None:
-            self.graph_path = os.path.join(self.save_path, dataname + '_instance_dgl.bin')
+            self.graph_path = join(self.save_path, dataname + '_instance_dgl.bin')
         else:
             self.graph_path = graph_path
-        self.info_path = os.path.join(self.save_path, dataname + '_info.bin')
+        self.info_path = join(self.save_path, dataname + '_info.bin')
         self.G, self.label = None, None
 
     def download(self):
@@ -196,12 +195,6 @@ class Instance_Dataset_DGL(DGLDataset):
         self.graphs, self.labels = load_dgl(graph_path, infopath)
         return self.graphs, self.labels
 
-    def has_cache(self):
-        # check whether there are processed data in `self.save_path`
-        graph_path = os.path.join(self.save_path, self.name + '_dgl_graph.bin')
-        info_path = os.path.join(self.save_path, self.name + '_info.pkl')
-        return os.path.exists(graph_path) and os.path.exists(info_path)
-
     def batch_graphs(self, samples):
         """ Batches graph data by creating a block adjacency matrix.
 
@@ -210,9 +203,9 @@ class Instance_Dataset_DGL(DGLDataset):
         """
         graphs, labels = map(list, zip(*samples))
         batched_graph = g_batch(graphs)
-        return batched_graph, torch.tensor(labels)
+        return batched_graph, tensor(labels)
 
-    def create_instance_dgl(self, vocab, tokens: list, token2vec_map=None) -> (dgl.DGLGraph, list):
+    def create_instance_dgl(self, vocab, tokens: list, token2vec_map=None) -> (graph, list):
         """ Given a tokenized list, returns dgl graph for that instance.
 
         :param vocab:
@@ -242,14 +235,14 @@ class Instance_Dataset_DGL(DGLDataset):
         u, v = get_sliding_edges(tokens, token2ids_map)
 
         ## Create instance graph:
-        g = dgl.graph((torch.tensor(u), torch.tensor(v)))
+        g = graph((tensor(u), tensor(v)))
 
         ## Adding self-loops:
-        g = dgl.add_self_loop(g)
+        g = add_self_loop(g)
 
         ## Add node (tokens) vectors to the graph:
         if token2vec_map is not None:
-            g.ndata['emb'] = torch.stack(graph_tokens_vec)
+            g.ndata['emb'] = stack(graph_tokens_vec)
 
         return g, list(token2ids_map.keys())
 
@@ -291,7 +284,7 @@ class Instance_Dataset_DGL(DGLDataset):
         """
         if stratified is True:
             x_graphs, y_graphs, x_labels, y_labels = iterative_train_test_split(
-                graphs, labels, test_size=test_size)
+                graphs, labels, test_size=test_size, random_state=random_state)
         else:
             x_graphs, y_graphs, x_labels, y_labels = train_test_split(
                 graphs, labels, test_size=test_size, random_state=random_state)

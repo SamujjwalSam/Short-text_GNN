@@ -27,7 +27,7 @@ from os.path import join, exists
 from collections import OrderedDict, Counter
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
-from skmultilearn.model_selection import iterative_train_test_split
+from skmultilearn.model_selection import IterativeStratification
 from skmultilearn.model_selection.measures import\
     get_combination_wise_output_matrix
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -36,6 +36,31 @@ from config import configuration as cfg, platform as plat, username as user
 from File_Handlers.json_handler import read_labelled_json
 from tweet_normalizer import normalizeTweet
 from Logger.logger import logger
+
+
+def iterative_train_test_split(X, y, test_size, order=2, random_state=None):
+    """Iteratively stratified train/test split
+
+    Parameters
+    ----------
+    test_size : float, [0,1]
+        the proportion of the dataset to include in the test split, the rest will be put in the train set
+
+    Returns
+    -------
+    X_train, y_train, X_test, y_test
+        stratified division into train/test split
+        :param order:
+        :param random_state:
+    """
+
+    stratifier = IterativeStratification(n_splits=2, order=order, sample_distribution_per_fold=[test_size, 1.0-test_size], random_state=random_state)
+    train_indexes, test_indexes = next(stratifier.split(X, y))
+
+    X_train, y_train = X[train_indexes, :], y[train_indexes, :]
+    X_test, y_test = X[test_indexes, :], y[test_indexes, :]
+
+    return X_train, y_train, X_test, y_test
 
 
 def split_target(df=None, data_dir=cfg["paths"]["dataset_dir"][plat][user],
