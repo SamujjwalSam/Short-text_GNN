@@ -28,9 +28,9 @@ from collections import OrderedDict
 from json import dumps
 from scipy import sparse
 
-from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_propagation
+# from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_propagation
 from Utils.utils import count_parameters, logit2label, split_df,\
-    freq_tokens_per_class, merge_dicts
+    freq_tokens_per_class, merge_dicts, split_target
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
 from File_Handlers.csv_handler import read_tweet_csv
 from File_Handlers.json_handler import save_json, read_json, json_keys2df,\
@@ -106,38 +106,8 @@ if device.type == 'cuda':
 """
 
 
-def split_target(df=None, data_dir=cfg["paths"]["dataset_dir"][plat][user],
-                 labelled_data_name=cfg["data"]["target"]['labelled'],
-                 test_size=0.3, train_size=1.0, n_classes=4, stratified=False):
-    """ Splits labelled target data to train and test set.
-
-    :param data_dir:
-    :param labelled_data_name:
-    :param test_size:
-    :param train_size:
-    :param n_classes:
-    :return:
-    """
-    logger.info('Splits labelled target data to train and test set.')
-    ## Read target data
-    if df is None:
-        df = read_labelled_json(data_dir, labelled_data_name)
-    df, t_lab_test_df = split_df(df, test_size=test_size, stratified=stratified,
-                                 order=2, n_classes=n_classes)
-
-    logger.info(f'Number of TEST samples: [{t_lab_test_df.shape[0]}]')
-
-    if train_size is not None:
-        _, df = split_df(df, test_size=train_size,
-                         stratified=stratified, order=2, n_classes=n_classes)
-    logger.info(f'Number of TRAIN samples: [{df.shape[0]}]')
-
-    # token_dist(t_lab_df)
-
-    return df, t_lab_test_df
-
-
-def create_vocab(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
+def create_vocab(s_lab_df=None,
+                 data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
                  labelled_source_name: str = cfg["data"]["source"]['labelled'],
                  unlabelled_source_name: str = cfg["data"]["source"]['unlabelled'],
                  # labelled_target_name=cfg["data"]["target"]['labelled'],
@@ -152,10 +122,12 @@ def create_vocab(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
     """
     logger.info('creates vocab and other info.')
     ## Read source data
-    s_lab_df = read_labelled_json(data_dir, labelled_source_name)
+    if s_lab_df is None:
+        s_lab_df = read_labelled_json(data_dir, labelled_source_name)
 
-    ## Match label space between two datasets:
-    s_lab_df = labels_mapper(s_lab_df)
+        if labelled_source_name.startswith('fire16'):
+            ## Match label space between two datasets:
+            s_lab_df = labels_mapper(s_lab_df)
 
     token2label_vec_map = freq_tokens_per_class(s_lab_df)
     # label_vec = token_dist2token_labels(cls_freq, vocab_set)
@@ -178,7 +150,7 @@ def create_vocab(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
     s_unlab_df.to_csv(join(data_dir, S_data_name))
 
     S_dataset, (S_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
-                                                      csv_file=S_data_name, )
+                                                      csv_file=S_data_name)
 
     S_vocab = {
         'freqs':       S_fields.vocab.freqs,
@@ -202,8 +174,7 @@ def create_vocab(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
     t_unlab_df.to_csv(join(data_dir, T_data_name))
 
     T_dataset, (T_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
-                                                      csv_file=T_data_name,
-                                                      )
+                                                      csv_file=T_data_name)
     logger.info("Target vocab size: [{}]".format(len(T_fields.vocab)))
 
     T_vocab = {
@@ -224,7 +195,7 @@ def create_vocab(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
     c_df = None
 
     C_dataset, (C_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
-                                                      csv_file=c_data_name, )
+                                                      csv_file=c_data_name)
 
     C_vocab = {
         'freqs':       C_fields.vocab.freqs,
@@ -258,20 +229,20 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
     S_data_name = Path(unlabelled_source_name + "_data.csv")
     T_data_name = Path(unlabelled_target_name + "_data.csv")
 
-    if exists('S_vocab.json') and exists('T_vocab.json') and exists(
-            'labelled_token2vec_map.json'):
-        ## Read labelled source data
-        s_lab_df = read_labelled_json(data_dir, labelled_source_name)
-        ## Match label space between two datasets:
-        if str(labelled_source_name).startswith('fire16'):
-            s_lab_df = labels_mapper(s_lab_df)
+    if exists(labelled_source_name + 'S_vocab.json') and exists(labelled_source_name + 'T_vocab.json') and exists(
+            labelled_source_name + 'labelled_token2vec_map.json'):
+        # ## Read labelled source data
+        # s_lab_df = read_labelled_json(data_dir, labelled_source_name)
+        # ## Match label space between two datasets:
+        # if str(labelled_source_name).startswith('fire16'):
+        #     s_lab_df = labels_mapper(s_lab_df)
 
-        C_vocab = read_json('C_vocab')
-        S_vocab = read_json('S_vocab')
-        T_vocab = read_json('T_vocab')
-        labelled_token2vec_map = read_json('labelled_token2vec_map')
+        C_vocab = read_json(labelled_source_name + 'C_vocab')
+        S_vocab = read_json(labelled_source_name + 'S_vocab')
+        T_vocab = read_json(labelled_source_name + 'T_vocab')
+        labelled_token2vec_map = read_json(labelled_source_name + 'labelled_token2vec_map')
 
-        if not exists('high_oov_freqs.json'):
+        if not exists(labelled_source_name + 'high_oov_freqs.json'):
             S_dataset, (S_fields, LABEL) = get_dataset_fields(
                 csv_dir=data_dir, csv_file=S_data_name)
             T_dataset, (T_fields, LABEL) = get_dataset_fields(
@@ -279,21 +250,23 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
     else:
         C_vocab, C_dataset, S_vocab, S_dataset, S_fields, T_vocab,\
         T_dataset, T_fields, labelled_token2vec_map, s_lab_df =\
-            create_vocab(data_dir, labelled_source_name, unlabelled_source_name,
-                         unlabelled_target_name)
+            create_vocab(s_lab_df=None, data_dir=data_dir,
+                         labelled_source_name=labelled_source_name,
+                         unlabelled_source_name=unlabelled_source_name,
+                         unlabelled_target_name=unlabelled_target_name)
         ## Save vocabs:
-        # save_json(C_vocab, 'C_vocab', overwrite=True)
-        save_json(S_vocab, 'S_vocab', overwrite=True)
-        save_json(T_vocab, 'T_vocab', overwrite=True)
-        save_json(labelled_token2vec_map, 'labelled_token2vec_map',
+        save_json(C_vocab, labelled_source_name + 'C_vocab', overwrite=True)
+        save_json(S_vocab, labelled_source_name + 'S_vocab', overwrite=True)
+        save_json(T_vocab, labelled_source_name + 'T_vocab', overwrite=True)
+        save_json(labelled_token2vec_map, labelled_source_name + 'labelled_token2vec_map',
                   overwrite=True)
 
-    if exists('high_oov_freqs.json') and exists('corpus.json') and\
-            exists('corpus_toks.json'):
-        high_oov_freqs = read_json('high_oov_freqs')
-        # low_glove_freqs = read_json('low_glove_freqs')
-        corpus = read_json('corpus', convert_ordereddict=False)
-        corpus_toks = read_json('corpus_toks', convert_ordereddict=False)
+    if exists(labelled_source_name + 'high_oov_freqs.json') and exists(labelled_source_name + 'corpus.json') and\
+            exists(labelled_source_name + 'corpus_toks.json'):
+        high_oov_freqs = read_json(labelled_source_name + 'high_oov_freqs')
+        # low_glove_freqs = read_json(labelled_source_name+'low_glove_freqs')
+        corpus = read_json(labelled_source_name + 'corpus', convert_ordereddict=False)
+        corpus_toks = read_json(labelled_source_name + 'corpus_toks', convert_ordereddict=False)
     else:
         ## Get all OOVs which does not have Glove embedding:
         high_oov_freqs, low_glove_freqs, corpus, corpus_toks =\
@@ -302,14 +275,14 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
                 labelled_vocab_set=set(labelled_token2vec_map.keys()))
 
         ## Save token sets: high_oov_freqs, low_glove_freqs, corpus, corpus_toks
-        save_json(high_oov_freqs, 'high_oov_freqs', overwrite=True)
-        # save_json(low_glove_freqs, 'low_glove_freqs', overwrite=True)
-        save_json(corpus, 'corpus', overwrite=True)
-        save_json(corpus_toks, 'corpus_toks', overwrite=True)
+        save_json(high_oov_freqs, labelled_source_name + 'high_oov_freqs', overwrite=True)
+        # save_json(low_glove_freqs, labelled_source_name+'low_glove_freqs', overwrite=True)
+        save_json(corpus, labelled_source_name + 'corpus', overwrite=True)
+        save_json(corpus_toks, labelled_source_name + 'corpus_toks', overwrite=True)
 
-        save_json(C_vocab, 'C_vocab', overwrite=True)
+        save_json(C_vocab, labelled_source_name + 'C_vocab', overwrite=True)
 
-    graph_path = "G.pkl"
+    graph_path = labelled_source_name + "G.pkl"
     if exists(graph_path):
         G = nx.read_gpickle(graph_path)
     else:
@@ -323,21 +296,18 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
     node_list = list(G.nodes)
 
     ## Create new embeddings for OOV tokens:
-    logger.info('Create new embeddings for OOV tokens')
     oov_filename = labelled_source_name + '_OOV_vectors_dict'
     if exists(join(data_dir, oov_filename + '.pkl')):
+        logger.info('Read embeddings for OOV tokens')
         oov_embs = load_pickle(pkl_file_path=data_dir,
                                pkl_file_name=oov_filename)
     else:
+        logger.info('Create new embeddings for OOV tokens')
         high_oov_tokens_list = list(high_oov_freqs.keys())
         c_corpus = corpus[0] + corpus[1]
         oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens_list, c_corpus)
         oov_embs = train_mittens(oov_mat_coo, high_oov_tokens_list, glove_embs, max_iter=mittens_iter)
-        save_pickle(oov_embs, pkl_file_path=data_dir,
-                    pkl_file_name=oov_filename, overwrite=True)
-
-    merged_embs = merge_dicts(glove_embs, oov_embs)
-    save_pickle(merged_embs, cfg["embeddings"]["saved_emb_file"], data_dir)
+        save_pickle(oov_embs, filepath=data_dir, filename=oov_filename, overwrite=True)
 
     logger.info('Creating instance graphs')
     from Data_Handlers.graph_data_handler_dgl import Graph_Data_Handler
@@ -355,44 +325,48 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
 
     ## Get adjacency matrix and node embeddings in same order:
     logger.info('Accessing Adjacency matrix')
-    if exists("adj.npz"):
-        adj = sparse.load_npz("adj.npz")
+    adj_filename = labelled_source_name + "adj.npz"
+    if exists(adj_filename):
+        adj = sparse.load_npz(adj_filename)
     else:
         adj = nx.adjacency_matrix(G, nodelist=node_list, weight='edge_weight')
         # adj_np = nx.to_numpy_matrix(G)
-        sparse.save_npz("adj.npz", adj)
+        sparse.save_npz(adj_filename, adj)
 
-    ## Apply Label Propagation to get label vectors for unlabelled nodes:
-    logger.info('Apply Label Propagation to get label vectors for unlabelled nodes')
-    all_node_labels, labelled_masks = fetch_all_nodes(
-        node_list, labelled_token2vec_map, C_vocab['idx2str_map'],
-        default_fill=[0., 0., 0., 0.])
-
-    if exists("labels_propagated.pt"):
-        labels_propagated = torch.load('labels_propagated.pt')
-    else:
-        labels_propagated = label_propagation(adj, all_node_labels,
-                                              labelled_masks)
-        torch.save(labels_propagated, 'labels_propagated.pt')
-
-    # Create label to propagated vector map:
-    logger.info('Create label to propagated vector map')
-    node_txt2label_vec = {}
-    for node_id in node_list:
-        node_txt2label_vec[C_vocab['idx2str_map'][node_id]] =\
-            labels_propagated[node_id].tolist()
-    pd.DataFrame.from_dict(node_txt2label_vec, orient='index').to_csv('node_txt2label_vec.csv')
+    # ## Apply Label Propagation to get label vectors for unlabelled nodes:
+    # logger.info('Apply Label Propagation to get label vectors for unlabelled nodes')
+    # all_node_labels, labelled_masks = fetch_all_nodes(
+    #     node_list, labelled_token2vec_map, C_vocab['idx2str_map'],
+    #     default_fill=[0., 0., 0., 0.])
+    #
+    # label_proba_filename = labelled_source_name + "labels_propagated.pt"
+    # if exists(label_proba_filename):
+    #     labels_propagated = torch.load(label_proba_filename)
+    # else:
+    #     labels_propagated = label_propagation(adj, all_node_labels,
+    #                                           labelled_masks)
+    #     torch.save(labels_propagated, label_proba_filename)
+    #
+    # # Create label to propagated vector map:
+    # logger.info('Create label to propagated vector map')
+    # node_txt2label_vec = {}
+    # for node_id in node_list:
+    #     node_txt2label_vec[C_vocab['idx2str_map'][node_id]] =\
+    #         labels_propagated[node_id].tolist()
+    # pd.DataFrame.from_dict(node_txt2label_vec, orient='index').to_csv(labelled_source_name + 'node_txt2label_vec.csv')
 
     # ## Propagating label vectors using GCN forward instead of LPA:
     # X_labels_hat = GCN_forward(adj, all_node_labels, forward=gcn_hops)
     # torch.save(X_labels_hat, 'X_labels_hat_05.pt')
 
     logger.info('Get node features')
+    merged_embs = merge_dicts(glove_embs, oov_embs)
+    # save_pickle(merged_embs, cfg["embeddings"]["saved_emb_file"], data_dir)
     X = get_node_features(merged_embs, oov_embs, C_vocab['idx2str_map'], node_list)
     logger.info('Applying GCN Forward old')
     X_hat = GCN_forward_old(adj, X, forward=gcn_hops)
-    logger.info('Applying GCN Forward')
-    X_hat = GCN_forward(adj, X, forward=gcn_hops)
+    # logger.info('Applying GCN Forward')
+    # X_hat = GCN_forward(adj, X, forward=gcn_hops)
 
     return C_vocab['str2idx_map'], X_hat
 
@@ -407,10 +381,12 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
              num_hidden_nodes=cfg['lstm_params']['hid_size'],
              dropout=cfg['model']['dropout'], default_thresh=0.5,
              lr=cfg['model']['optimizer']['lr'],
-             train_batch_size=128,
+             train_batch_size=cfg['training']['train_batch_size'],
+             test_batch_size=cfg['training']['eval_batch_size'],
              ):
     """
 
+    :param test_batch_size:
     :param train_df:
     :param test_df:
     :param stoi:
@@ -430,24 +406,22 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
     :return:
     """
     ## Prepare labelled source data:
-    logger.info('Prepare labelled source data')
-    if train_df is None:
-        train_df = read_labelled_json(data_dir, train_filename)
-        train_df = labels_mapper(train_df)
+    # logger.info('Prepare labelled source data')
+    # if train_df is None:
+    #     train_df = read_labelled_json(data_dir, train_filename)
+    #     train_df = labels_mapper(train_df)
     train_data_name = train_filename + "_4class_data.csv"
     train_df.to_csv(join(data_dir, train_data_name))
 
     if stoi is None:
-        logger.critical('simple GLOVE features')
+        logger.critical('GLOVE features')
         train_dataset, (train_fields, train_label) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=train_data_name, min_freq=1,
-            labelled_data=True)
+            csv_dir=data_dir, csv_file=train_data_name, min_freq=1, labelled_data=True)
     else:
         logger.critical('GCN features')
         train_dataset, (train_fields, train_label) = get_dataset_fields(
             csv_dir=data_dir, csv_file=train_data_name, min_freq=1,
-            labelled_data=True, embedding_file=None,
-            embedding_dir=None)
+            labelled_data=True, embedding_file=None, embedding_dir=None)
         train_fields.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
 
     ## Plot representations:
@@ -469,8 +443,7 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
 
     logger.info('Get iterator')
     train_iter, val_iter = dataset2bucket_iter(
-        (train_dataset, test_dataset), batch_sizes=(train_batch_size,
-                                                    train_batch_size * 2))
+        (train_dataset, test_dataset), batch_sizes=(train_batch_size, test_batch_size))
 
     size_of_vocab = len(train_fields.vocab)
     num_output_nodes = n_classes
@@ -586,15 +559,21 @@ if __name__ == "__main__":
 
     data_dir = cfg["paths"]["dataset_dir"][plat][user]
 
-    train_df = read_labelled_json(data_dir, args.dataset_name)
-    train_df = labels_mapper(train_df)
+    from File_Handlers.read_datasets import load_fire16, load_smerp17
 
-    test_df = read_labelled_json(data_dir, cfg['data']['target']['labelled'])
+    if args.dataset_name.startswith('fire16'):
+        train_df = load_fire16()
 
-    # result, model_outputs = BERT_classifier(
-    #     train_df=train_df, test_df=test_df, dataset_name=args.dataset_name,
-    #     model_name=args.model_name, model_type=args.model_type,
-    #     num_epoch=args.num_train_epochs, use_cuda=True)
+    if cfg['data']['target']['labelled'].startswith('smerp17'):
+        target_df = load_smerp17()
+        target_train_df, test_df = split_target(df=target_df, test_size=0.4)
+
+    result, model_outputs = BERT_classifier(
+        train_df=train_df, test_df=test_df, dataset_name=args.dataset_name,
+        model_name=args.model_name, model_type=args.model_type,
+        num_epoch=args.num_train_epochs, use_cuda=True)
+
+    exit(0)
 
     glove_embs = glove2dict()
 

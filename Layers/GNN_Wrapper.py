@@ -70,6 +70,7 @@ class BiLSTM_Classifier(torch.nn.Module):
                                   bidirectional=bidirectional, dropout=dropout,
                                   batch_first=True)
 
+        ## Intermediate Linear FC layers, default=0
         self.linear_layers = []
         for _ in range(num_linear - 1):
             if bidirectional:

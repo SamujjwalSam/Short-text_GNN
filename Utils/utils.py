@@ -33,8 +33,40 @@ from skmultilearn.model_selection.measures import\
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from config import configuration as cfg, platform as plat, username as user
+from File_Handlers.json_handler import read_labelled_json
 from tweet_normalizer import normalizeTweet
 from Logger.logger import logger
+
+
+def split_target(df=None, data_dir=cfg["paths"]["dataset_dir"][plat][user],
+                 labelled_data_name=cfg["data"]["target"]['labelled'],
+                 test_size=0.3, train_size=None, n_classes=4, stratified=False):
+    """ Splits labelled target data to train and test set.
+
+    :param data_dir:
+    :param labelled_data_name:
+    :param test_size:
+    :param train_size:
+    :param n_classes:
+    :return:
+    """
+    logger.info('Splits labelled target data to train and test set.')
+    ## Read target data
+    if df is None:
+        df = read_labelled_json(data_dir, labelled_data_name)
+    df, t_lab_test_df = split_df(df, test_size=test_size, stratified=stratified,
+                                 order=2, n_classes=n_classes)
+
+    logger.info(f'Number of TEST samples: [{t_lab_test_df.shape[0]}]')
+
+    if train_size is not None:
+        _, df = split_df(df, test_size=train_size,
+                         stratified=stratified, order=2, n_classes=n_classes)
+    logger.info(f'Number of TRAIN samples: [{df.shape[0]}]')
+
+    # token_dist(t_lab_df)
+
+    return df, t_lab_test_df
 
 
 def sp_coo_sparse2torch_sparse(M: sp.csr.csr_matrix) -> torch.sparse:
@@ -317,112 +349,6 @@ def load_model(model, saved_model_name='tweet_bilstm',
         return False
     model.eval()
     return model
-
-
-def logit2label(predictions_df: pd.core.frame.DataFrame, cls_thresh: list,
-                drop_irrelevant=True):
-    """ Converts logit to multi-hot based on threshold per class.
-
-    :param predictions_df:
-    :param cls_thresh:
-    :param drop_irrelevant: Remove samples for which no class crossed it's
-    threshold. i.e. [0,0,0,0]
-    """
-    logger.debug((predictions_df.values.min(), predictions_df.values.max()))
-    df_np = predictions_df.to_numpy()
-    for col in range(df_np.shape[1]):
-        df_np[:, col][df_np[:, col] > cls_thresh[col]] = 1.
-        df_np[:, col][df_np[:, col] <= cls_thresh[col]] = 0.
-
-    predictions_df = pd.DataFrame(df_np, index=predictions_df.index)
-
-    if drop_irrelevant:
-        # delete all rows where sum == 0
-        irrelevant_rows = []
-        for i, row in predictions_df.iterrows():
-            if sum(row) < 1:
-                irrelevant_rows.append(i)
-
-        predictions_df = predictions_df.drop(irrelevant_rows)
-    return predictions_df
-
-
-def calculate_performance(true: np.ndarray, pred: np.ndarray) -> dict:
-    """
-
-    Parameters
-    ----------
-    true: Multi-hot
-    pred: Multi-hot
-
-    Returns
-    -------
-
-    """
-    scores = {"accuracy": {}}
-    scores["accuracy"]["unnormalize"] = accuracy_score(true, pred)
-    scores["accuracy"]["normalize"] = accuracy_score(true, pred, normalize=True)
-
-    scores["precision"] = {}
-    scores["precision"]["classes"] = precision_score(true, pred,
-                                                     average=None).tolist()
-    scores["precision"]["weighted"] = precision_score(true, pred,
-                                                      average='weighted')
-    scores["precision"]["micro"] = precision_score(true, pred, average='micro')
-    scores["precision"]["macro"] = precision_score(true, pred, average='macro')
-    scores["precision"]["samples"] = precision_score(true, pred,
-                                                     average='samples')
-
-    scores["recall"] = {}
-    scores["recall"]["classes"] = recall_score(true, pred,
-                                               average=None).tolist()
-    scores["recall"]["weighted"] = recall_score(true, pred, average='weighted')
-    scores["recall"]["micro"] = recall_score(true, pred, average='micro')
-    scores["recall"]["macro"] = recall_score(true, pred, average='macro')
-    scores["recall"]["samples"] = recall_score(true, pred, average='samples')
-
-    scores["f1"] = {}
-    scores["f1"]["classes"] = f1_score(true, pred, average=None).tolist()
-    scores["f1"]["weighted"] = f1_score(true, pred, average='weighted')
-    scores["f1"]["micro"] = f1_score(true, pred, average='micro')
-    scores["f1"]["macro"] = f1_score(true, pred, average='macro')
-    scores["f1"]["samples"] = f1_score(true, pred, average='samples')
-
-    return scores
-
-
-def flatten_results(results: dict):
-    """ Flattens the nested result dict and save as csv.
-
-    :param results:
-    :return:
-    """
-    ## Replace classes list to dict:
-    for i, result in enumerate(results):
-        for approach, vals in result.items():
-            if approach != 'params':
-                for metric1, averaging in vals.items():
-                    for avg, score in averaging.items():
-                        if avg == 'classes':
-                            classes_dict = {}
-                            for cls, val in enumerate(score):
-                                cls = str(cls)
-                                classes_dict[cls] = val
-                            results[i][approach][metric1][avg] = classes_dict
-
-    result_df = pd.json_normalize(results, sep='_')
-
-    ## Round values and save:
-    # result_df.round(decimals=4).to_csv('results.csv')
-
-    return result_df
-
-
-# No. of trianable parameters
-def count_parameters(model):
-    param_count = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    logger.info(f'The model has {param_count:,} trainable parameters')
-    return param_count
 
 
 def main():

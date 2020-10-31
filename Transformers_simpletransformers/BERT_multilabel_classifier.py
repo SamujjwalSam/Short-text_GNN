@@ -22,9 +22,11 @@ import timeit
 import argparse
 import numpy as np
 import pandas as pd
-# from os.path import join
+from os.path import join
 # from json import dumps, dump
 from simpletransformers.classification import MultiLabelClassificationModel, MultiLabelClassificationArgs
+# import torch.multiprocessing
+# torch.multiprocessing.set_sharing_strategy('file_system')
 
 from config import configuration as cfg, platform as plat, username as user
 from Metrics.metrics import calculate_performance_pl, calculate_performance_sk
@@ -105,12 +107,14 @@ def BERT_classifier(train_df: pd.core.frame.DataFrame,
 
     ## Add arguments:
     model_args = MultiLabelClassificationArgs()
-    # model_args.num_labels = n_classes
+    model_args.num_labels = n_classes
+    model_args.no_cache = True
+    model_args.no_save = True
     model_args.num_train_epochs = num_epoch
     model_args.output_dir = cfg['paths']['result_dir']
-    model_args.cache_dir = cfg['paths']['cache_dir']
+    # model_args.cache_dir = cfg['paths']['cache_dir']
     model_args.fp16 = False
-    model_args.fp16_opt_level = 'O1'
+    # model_args.fp16_opt_level = 'O1'
     model_args.max_seq_length = cfg['transformer']['max_seq_len']
     model_args.weight_decay = cfg['transformer']['optimizer']['weight_decay']
     model_args.learning_rate = cfg['transformer']['optimizer']['lr']
@@ -119,14 +123,20 @@ def BERT_classifier(train_df: pd.core.frame.DataFrame,
     model_args.warmup_steps = cfg['transformer']['optimizer']['warmup_steps']
     model_args.max_grad_norm = cfg['transformer']['optimizer']['max_grad_norm']
     model_args.train_batch_size = cfg['training']['train_batch_size']
-    model_args.gradient_accumulation_steps = cfg['transformer']['gradient_accumulation_steps']
+    # model_args.gradient_accumulation_steps = cfg['transformer']['gradient_accumulation_steps']
+    model_args.overwrite_output_dir = True
     model_args.eval_batch_size = cfg['training']['eval_batch_size']
     model_args.evaluate_during_training = False
-    model_args.evaluate_during_training_steps = 3000
-    model_args.save_steps = 10000
-    model_args.overwrite_output_dir = True
+    model_args.evaluate_during_training_verbose = False
+    model_args.evaluate_each_epoch = True
+    model_args.use_early_stopping = True
+    model_args.save_model_every_epoch = False
+    model_args.save_eval_checkpoints = False
+    model_args.save_optimizer_and_scheduler = False
     model_args.reprocess_input_data = True
-    model_args.n_gpu = 2
+    # model_args.evaluate_during_training_steps = 3000
+    model_args.save_steps = 10000
+    model_args.n_gpu = 0
     model_args.threshold = 0.5
 
     """
@@ -135,16 +145,42 @@ def BERT_classifier(train_df: pd.core.frame.DataFrame,
 
     This will give you:
     
-        all_embedding_outputs: Numpy array of shape (batch_size, sequence_length, hidden_size)
+        all_embedding_outputs: Numpy array of shape (batch_size, sequence_length, hidden_dim)
         
-        all_layer_hidden_states: Numpy array of shape (num_hidden_layers, batch_size, sequence_length, hidden_size)
+        all_layer_hidden_states: Numpy array of shape (num_hidden_layers, batch_size, sequence_length, hidden_dim)
     """
     model_args.output_hidden_states = True
+
+
+    args={
+        'output_dir':                     cfg['paths']['result_dir'],
+        'cache_dir':                      cfg['paths']['cache_dir'],
+        'fp16':                           False,
+        'fp16_opt_level':                 'O1',
+        'max_seq_length':                 cfg['transformer']['max_seq_len'],
+        'weight_decay':                   cfg['transformer']['optimizer']['weight_decay'],
+        'learning_rate':                  cfg['transformer']['optimizer']['lr'],
+        'adam_epsilon':                   cfg['transformer']['optimizer']['adam_epsilon'],
+        'warmup_ratio':                   cfg['transformer']['optimizer']['warmup_ratio'],
+        'warmup_steps':                   cfg['transformer']['optimizer']['warmup_steps'],
+        'max_grad_norm':                  cfg['transformer']['optimizer']['max_grad_norm'],
+        'train_batch_size':               cfg['training']['train_batch_size'],
+        'gradient_accumulation_steps':    cfg['transformer']['gradient_accumulation_steps'],
+        'eval_batch_size':                cfg['training']['eval_batch_size'],
+        'num_train_epochs':               num_epoch,
+        'evaluate_during_training':       False,
+        'evaluate_during_training_steps': 3000,
+        'save_steps':                     10000,
+        'overwrite_output_dir':           True,
+        'reprocess_input_data':           True,
+        'n_gpu':                          2,
+        'threshold':                      0.5
+    }
 
     ## Create a MultiLabelClassificationModel
     model = MultiLabelClassificationModel(
         model_type=model_type, model_name=model_name, num_labels=n_classes,
-        use_cuda=use_cuda and torch.cuda.is_available(), args=model_args,)
+        use_cuda=use_cuda and torch.cuda.is_available(), args=args)
 
     device = torch.device('cuda' if use_cuda and torch.cuda.is_available() else 'cpu')
 

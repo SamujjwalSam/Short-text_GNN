@@ -70,6 +70,7 @@ def json_keys2df(data_keys, json_data=None, json_filename=None,
         pd.core.frame.DataFrame:
     """ Converts json tweet data to a DataFrame for only selected data_keys.
 
+    :param replace_index:
     :param json_filename:
     :param data_keys: list of str to be read from the json and made a column
     in df.
@@ -88,11 +89,12 @@ def json_keys2df(data_keys, json_data=None, json_filename=None,
     return json_df
 
 
-def read_json(file_path: str = join(cfg["paths"]["dataset_dir"][plat][
-                                        user], 'acronym'),
-              convert_ordereddict =True) -> OrderedDict:
+def read_json(file_path: str = join(cfg["paths"]["dataset_dir"][plat][user],
+                                    'acronym'),
+              convert_ordereddict=True) -> OrderedDict:
     """ Reads json file as OrderedDict.
 
+    :param convert_ordereddict:
     :param file_path:
     :return:
     """

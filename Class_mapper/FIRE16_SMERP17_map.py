@@ -29,6 +29,8 @@ __license__     : "This source code is licensed under the MIT-style license
 import numpy as np
 import pandas as pd
 
+from Logger.logger import logger
+
 
 def labels_mapper(df, class_maps: dict = None):
     """ Maps FIRE16 dataset labels to SMERP17 labels.
@@ -55,6 +57,7 @@ def labels_mapper(df, class_maps: dict = None):
             5: 3,
             6: 2
         }
+    logger.info(f'mapping classes: [{class_maps}]')
     new_cols = sorted(list(class_maps.values()))
     df2 = pd.DataFrame(columns=new_cols)
     # df2 = df[df.columns.difference(new_cols)]

@@ -20,6 +20,7 @@ __license__     : "This source code is licensed under the MIT-style license
 import torch
 import numpy as np
 import pandas as pd
+from json import dumps
 from pytorch_lightning.metrics.functional import f1_score as f1_pl, precision, recall, accuracy as accuracy_pl
 from sklearn.metrics import accuracy_score, recall_score, precision_score,\
     f1_score, precision_recall_fscore_support, classification_report
@@ -27,16 +28,12 @@ from sklearn.metrics import accuracy_score, recall_score, precision_score,\
 from Logger.logger import logger
 
 
-def calculate_performance_sk(true: (np.ndarray, torch.tensor), pred: (np.ndarray, torch.tensor)) -> dict:
+def calculate_performance_sk(true: (np.ndarray, torch.tensor), pred: (np.ndarray, torch.tensor), print_result=False) -> dict:
     """
 
-    Parameters
-    ----------
-    true: Multi-hot
-    pred: Multi-hot
-
-    Returns
-    -------
+    :param pred: Multi-hot
+    :param true: Multi-hot
+    :param print_result:
 
     """
     scores = {"accuracy": {}}
@@ -64,7 +61,8 @@ def calculate_performance_sk(true: (np.ndarray, torch.tensor), pred: (np.ndarray
     scores["f1"]["macro"] = f1_score(true, pred, average='macro')
     scores["f1"]["samples"] = f1_score(true, pred, average='samples')
 
-    logger.info(scores)
+    if print_result:
+        logger.info(dumps(scores, indent=4))
 
     return scores
 
@@ -97,18 +95,12 @@ def flatten_results(results: dict):
 
 
 def calculate_performance_pl(true: torch.tensor, pred: torch.tensor,
-                             return_list=True) -> dict:
+                             return_list=True, print_result=False) -> dict:
     """
 
-    Parameters
-    ----------
-    true: Multi-hot
-    pred: Multi-hot
-
-    Returns
-    -------
-    :param true:
-    :param pred:
+    :param print_result:
+    :param true: Multi-hot
+    :param pred: Multi-hot
     :param return_list:
 
     """
@@ -154,7 +146,11 @@ def calculate_performance_pl(true: torch.tensor, pred: torch.tensor,
         scores["f1"]["macro"] = scores["f1"]["macro"].tolist()
         scores["f1"]["weighted"] = scores["f1"]["weighted"].tolist()
 
-    logger.info(scores)
+        if print_result:
+            logger.info(dumps(scores, indent=4))
+    else:
+        if print_result:
+            logger.info(scores)
 
     return scores
 

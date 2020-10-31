@@ -189,7 +189,7 @@ def train_graph_classifier(model: GAT_Graph_Classifier,
                            data_loader: torch.utils.data.dataloader.DataLoader,
                            loss_func: torch.nn.modules.loss.BCEWithLogitsLoss,
                            optimizer, epochs: int = 5,
-                           eval_data_loader: torch.utils.data.dataloader.DataLoader = None, ):
+                           eval_data_loader: torch.utils.data.dataloader.DataLoader = None):
     train_epoch_losses = []
     train_epoch_dict = OrderedDict()
     for epoch in range(epochs):

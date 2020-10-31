@@ -26,8 +26,8 @@ class BiLSTM_Classifier(nn.Module):
     """
 
     # define all the layers used in model
-    def __init__(self, vocab_size, hidden_dim, output_dim, embedding_dim=100,
-                 n_layers=2, bidirectional=True, dropout=0.2, num_linear=1):
+    def __init__(self, vocab_size: int, hidden_dim: int, output_dim: int, embedding_dim: int = 100,
+                 n_layers: int = 2, bidirectional: bool = True, dropout: float = 0.2, num_linear: int = 1) -> None:
         super().__init__()  # Constructor
 
         # embedding layer
@@ -57,7 +57,7 @@ class BiLSTM_Classifier(nn.Module):
         ## NOTE: Sigmoid not required as BCEWithLogitsLoss calculates sigmoid
         # self.act = nn.Sigmoid()
 
-    def forward(self, text, text_lengths):
+    def forward(self, text: torch.Tensor, text_lengths: torch.Tensor) -> torch.Tensor:
         """ Takes ids of input text, pads them and predict using BiLSTM.
 
         Args:

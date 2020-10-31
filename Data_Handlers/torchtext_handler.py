@@ -81,7 +81,6 @@ def create_dataset(examples, fields=None):
     """ Creates a TorchText Dataset from examples (list) and fields (dict).
 
     Args:
-        csv_file:
         fields:
         skip_header:
 
@@ -259,13 +258,13 @@ def dataset2iter(datasets: tuple, batch_size=None, batch_sizes=(128, 256, 256),
     return iterator
 
 
-def dataset2bucket_iter(datasets: tuple, batch_size=None,
-                        batch_sizes=(128, 256, 256), ):
-    """
-    Converts dataset (DataFrame) to TorchText iterator.
+def dataset2bucket_iter(datasets: tuple, batch_size=None, batch_sizes: tuple = (32, 64, 64)):
+    """ Converts dataset (DataFrame) to TorchText iterator.
 
-    Returns:
-
+    :param datasets:
+    :param batch_size:
+    :param batch_sizes:
+    :return:
     """
     # data_df.to_csv(save_path, header=headers)
 
