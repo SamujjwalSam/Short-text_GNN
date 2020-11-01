@@ -22,10 +22,13 @@ import torch.nn.functional as F
 from dgl import DGLGraph
 from dgl.nn.pytorch.conv import GATConv, GraphConv
 
+from Layers.gcn_dropedgelearn import GCN_DropEdgeLearn_Model
 
-class Instance_Graphs_GAT(torch.nn.Module):
+
+class Instance_GAT_dgl(torch.nn.Module):
+    """ GAT architecture for instance graphs. """
     def __init__(self, in_dim: int, hidden_dim: int, num_heads: int, out_dim: int):
-        super(Instance_Graphs_GAT, self).__init__()
+        super(Instance_GAT_dgl, self).__init__()
         self.conv1 = GATConv(in_dim, hidden_dim, num_heads)
         self.conv2 = GATConv(hidden_dim * num_heads, out_dim, 1)
 
@@ -42,25 +45,23 @@ class Instance_Graphs_GAT(torch.nn.Module):
         return emb
 
 
-class Token_Graph_GCN(torch.nn.Module):
-    def __init__(self, in_dim, hidden_dim, out_dim):
-        super(Token_Graph_GCN, self).__init__()
-        self.conv1 = GraphConv(in_dim, hidden_dim)
-        self.conv2 = GraphConv(hidden_dim, out_dim)
-
-    def forward(self, g, emb):
-        if emb is None:
-            emb = g.ndata['emb']
-        emb = self.conv1(g, emb)
-        emb = torch.relu(emb)
-        emb = self.conv2(g, emb)
-        return emb
+# class Token_Graph_GCN(torch.nn.Module):
+#     def __init__(self, in_dim, hidden_dim, out_dim):
+#         super(Token_Graph_GCN, self).__init__()
+#         self.conv1 = GraphConv(in_dim, hidden_dim)
+#         self.conv2 = GraphConv(hidden_dim, out_dim)
+#
+#     def forward(self, g, emb):
+#         if emb is None:
+#             emb = g.ndata['emb']
+#         emb = self.conv1(g, emb)
+#         emb = torch.relu(emb)
+#         emb = self.conv2(g, emb)
+#         return emb
 
 
 class BiLSTM_Classifier(torch.nn.Module):
-    """ BiLSTM for classification.
-
-    """
+    """ BiLSTM for classification. """
 
     # define all the layers used in model
     def __init__(self, hidden_dim, output_dim, embedding_dim=100,
@@ -123,18 +124,19 @@ class BiLSTM_Classifier(torch.nn.Module):
 
 
 class GNN_Combined(torch.nn.Module):
-    def __init__(self, in_dim, hidden_dim, num_heads, out_dim, num_classes):
+    def __init__(self, num_token, in_dim, hidden_dim, num_heads, out_dim, num_classes):
         super(GNN_Combined, self).__init__()
-        self.large_token_gcn = Token_Graph_GCN(in_dim=in_dim, hidden_dim=hidden_dim,
-                                               out_dim=out_dim)
-        self.small_instance_gat = Instance_Graphs_GAT(in_dim=in_dim, hidden_dim=hidden_dim,
-                                                      num_heads=num_heads, out_dim=out_dim)
+        self.token_gcn = GCN_DropEdgeLearn_Model(num_token=num_token, in_dim=in_dim, hidden_dim=hidden_dim,
+                                                 out_dim=out_dim, dropout=0.2, adj_dropout=0.0)
+
+        self.instance_gat_dgl = Instance_GAT_dgl(in_dim=in_dim, hidden_dim=hidden_dim,
+                                                 num_heads=num_heads, out_dim=out_dim)
         ## We may have different out_dim's from 2 GNNs and concat them.
 
         self.bilstm_classifier = BiLSTM_Classifier(2 * out_dim, num_classes)
 
-    def forward(self, small_batch_graphs, small_batch_embs, token_idx_batch,
-                large_graph, large_embs, combine='concat'):
+    def forward(self, instance_batch, instance_batch_embs, instance_batch_token_ids,
+                token_graph, token_embs, combine='concat'):
         """ Combines embeddings of tokens from large and small graph by concatenating.
 
         Take embeddings from large graph for tokens present in the small graph batch.
@@ -142,34 +144,20 @@ class GNN_Combined(torch.nn.Module):
         Arrange small tokens and large tokens in same order.
 
         :param combine: How to combine two embeddings (Default: concatenate)
-        :param token_idx_batch: Ordered set of token ids present in the current batch of instance graph
-        Should be converted to set of unique tokens before fetching from large graph.
-        Convert to boolean mask indicating the tokens present in the current batch of instances.
-        Boolean mask size: List of number of tokens in the large graph.
-        :param small_batch_embs: Embeddings from instance GAT
-        :param small_batch_graphs: Instance graph batch
-        :param large_embs: Embeddings from large GCN
-        :param large_graph: Large token graph
+        :param instance_batch_token_ids: Ordered set of token ids present in the current instance batch
+        :param instance_batch_embs: Embeddings from instance GAT
+        :param instance_batch: Instance graph batch
+        :param token_embs: Embeddings from large GCN
+        :param token_graph: Large token graph
         """
         ## Fetch embeddings from instance graphs:
-        token_embs_small = self.small_instance_gat(small_batch_graphs, small_batch_embs)
+        token_embs_small = self.instance_gat_dgl(instance_batch, instance_batch_embs)
 
         ## Fetch embeddings from large token graph
-        token_embs_large = self.large_token_gcn(large_graph, large_embs)
-
-        ## Get unique token ids before fetching from large graph:
-        token_idx_batch_uniq = list(set(token_idx_batch))
-
-        ## Converting unique tokens to boolean mask of size token_embs_large.shape[0]:
-        ## TODO: Get boolean mask:
-        token_idx_batch_uniq_mask = token_idx_batch_uniq
-        mask = (torch.BoolTensor(token_embs_large.shape[0]).floor()).type(torch.bool)
+        token_embs_large = self.token_gcn(token_graph, token_embs)
 
         ## Fetch embeddings from large graph of tokens present in instance batch only:
-        token_embs_large = token_embs_large[token_idx_batch_uniq_mask]
-
-        ## Replicating embeddings for as per the order of tokens in instance batch:
-        # TODO: Repeat embeddings to get same dim.
+        token_embs_large = token_embs_large[instance_batch_token_ids]
 
         ## Combine both embeddings:
         if combine == 'concat':

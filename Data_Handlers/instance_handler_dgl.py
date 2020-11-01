@@ -18,7 +18,7 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 from os.path import join, exists
-from torch import tensor, stack, zeros
+from torch import tensor, stack
 from collections import OrderedDict
 from dgl import graph, add_self_loop, save_graphs, load_graphs, batch as g_batch
 from dgl.data.utils import makedirs, save_info, load_info
@@ -27,101 +27,6 @@ from sklearn.model_selection import train_test_split
 
 from Utils.utils import iterative_train_test_split
 from Logger.logger import logger
-
-
-class Token_Dataset_DGL(DGLDataset):
-    """ Token graph dataset in DGL. """
-
-    # _url = 'http://deepchem.io.s3-website-us-west-1.amazonaws.com/'\
-    #        'datasets/qm7b.mat'
-    # _sha1_str = '4102c744bb9d6fd7b40ac67a300e49cd87e28392'
-
-    def __init__(self, dataname, graph_path=None, raw_dir=None, force_reload=False, verbose=False):
-        assert dataname.lower() in ['cora', 'citeseer', 'pubmed'], f'Dataset {dataname} not supported.'
-        if dataname.lower() == 'cora':
-            dataname = 'cora_v2'
-        # url = _get_dgl_url(self._urls[name])
-        super(Token_Dataset_DGL, self).__init__(
-            name=dataname + '_Token_Dataset_DGL', url=self._url, raw_dir=raw_dir,
-            force_reload=force_reload, verbose=verbose)
-        if graph_path is None:
-            self.graph_path = join(self.save_path, dataname + '_token_dgl.bin')
-        else:
-            self.graph_path = graph_path
-        self.info_path = join(self.save_path, dataname + '_info.bin')
-        self.G, self.label = None, None
-
-    def process(self, datasets, vocab, window_size=2):
-        # process data to a list of graphs and a list of labels
-        self.G, self.label = self.load_token_dgl(self.graph_path)
-        self.G, self.label = self.create_token_dgl(datasets, vocab, window_size)
-
-    def __getitem__(self, idx):
-        assert idx == 0, "This dataset has only one graph"
-        return self.G
-
-    def __len__(self):
-        return 1
-
-    def create_token_dgl(self, datasets, c_vocab, window_size: int = 2):
-        """ Creates a dgl with all unique tokens in the corpus.
-
-            Considers tokens from both source and target.
-            Use source vocab [s_vocab] for text to id mapping if exists, else use [t_vocab].
-
-        :param t_vocab:
-        :param s_vocab:
-        :param c_vocab:
-        :param window_size: Sliding window size
-        :param G:
-        :param datasets: TorchText dataset
-        :return:
-        """
-        us, vs = [], []
-
-        ## Add edges based on token co-occurrence within sliding window:
-        for i, dataset in enumerate(datasets):
-            for example in dataset:
-                u, v = get_sliding_edges(example.text, c_vocab['str2idx_map'], window_size=window_size)
-                us.extend(u)
-                vs.extend(v)
-
-        G = graph(data=(tensor(us), tensor(vs)))
-
-        ## Adding self-loops:
-        G = add_self_loop(G)
-
-        ## Add node (tokens) vectors to the graph:
-        if c_vocab['vectors'] is not None:
-            G.ndata['emb'] = stack(c_vocab['vectors'])
-
-        # TODO: Convert to Weighted token graph
-        G.edata['w'] = self.get_edge_weights()
-
-        return G
-
-    def get_adj(self):
-        """ Returns weighted adjacency matrix as dense tensor.
-
-        :return:
-        """
-        u, v = self.G.all_edges(order='eid')
-        wadj = zeros((self.G.num_nodes(), self.G.num_nodes()))
-        wadj[u, v] = self.G.edata['w']
-        return wadj
-
-    def save_token_dgl(self, graph_path=None, info=False, infopath=None):
-        # save graphs and labels
-        if graph_path is None:
-            graph_path = self.graph_path
-        save_dgl(self.G, [0], graph_path, info, infopath)
-
-    def load_token_dgl(self, graph_path, infopath=None):
-        if graph_path is None:
-            graph_path = self.graph_path
-        # load processed data from directory graph_path
-        self.G, _ = load_dgl(graph_path, infopath)
-        return self.G
 
 
 class Instance_Dataset_DGL(DGLDataset):
@@ -162,10 +67,6 @@ class Instance_Dataset_DGL(DGLDataset):
             self.graph_path = graph_path
         self.info_path = join(self.save_path, dataname + '_info.bin')
         self.G, self.label = None, None
-
-    def download(self):
-        # download raw data to local disk
-        pass
 
     def process(self, dataset, vocab):
         # === data processing skipped ===

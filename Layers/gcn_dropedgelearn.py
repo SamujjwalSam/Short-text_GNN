@@ -134,11 +134,11 @@ class GCN_DropEdgeLearn_Model(torch.nn.Module):
         Need token to index information to fetch from large graph.
         Arrange small tokens and large tokens in same order.
 
-        small_batch_graphs: Instance graph batch
-        small_batch_embs: Embeddings from instance GAT
-        token_idx_batch: Ordered set of token ids present in the current batch of instance graph
-        large_graph: Large token graph
-        large_embs: Embeddings from large GCN
+        instance_batch: Instance graph batch
+        instance_batch_embs: Embeddings from instance GAT
+        instance_batch_token_ids: Ordered set of token ids present in the current batch of instance graph
+        token_graph: Large token graph
+        token_embs: Embeddings from large GCN
         combine: How to combine two embeddings (Default: concatenate)
 
         Should be converted to set of unique tokens before fetching from large graph.
