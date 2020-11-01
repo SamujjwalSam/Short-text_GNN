@@ -111,7 +111,7 @@ def sp_coo_sparse2torch_sparse(M: sp.csr.csr_matrix) -> torch.sparse:
     return M
 
 
-def logit2label(predictions_df: pd.core.frame.DataFrame, cls_thresh: list,
+def logit2label(predictions_df: pd.core.frame.DataFrame, cls_thresh: [list, float],
                 drop_irrelevant=False, return_df=False):
     """ Converts logit to multi-hot based on threshold per class.
 

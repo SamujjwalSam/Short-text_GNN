@@ -18,7 +18,7 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 from os.path import join, exists
-from torch import tensor, stack
+from torch import tensor, stack, zeros
 from collections import OrderedDict
 from dgl import graph, add_self_loop, save_graphs, load_graphs, batch as g_batch
 from dgl.data.utils import makedirs, save_info, load_info
@@ -78,7 +78,6 @@ class Token_Dataset_DGL(DGLDataset):
         :return:
         """
         us, vs = [], []
-        # TODO: Convert to Weighted token graph
 
         ## Add edges based on token co-occurrence within sliding window:
         for i, dataset in enumerate(datasets):
@@ -87,7 +86,7 @@ class Token_Dataset_DGL(DGLDataset):
                 us.extend(u)
                 vs.extend(v)
 
-        G = graph(data=(us, vs))
+        G = graph(data=(tensor(us), tensor(vs)))
 
         ## Adding self-loops:
         G = add_self_loop(G)
@@ -96,7 +95,20 @@ class Token_Dataset_DGL(DGLDataset):
         if c_vocab['vectors'] is not None:
             G.ndata['emb'] = stack(c_vocab['vectors'])
 
+        # TODO: Convert to Weighted token graph
+        G.edata['w'] = self.get_edge_weights()
+
         return G
+
+    def get_adj(self):
+        """ Returns weighted adjacency matrix as dense tensor.
+
+        :return:
+        """
+        u, v = self.G.all_edges(order='eid')
+        wadj = zeros((self.G.num_nodes(), self.G.num_nodes()))
+        wadj[u, v] = self.G.edata['w']
+        return wadj
 
     def save_token_dgl(self, graph_path=None, info=False, infopath=None):
         # save graphs and labels
@@ -305,14 +317,13 @@ def get_sliding_edges(tokens: list, token2ids_map: dict, window_size=2):
     :return:
     """
     # TODO: use TorchText ngrams_iterator() https://pytorch.org/text/data_utils.html
-    u, v = [], []
     txt_len = len(tokens)
     if window_size is None or window_size > txt_len:
         window_size = txt_len
 
-    slide = txt_len - window_size + 1
-
     j = 0
+    u, v = [], []
+    slide = txt_len - window_size + 1
     for k in range(slide):
         txt_window = tokens[j:j + window_size]
         for i, token1 in enumerate(txt_window):
@@ -337,7 +348,7 @@ def save_dgl(graphs, labels, graph_path, info=None, info_path=None):
     :param info_path:
     """
     # save graphs and labels
-    if not os.path.exists(graph_path):
+    if not exists(graph_path):
         makedirs(graph_path)
     save_graphs(graph_path, graphs, {'labels': labels})
     # save other information in python dict

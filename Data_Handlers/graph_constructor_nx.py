@@ -259,8 +259,7 @@ def create_tgt_tokengraph(dataset, t_vocab, s_vocab, G: nx.Graph = None,
     return G, combined_s2i
 
 
-def create_tokengraph(datasets, c_vocab, s_vocab, t_vocab,
-                      G: nx.Graph = None, window_size: int = 2):
+def create_tokengraph(datasets, c_vocab, s_vocab, t_vocab, G: nx.Graph = None, window_size: int = 2):
     """ Given a target dataset adds new nodes (occurs only in target domain)
     to existing token Graph. Update t_co count if node already exists.
 
