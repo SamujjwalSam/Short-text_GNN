@@ -27,30 +27,32 @@ from torch.utils.data import Dataset
 from networkx.readwrite.gpickle import write_gpickle, read_gpickle
 
 from Logger.logger import logger
+from config import configuration as cfg, platform as plat, username as user
 
 
 class Token_Dataset_nx(Dataset):
     """ Token graph dataset in NX. """
 
-    def __init__(self, corpus_toks, C_vocab, S_vocab, T_vocab, dataname, graph_path=None):
-        assert dataname.lower() in ['fire16', 'smerp17'], f'Dataset {dataname} not supported.'
-        if dataname.lower() == 'fire16':
+    def __init__(self, corpus_toks, C_vocab, S_vocab, T_vocab, dataset_name,
+                 data_dir: str = cfg["paths"]["dataset_dir"][plat][user], graph_path=None):
+        # assert dataset_name.lower() in ['fire16', 'smerp17'], f'Dataset {dataset_name} not supported.'
+        if dataset_name.lower() == 'fire16':
             lab_dataname = 'fire16_labelled'
             unlab_dataname = 'fire16_unlabelled'
-        # url = _get_dgl_url(self._urls[name])
-        super(Token_Dataset_nx, self).__init__(name=dataname + '_Token_Dataset_nx')
+        super(Token_Dataset_nx, self).__init__()
+        self.data_dir = data_dir
         if graph_path is None:
-            self.graph_path = join(self.save_path, dataname + '_token_nx.bin')
+            self.graph_path = join(self.data_dir, dataset_name + '_token_nx.bin')
         else:
             self.graph_path = graph_path
 
-        if exists(graph_path):
-            self.G = self.load_graph(graph_path)
+        if exists(self.graph_path):
+            self.G = self.load_graph(self.graph_path)
         else:
             self.G = self.create_token_graph(corpus_toks, C_vocab, S_vocab, T_vocab)
             ## Calculate edge weights from cooccurrence stats:
             self.G = self.add_edge_weights()
-            self.save_graph(graph_path)
+            self.save_graph(self.graph_path)
 
         self.node_list = list(self.G.nodes)
 
@@ -66,12 +68,14 @@ class Token_Dataset_nx(Dataset):
         if graph_path is None:
             graph_path = self.graph_path
         write_gpickle(self.G, graph_path)
+        logger.info(f'Saved graph at [{graph_path}]')
 
     def load_graph(self, graph_path):
         if graph_path is None:
             graph_path = self.graph_path
 
         # load processed data from directory graph_path
+        logger.info(f'Loading graph from [{graph_path}]')
         self.G = read_gpickle(graph_path)
         return self.G
 
@@ -208,8 +212,16 @@ class Token_Dataset_nx(Dataset):
 
         ## Add token's id as node to the graph
         for token_txt, token_id in c_vocab['str2idx_map'].items():
-            G.add_node(token_id, node_txt=token_txt, s_co=s_vocab['freqs'][token_txt],
-                       t_co=t_vocab['freqs'][token_txt])
+            try:
+                s_co=s_vocab['freqs'][token_txt]
+            except KeyError:
+                s_co = 0
+
+            try:
+                t_co=t_vocab['freqs'][token_txt]
+            except KeyError:
+                t_co = 0
+            G.add_node(token_id, node_txt=token_txt, s_co=s_co, t_co=t_co)
 
         ## Add edges based on token co-occurrence within sliding window:
         for i, dataset in enumerate(datasets):
@@ -657,7 +669,7 @@ if __name__ == "__main__":
 
     corpus, vocab = build_corpus(txts_toks)
 
-    g_ob = Token_Dataset_nx(corpus_toks, C_vocab, S_vocab, T_vocab)
+    g_ob = Token_Dataset_nx(corpus_toks, C_vocab, S_vocab, T_vocab, )
     G = g_ob.G
     print(G.nodes)
 

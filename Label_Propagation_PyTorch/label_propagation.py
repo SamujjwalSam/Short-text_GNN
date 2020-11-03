@@ -25,7 +25,7 @@ from sklearn.semi_supervised import LabelSpreading
 from imblearn.under_sampling import RandomUnderSampler
 
 from Label_Propagation_PyTorch.adj_propagator import Adj_Propagator
-from Utils.utils import sp_coo_sparse2torch_sparse
+from Utils.utils import sp_coo2torch_coo
 from Logger.logger import logger
 
 
@@ -293,7 +293,7 @@ def label_propagation(adj: sparse.csr.csr_matrix, Y: list, labelled_masks: tuple
     logger.info("Applying Label Propagation")
     if isinstance(adj, sparse.csr.csr_matrix):
         # convert to PyTorch sparse
-        adj = sp_coo_sparse2torch_sparse(adj)
+        adj = sp_coo2torch_coo(adj)
     if isinstance(Y, list):
         Y = np.stack(Y)
     if isinstance(Y, np.ndarray):

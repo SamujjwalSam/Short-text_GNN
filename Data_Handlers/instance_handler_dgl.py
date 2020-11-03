@@ -27,6 +27,7 @@ from sklearn.model_selection import train_test_split
 
 from Utils.utils import iterative_train_test_split
 from Logger.logger import logger
+from config import configuration as cfg, platform as plat, username as user
 
 
 class Instance_Dataset_DGL(DGLDataset):
@@ -50,11 +51,12 @@ class Instance_Dataset_DGL(DGLDataset):
         Whether to print out progress information
     """
 
-    def __init__(self, dataname, graph_path=None, class_names=('0', '1', '2', '3'),
-                 url=None, raw_dir=None, save_dir=None, force_reload=False, verbose=False):
-        assert dataname.lower() in ['cora', 'citeseer', 'pubmed']
-        if dataname.lower() == 'cora':
-            dataname = 'cora_v2'
+    def __init__(self, dataset, vocab, dataset_name, graph_path=None, class_names=('0', '1', '2', '3'),
+                 url=None, raw_dir=None, save_dir: str = cfg["paths"]["dataset_dir"][plat][user],
+                 force_reload=False, verbose=False):
+        # assert dataset_name.lower() in ['cora', 'citeseer', 'pubmed']
+        # if dataset_name.lower() == 'cora':
+        #     dataset_name = 'cora_v2'
         super(Instance_Dataset_DGL, self).__init__(
             name='Instance_DGL_Dataset', url=url, raw_dir=raw_dir, save_dir=save_dir,
             force_reload=force_reload, verbose=verbose)
@@ -62,11 +64,14 @@ class Instance_Dataset_DGL(DGLDataset):
         self.class_names = class_names
         self.num_labels = len(self.class_names)
         if graph_path is None:
-            self.graph_path = join(self.save_path, dataname + '_instance_dgl.bin')
+            self.graph_path = join(self.save_path, dataset_name + '_instance_dgl.bin')
         else:
             self.graph_path = graph_path
-        self.info_path = join(self.save_path, dataname + '_info.bin')
-        self.G, self.label = None, None
+        self.info_path = join(self.save_path, dataset_name + '_info.bin')
+        self.graphs, self.label = None, None
+
+        self.graphs, self.doc_uniq_tokens, self.labels = self.create_instance_dgls(
+            dataset, vocab, class_names=self.class_names)
 
     def process(self, dataset, vocab):
         # === data processing skipped ===
@@ -118,51 +123,10 @@ class Instance_Dataset_DGL(DGLDataset):
         batched_graph = g_batch(graphs)
         return batched_graph, tensor(labels)
 
-    def create_instance_dgl(self, vocab, tokens: list, token2vec_map=None) -> (graph, list):
-        """ Given a tokenized list, returns dgl graph for that instance.
+    def create_instance_dgls(self, dataset_tt, vocab, class_names=('0', '1', '2', '3')):
+        """Create dgl for each instance in the dataset.
 
-        :param vocab:
-        :param self:
-        :param tokens:
-        :param token2vec_map:
-        :return:
-        """
-        if token2vec_map is None:
-            token2vec_map = vocab['vectors']
-
-        node_ids = 0
-        graph_tokens_vec = []
-        token2ids_map = OrderedDict()
-
-        ## Get vectors for tokens:
-        for token in tokens:
-            try:
-                token2ids_map[token]
-            except KeyError:
-                token2ids_map[token] = node_ids
-                graph_tokens_vec.append(token2vec_map[vocab['str2idx_map'][token]])
-                node_ids += 1
-                # token_ids += [token2id[token]]
-
-        ## Create edge using sliding window:
-        u, v = get_sliding_edges(tokens, token2ids_map)
-
-        ## Create instance graph:
-        g = graph((tensor(u), tensor(v)))
-
-        ## Adding self-loops:
-        g = add_self_loop(g)
-
-        ## Add node (tokens) vectors to the graph:
-        if token2vec_map is not None:
-            g.ndata['emb'] = stack(graph_tokens_vec)
-
-        return g, list(token2ids_map.keys())
-
-    def create_instance_dgls(self, labelled_instances, vocab, class_names=('0', '1', '2', '3')):
-        """ Create dgl for each instance in the dataset.
-
-        :param labelled_instances: TorchText dataset object containing tokenized examples.
+        :param dataset_tt: TorchText dataset object containing tokenized examples.
         :param vocab: TorchText vocab with vectors.
         :param class_names:
         :return:
@@ -172,8 +136,8 @@ class Instance_Dataset_DGL(DGLDataset):
         labels = []
 
         ## Create dgl for each text instance:
-        for item in labelled_instances.examples:
-            g, doc_tokens = self.create_instance_dgl(vocab, item.text)
+        for item in dataset_tt.examples:
+            g, doc_tokens = self.create_instance_dgl(item.text, vocab)
             graphs.append(g)
             doc_uniq_tokens.append(doc_tokens)
 
@@ -184,6 +148,55 @@ class Instance_Dataset_DGL(DGLDataset):
             labels.append(class_vals)
 
         return graphs, doc_uniq_tokens, labels
+
+    def create_instance_dgl(self, tokens: list, vocab, tokenid2vec_map=None) -> (graph, list):
+        """ Given a tokenized list, returns dgl graph for that instance
+
+        :param vocab:
+        :param self:
+        :param tokens:
+        :param tokenid2vec_map:
+        :return:
+        """
+        if tokenid2vec_map is None:
+            tokenid2vec_map = vocab['vectors']
+
+        node_ids = 0
+        global_node_ids = []
+        g_node_vecs = []
+        local_token2ids_map = OrderedDict()
+
+        ## Get vectors for tokens:
+        for token in tokens:
+            global_id = vocab['str2idx_map'][token]
+            global_node_ids.append(global_id)
+            try:
+                local_token2ids_map[token]
+            except KeyError:
+                local_token2ids_map[token] = node_ids
+                g_node_vecs.append(tokenid2vec_map[vocab['str2idx_map'][token]])
+                node_ids += 1
+                # token_ids += [token2id[token]]
+
+        ## Create edge using sliding window:
+        u, v = get_sliding_edges(tokens, local_token2ids_map)
+
+        ## Create instance graph:
+        g = graph((tensor(u), tensor(v)))
+
+        ## Adding self-loops:
+        g = add_self_loop(g)
+
+        ## Store global ids of each node, required during training:
+        assert global_node_ids == g.num_nodes, \
+            f'Number of global node ids [{global_node_ids}] and nodes [{g.num_nodes}] in the graph mismatch.'
+        g.ndata['token_ids'] = stack(global_node_ids)
+
+        ## Add node (tokens) vectors to the graph:
+        if tokenid2vec_map is not None:
+            g.ndata['emb'] = stack(g_node_vecs)
+
+        return g, list(local_token2ids_map.keys())
 
     def split_instance_dgls(self, graphs, labels, test_size=0.3, stratified=False, random_state=0):
         """ Splits graphs and labels to train and test.

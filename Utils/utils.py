@@ -94,7 +94,7 @@ def split_target(df=None, data_dir=cfg["paths"]["dataset_dir"][plat][user],
     return df, t_lab_test_df
 
 
-def sp_coo_sparse2torch_sparse(M: sp.csr.csr_matrix) -> torch.sparse:
+def sp_coo2torch_coo(M: sp.csr.csr_matrix) -> torch.sparse:
     """
 
     :param M:

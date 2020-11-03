@@ -21,7 +21,7 @@ import torch
 import numpy as np
 import scipy.sparse as sp
 
-from Utils.utils import sp_coo_sparse2torch_sparse
+from Utils.utils import sp_coo2torch_coo
 from Label_Propagation_PyTorch.adj_propagator import Adj_Propagator
 
 
@@ -35,10 +35,10 @@ def GCN_forward_old(adj: sp.csr.csr_matrix, X: torch.Tensor, forward: int = 2
     :return: X' (#tokens x emb_dim)
     """
     if isinstance(adj, sp.csr_matrix):
-        adj = sp_coo_sparse2torch_sparse(adj)
+        adj = sp_coo2torch_coo(adj)
 
     I = sp.eye(*adj.shape).tocsr()
-    I = sp_coo_sparse2torch_sparse(I)
+    I = sp_coo2torch_coo(I)
 
     # I = torch.eye(*adj.shape).type(torch.FloatTensor)
     A_hat = adj + I
@@ -48,7 +48,7 @@ def GCN_forward_old(adj: sp.csr.csr_matrix, X: torch.Tensor, forward: int = 2
 
     D = D.to_dense().numpy()
     D = sp.diags(D).tocsr()
-    D = sp_coo_sparse2torch_sparse(D)
+    D = sp_coo2torch_coo(D)
 
     # D_inv = torch.diag(D_inv).type(torch.FloatTensor)
     A_hat = D * A_hat * D
@@ -71,7 +71,7 @@ def GCN_forward(adj, X, forward=2):
     :return: X' (#tokens x emb_dim)
     """
     if isinstance(adj, sp.csr_matrix):
-        adj = sp_coo_sparse2torch_sparse(adj)
+        adj = sp_coo2torch_coo(adj)
 
     adj_normalizer = Adj_Propagator()
 
