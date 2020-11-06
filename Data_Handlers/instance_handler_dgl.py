@@ -19,6 +19,7 @@ __license__     : "This source code is licensed under the MIT-style license
 
 from os.path import join, exists
 from torch import tensor, stack
+from torch.utils.data import DataLoader
 from collections import OrderedDict
 from dgl import graph, add_self_loop, save_graphs, load_graphs, batch as g_batch
 from dgl.data.utils import makedirs, save_info, load_info
@@ -42,7 +43,7 @@ class Instance_Dataset_DGL(DGLDataset):
         downloaded data or the directory that
         already stores the input data.
         Default: ~/.dgl/
-    save_dir : str
+    data_dir : str
         Directory to save the processed dataset.
         Default: the value of `raw_dir`
     force_reload : bool
@@ -52,35 +53,35 @@ class Instance_Dataset_DGL(DGLDataset):
     """
 
     def __init__(self, dataset, vocab, dataset_name, graph_path=None, class_names=('0', '1', '2', '3'),
-                 url=None, raw_dir=None, save_dir: str = cfg["paths"]["dataset_dir"][plat][user],
+                 url=None, raw_dir=None, data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
                  force_reload=False, verbose=False):
         # assert dataset_name.lower() in ['cora', 'citeseer', 'pubmed']
         # if dataset_name.lower() == 'cora':
         #     dataset_name = 'cora_v2'
-        super(Instance_Dataset_DGL, self).__init__(
-            name='Instance_DGL_Dataset', url=url, raw_dir=raw_dir, save_dir=save_dir,
-            force_reload=force_reload, verbose=verbose)
-        self.graphs, self.doc_uniq_tokens, self.labels = None, None, None
+        self.dataset, self.vocab = dataset, vocab
         self.class_names = class_names
+        self.data_dir = data_dir
+        super(Instance_Dataset_DGL, self).__init__(
+            name='Instance_DGL_Dataset', url=url, raw_dir=raw_dir, save_dir=data_dir,
+            force_reload=force_reload, verbose=verbose)
+        # self.graphs, self.doc_uniq_tokens, self.labels = None, None, None
         self.num_labels = len(self.class_names)
         if graph_path is None:
-            self.graph_path = join(self.save_path, dataset_name + '_instance_dgl.bin')
+            self.graph_path = join(self.data_dir, dataset_name + '_instance_dgl.bin')
         else:
             self.graph_path = graph_path
-        self.info_path = join(self.save_path, dataset_name + '_info.bin')
-        self.graphs, self.label = None, None
+        self.info_path = join(self.data_dir, dataset_name + '_info.bin')
 
-        self.graphs, self.doc_uniq_tokens, self.labels = self.create_instance_dgls(
-            dataset, vocab, class_names=self.class_names)
+        # self.graphs, self.doc_uniq_tokens, self.labels = self.create_instance_dgls(
+        #     self.dataset, self.vocab, class_names=self.class_names)
 
-    def process(self, dataset, vocab):
-        # === data processing skipped ===
-        mat_path = self.raw_path + '.bin'
+    def process(self):
+        # mat_path = self.raw_path + '.bin'
         # process data to a list of graphs and a list of labels
-        self.graphs, self.labels = self.load(mat_path)
+        # self.graphs, self.labels = self.load(mat_path)
 
-        self.graphs, self.doc_uniq_tokens, self.labels = self.create_instance_dgls(
-            dataset, vocab, class_names=self.class_names)
+        self.graphs, self.doc_uniq_tokens, self.labels, self.instance_graph_global_node_ids\
+            = self.create_instance_dgls(dataset=self.dataset, vocab=self.vocab, class_names=self.class_names)
 
     def __getitem__(self, idx):
         """ Get graph and label by index
@@ -126,20 +127,22 @@ class Instance_Dataset_DGL(DGLDataset):
     def create_instance_dgls(self, dataset_tt, vocab, class_names=('0', '1', '2', '3')):
         """Create dgl for each instance in the dataset.
 
-        :param dataset_tt: TorchText dataset object containing tokenized examples.
+        :param dataset: TorchText dataset object containing tokenized examples.
         :param vocab: TorchText vocab with vectors.
         :param class_names:
         :return:
         """
         graphs = []
+        instance_graph_global_node_ids = []
         doc_uniq_tokens = []
         labels = []
 
         ## Create dgl for each text instance:
-        for item in dataset_tt.examples:
-            g, doc_tokens = self.create_instance_dgl(item.text, vocab)
+        for item in dataset.examples:
+            g, local_tokens2id_map, global_node_ids = self.create_instance_dgl(item.text, vocab)
             graphs.append(g)
-            doc_uniq_tokens.append(doc_tokens)
+            instance_graph_global_node_ids.append(global_node_ids)
+            doc_uniq_tokens.append(local_tokens2id_map)
 
             class_vals = []
             for cls in class_names:
@@ -147,7 +150,7 @@ class Instance_Dataset_DGL(DGLDataset):
 
             labels.append(class_vals)
 
-        return graphs, doc_uniq_tokens, labels
+        return graphs, doc_uniq_tokens, labels, instance_graph_global_node_ids
 
     def create_instance_dgl(self, tokens: list, vocab, tokenid2vec_map=None) -> (graph, list):
         """ Given a tokenized list, returns dgl graph for that instance
@@ -159,7 +162,7 @@ class Instance_Dataset_DGL(DGLDataset):
         :return:
         """
         if tokenid2vec_map is None:
-            tokenid2vec_map = vocab['vectors']
+            tokenid2vec_map = vocab.vocab.vectors
 
         node_ids = 0
         global_node_ids = []
@@ -168,13 +171,13 @@ class Instance_Dataset_DGL(DGLDataset):
 
         ## Get vectors for tokens:
         for token in tokens:
-            global_id = vocab['str2idx_map'][token]
+            global_id = vocab.vocab.stoi[token]
             global_node_ids.append(global_id)
             try:
                 local_token2ids_map[token]
             except KeyError:
                 local_token2ids_map[token] = node_ids
-                g_node_vecs.append(tokenid2vec_map[vocab['str2idx_map'][token]])
+                g_node_vecs.append(tokenid2vec_map[vocab.vocab.stoi[token]])
                 node_ids += 1
                 # token_ids += [token2id[token]]
 
@@ -184,19 +187,14 @@ class Instance_Dataset_DGL(DGLDataset):
         ## Create instance graph:
         g = graph((tensor(u), tensor(v)))
 
-        ## Adding self-loops:
+        ## Adding self-loops: May not be required as will be normalized:
         g = add_self_loop(g)
-
-        ## Store global ids of each node, required during training:
-        assert global_node_ids == g.num_nodes, \
-            f'Number of global node ids [{global_node_ids}] and nodes [{g.num_nodes}] in the graph mismatch.'
-        g.ndata['token_ids'] = stack(global_node_ids)
 
         ## Add node (tokens) vectors to the graph:
         if tokenid2vec_map is not None:
             g.ndata['emb'] = stack(g_node_vecs)
 
-        return g, list(local_token2ids_map.keys())
+        return g, local_token2ids_map, global_node_ids
 
     def split_instance_dgls(self, graphs, labels, test_size=0.3, stratified=False, random_state=0):
         """ Splits graphs and labels to train and test.
