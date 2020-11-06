@@ -156,7 +156,7 @@ mlb = MultiLabelBinarizer()
 
 def read_labelled_json(data_dir=cfg["paths"]["dataset_dir"][plat][user],
                        filename=cfg["data"]["target"]['labelled'],
-                       data_keys=['text', 'classes'], dataname='train',
+                       data_keys=['text', 'classes'], data_set='train',
                        # rename_cols={"parsed_tweet": "text"},
                        ):
     """ Reads json data and converts to DataFrame.
@@ -167,7 +167,7 @@ def read_labelled_json(data_dir=cfg["paths"]["dataset_dir"][plat][user],
         data_dir:
         filename:
         data_keys:
-        dataname:
+        data_set:
         rename_cols:
 
     Returns:
@@ -178,7 +178,7 @@ def read_labelled_json(data_dir=cfg["paths"]["dataset_dir"][plat][user],
     logger.info(data_df.head())
     # data_df = data_df.rename(columns=rename_cols)
 
-    if dataname == 'train':
+    if data_set == 'train':
         y_hot = mlb.fit_transform(data_df.classes.to_list())
     else:
         y_hot = mlb.transform(data_df.classes.to_list())

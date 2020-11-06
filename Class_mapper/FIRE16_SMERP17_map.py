@@ -57,7 +57,7 @@ def labels_mapper(df, class_maps: dict = None):
             5: 3,
             6: 2
         }
-    logger.info(f'mapping classes: [{class_maps}]')
+    logger.info(f'Mapping classes: [{class_maps}]')
     new_cols = sorted(list(class_maps.values()))
     df2 = pd.DataFrame(columns=new_cols)
     # df2 = df[df.columns.difference(new_cols)]

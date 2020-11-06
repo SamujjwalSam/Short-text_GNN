@@ -189,8 +189,8 @@ def load_dataset(load_dir, name):
 
 
 def create_vocab(dataset: data.dataset.TabularDataset, TEXT_field: data.field.Field,
-                 LABEL_field: data.field.LabelField = None, embedding_file: str = None,
-                 embedding_dir: str = None, min_freq: int = 1, show_vocab_details: bool = True) -> None:
+                 LABEL_field: data.field.LabelField = None, embedding_file: [None, str] = None,
+                 embedding_dir: [None, str] = None, min_freq: int = 1, show_vocab_details: bool = True) -> None:
     """ Creates vocabulary using TorchText.
 
     :param dataset:
