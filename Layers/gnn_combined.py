@@ -1,8 +1,8 @@
 # coding=utf-8
 # !/usr/bin/python3.7  # Please use python 3.7
 """
-__synopsis__    : GNN Wrapper to combine large token graph with small instance graphs.
-__description__ : GNN Wrapper to combine large token graph with small instance graphs written in DGL library
+__synopsis__    : GNN Wrapper to combine token token graph with instance graphs.
+__description__ : GNN Wrapper to combine token token graph with instance graphs written in DGL library
 __project__     : Tweet_GNN_inductive
 __classes__     : Tweet_GNN_inductive
 __variables__   :
@@ -27,6 +27,7 @@ from Layers.gcn_dropedgelearn import GCN_DropEdgeLearn_Model
 
 class Instance_GAT_dgl(torch.nn.Module):
     """ GAT architecture for instance graphs. """
+
     def __init__(self, in_dim: int, hidden_dim: int, num_heads: int, out_dim: int):
         super(Instance_GAT_dgl, self).__init__()
         self.conv1 = GATConv(in_dim, hidden_dim, num_heads)
@@ -124,49 +125,54 @@ class BiLSTM_Classifier(torch.nn.Module):
 
 
 class GNN_Combined(torch.nn.Module):
-    def __init__(self, num_token, in_dim, hidden_dim, num_heads, out_dim, num_classes):
+    def __init__(self, num_token, in_dim, hidden_dim, num_heads, out_dim, num_classes, combine='concat'):
         super(GNN_Combined, self).__init__()
+        self.combine = combine
         self.token_gcn = GCN_DropEdgeLearn_Model(num_token=num_token, in_dim=in_dim, hidden_dim=hidden_dim,
                                                  out_dim=out_dim, dropout=0.2, adj_dropout=0.0)
 
         self.instance_gat_dgl = Instance_GAT_dgl(in_dim=in_dim, hidden_dim=hidden_dim,
                                                  num_heads=num_heads, out_dim=out_dim)
-        ## We may have different out_dim's from 2 GNNs and concat them.
 
-        self.bilstm_classifier = BiLSTM_Classifier(2 * out_dim, num_classes)
+        if combine == 'concat':
+            final_dim = 2 * out_dim
+        elif combine == 'avg':
+            final_dim = out_dim
+        else:
+            raise NotImplementedError(f'combine supports either concat or avg.'
+                                      f' [{combine}] provided.')
+        self.bilstm_classifier = BiLSTM_Classifier(final_dim, num_classes)
 
     def forward(self, instance_batch, instance_batch_embs, instance_batch_token_ids,
-                token_graph, token_embs, combine='concat'):
-        """ Combines embeddings of tokens from large and small graph by concatenating.
+                token_graph, token_embs):
+        """ Combines embeddings of tokens from token and instance graph by concatenating.
 
-        Take embeddings from large graph for tokens present in the small graph batch.
-        Need token to index information to fetch from large graph.
-        Arrange small tokens and large tokens in same order.
+        Take embeddings from token graph for tokens present in the instance graph batch.
 
         :param combine: How to combine two embeddings (Default: concatenate)
         :param instance_batch_token_ids: Ordered set of token ids present in the current instance batch
         :param instance_batch_embs: Embeddings from instance GAT
         :param instance_batch: Instance graph batch
-        :param token_embs: Embeddings from large GCN
-        :param token_graph: Large token graph
+        :param token_embs: Embeddings from token GCN
+        :param token_graph: token graph
         """
         ## Fetch embeddings from instance graphs:
-        token_embs_small = self.instance_gat_dgl(instance_batch, instance_batch_embs)
+        instance_batch_embs = self.instance_gat_dgl(instance_batch, instance_batch_embs)
 
-        ## Fetch embeddings from large token graph
-        token_embs_large = self.token_gcn(token_graph, token_embs)
+        ## Fetch embeddings from token graph
+        token_embs = self.token_gcn(token_graph, token_embs)
 
-        ## Fetch embeddings from large graph of tokens present in instance batch only:
-        token_embs_large = token_embs_large[instance_batch_token_ids]
+        ## Fetch embeddings from token graph of tokens present in instance batch only:
+        token_embs = token_embs[instance_batch_token_ids]
 
         ## Combine both embeddings:
-        if combine == 'concat':
-            embs = torch.cat([token_embs_small, token_embs_large])
-        elif combine == 'avg':
-            embs = torch.mean(torch.stack([token_embs_small, token_embs_large]), dim=0)
+        if self.combine == 'concat':
+            embs = torch.cat([instance_batch_embs, token_embs])
+        elif self.combine == 'avg':
+            embs = torch.mean(torch.stack([instance_batch_embs, token_embs]), dim=0)
         else:
             raise NotImplementedError(f'combine supports either concat or avg.'
-                                      f' [{combine}] provided.')
+                                      f' [{self.combine}] provided.')
         return self.bilstm_classifier(embs)
 
 

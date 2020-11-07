@@ -27,6 +27,7 @@ from dgl.data import DGLDataset
 from sklearn.model_selection import train_test_split
 
 from Utils.utils import iterative_train_test_split
+from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user
 
@@ -61,30 +62,29 @@ class Instance_Dataset_DGL(DGLDataset):
         self.dataset, self.vocab = dataset, vocab
         self.class_names = class_names
         self.data_dir = data_dir
-        super(Instance_Dataset_DGL, self).__init__(
-            name='Instance_DGL_Dataset', url=url, raw_dir=raw_dir, save_dir=data_dir,
-            force_reload=force_reload, verbose=verbose)
-        # self.graphs, self.doc_uniq_tokens, self.labels = None, None, None
-        self.num_labels = len(self.class_names)
+        self.dataset_name = dataset_name
         if graph_path is None:
             self.graph_path = join(self.data_dir, dataset_name + '_instance_dgl.bin')
         else:
             self.graph_path = graph_path
         self.info_path = join(self.data_dir, dataset_name + '_info.bin')
-
-        # self.graphs, self.doc_uniq_tokens, self.labels = self.create_instance_dgls(
-        #     self.dataset, self.vocab, class_names=self.class_names)
+        super(Instance_Dataset_DGL, self).__init__(
+            name='Instance_DGL_Dataset', url=url, raw_dir=self.data_dir, save_dir=data_dir,
+            force_reload=force_reload, verbose=verbose)
+        # self.graphs, self.instance_token2nodeids_map, self.labels = None, None, None
+        self.num_labels = len(self.class_names)
 
     def process(self):
-        # mat_path = self.raw_path + '.bin'
-        # process data to a list of graphs and a list of labels
-        # self.graphs, self.labels = self.load(mat_path)
-
-        self.graphs, self.doc_uniq_tokens, self.labels, self.instance_graph_global_node_ids\
-            = self.create_instance_dgls(dataset=self.dataset, vocab=self.vocab, class_names=self.class_names)
+        ## Load of create graphs, labels and global ids:
+        if exists(self.graph_path):
+            self.graphs, self.labels, self.instance_graph_global_node_ids = self.load_instance_dgl(self.graph_path)
+        else:
+            self.graphs, self.instance_token2nodeids_map, self.labels, self.instance_graph_global_node_ids\
+                = self.create_instance_dgls(dataset=self.dataset, vocab=self.vocab, class_names=self.class_names)
+            self.save_instance_dgl()
 
     def __getitem__(self, idx):
-        """ Get graph and label by index
+        """ Get graph, label and global token ids by index.
 
         Parameters
         ----------
@@ -95,24 +95,35 @@ class Instance_Dataset_DGL(DGLDataset):
         -------
         (dgl.DGLGraph, Tensor)
         """
-        return self.graphs[idx], self.labels[idx]
+        return self.graphs[idx], self.labels[idx], self.instance_graph_global_node_ids[idx]
 
     def __len__(self):
         """Number of graphs in the dataset"""
         return len(self.graphs)
 
-    def save_instance_dgl(self, graph_path=None, info=False, infopath=None):
+    def save_instance_dgl(self, graph_path=None):
         # save graphs and labels
+        save_pickle(self.instance_graph_global_node_ids, self.dataset_name +
+                    '_instance_graph_global_node_ids', filepath=self.data_dir)
         if graph_path is None:
             graph_path = self.graph_path
-        save_dgl(self.graphs, self.labels, graph_path, info, infopath)
+        save_dgl(self.graphs, self.labels, graph_path)
 
     def load_instance_dgl(self, graph_path, infopath=None):
+        """ Loads instance graphs.
+
+        :param graph_path:
+        :param infopath:
+        :return:
+        """
         if graph_path is None:
             graph_path = self.graph_path
+
+        self.instance_graph_global_node_ids = load_pickle(self.dataset_name +
+            '_instance_graph_global_node_ids', filepath=self.data_dir)
         # load processed data from directory graph_path
         self.graphs, self.labels = load_dgl(graph_path, infopath)
-        return self.graphs, self.labels
+        return self.graphs, self.labels, self.instance_graph_global_node_ids
 
     def batch_graphs(self, samples):
         """ Batches graph data by creating a block adjacency matrix.
@@ -124,7 +135,11 @@ class Instance_Dataset_DGL(DGLDataset):
         batched_graph = g_batch(graphs)
         return batched_graph, tensor(labels)
 
-    def create_instance_dgls(self, dataset_tt, vocab, class_names=('0', '1', '2', '3')):
+    def get_dataloader(self, train_batch_size=cfg['training']['train_batch_size']):
+        return DataLoader((self.graphs, self.labels), batch_size=train_batch_size, shuffle=True,
+                          collate_fn=self.batch_graphs)
+
+    def create_instance_dgls(self, dataset, vocab, class_names=('0', '1', '2', '3')):
         """Create dgl for each instance in the dataset.
 
         :param dataset: TorchText dataset object containing tokenized examples.
@@ -134,15 +149,15 @@ class Instance_Dataset_DGL(DGLDataset):
         """
         graphs = []
         instance_graph_global_node_ids = []
-        doc_uniq_tokens = []
+        instance_nodes_token_map = []
         labels = []
 
         ## Create dgl for each text instance:
         for item in dataset.examples:
-            g, local_tokens2id_map, global_node_ids = self.create_instance_dgl(item.text, vocab)
+            g, instance_tokens2nodeid_map, global_node_ids = self.create_instance_dgl(item.text, vocab)
             graphs.append(g)
             instance_graph_global_node_ids.append(global_node_ids)
-            doc_uniq_tokens.append(local_tokens2id_map)
+            instance_nodes_token_map.append(instance_tokens2nodeid_map)
 
             class_vals = []
             for cls in class_names:
@@ -150,7 +165,7 @@ class Instance_Dataset_DGL(DGLDataset):
 
             labels.append(class_vals)
 
-        return graphs, doc_uniq_tokens, labels, instance_graph_global_node_ids
+        return graphs, instance_nodes_token_map, tensor(labels), instance_graph_global_node_ids
 
     def create_instance_dgl(self, tokens: list, vocab, tokenid2vec_map=None) -> (graph, list):
         """ Given a tokenized list, returns dgl graph for that instance
@@ -167,22 +182,22 @@ class Instance_Dataset_DGL(DGLDataset):
         node_ids = 0
         global_node_ids = []
         g_node_vecs = []
-        local_token2ids_map = OrderedDict()
+        instance_token2nodeids_map = OrderedDict()
 
         ## Get vectors for tokens:
         for token in tokens:
             global_id = vocab.vocab.stoi[token]
             global_node_ids.append(global_id)
             try:
-                local_token2ids_map[token]
+                instance_token2nodeids_map[token]
             except KeyError:
-                local_token2ids_map[token] = node_ids
+                instance_token2nodeids_map[token] = node_ids
                 g_node_vecs.append(tokenid2vec_map[vocab.vocab.stoi[token]])
                 node_ids += 1
                 # token_ids += [token2id[token]]
 
         ## Create edge using sliding window:
-        u, v = get_sliding_edges(tokens, local_token2ids_map)
+        u, v = get_sliding_edges(tokens, instance_token2nodeids_map)
 
         ## Create instance graph:
         g = graph((tensor(u), tensor(v)))
@@ -194,7 +209,7 @@ class Instance_Dataset_DGL(DGLDataset):
         if tokenid2vec_map is not None:
             g.ndata['emb'] = stack(g_node_vecs)
 
-        return g, local_token2ids_map, global_node_ids
+        return g, instance_token2nodeids_map, global_node_ids
 
     def split_instance_dgls(self, graphs, labels, test_size=0.3, stratified=False, random_state=0):
         """ Splits graphs and labels to train and test.
@@ -252,6 +267,7 @@ def get_sliding_edges(tokens: list, token2ids_map: dict, window_size=2):
 def save_dgl(graphs, labels, graph_path, info=None, info_path=None):
     """ Saves dgl graphs, labels and other info.
 
+    :param instance_graph_global_node_ids:
     :param info:
     :param graphs:
     :param labels:
@@ -260,8 +276,6 @@ def save_dgl(graphs, labels, graph_path, info=None, info_path=None):
     :param info_path:
     """
     # save graphs and labels
-    if not exists(graph_path):
-        makedirs(graph_path)
     save_graphs(graph_path, graphs, {'labels': labels})
     # save other information in python dict
     if info_path is not None:

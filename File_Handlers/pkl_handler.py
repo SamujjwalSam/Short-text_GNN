@@ -35,7 +35,7 @@ def get_date_time_tag(current_file_name=False):
 date_time_tag = get_date_time_tag()
 
 
-def save_pickle(data, filename, filepath, overwrite=False, tag=False):
+def save_pickle(data, filename, filepath='', overwrite=False, tag=False):
     """ Saves python object as pickle file.
 
     :param data:
@@ -83,23 +83,23 @@ def save_pickle(data, filename, filepath, overwrite=False, tag=False):
         return False
 
 
-def load_pickle(pkl_file_name, pkl_file_path):
+def load_pickle(filename, filepath=''):
     """ Loads pickle file from files.
 
-    :param pkl_file_name:
-    :param pkl_file_path:
+    :param filename:
+    :param filepath:
     :return:
     """
     try:
-        if exists(join(pkl_file_path, pkl_file_name + ".pkl")):
+        if exists(join(filepath, filename + ".pkl")):
             logger.debug(("Reading pickle file: ",
-                          join(pkl_file_path, pkl_file_name + ".pkl")))
-            with open(join(pkl_file_path, pkl_file_name + ".pkl"),
+                          join(filepath, filename + ".pkl")))
+            with open(join(filepath, filename + ".pkl"),
                       'rb') as pkl_file:
                 loaded = pickle.load(pkl_file)
             return loaded
     except Exception as e:
         logger.debug(("Could not write to pickle file:",
-                      join(pkl_file_path, pkl_file_name + ".pkl")))
+                      join(filepath, filename + ".pkl")))
         logger.debug(("Failure reason:", e))
         return False

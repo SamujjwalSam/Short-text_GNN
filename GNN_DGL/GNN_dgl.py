@@ -278,7 +278,6 @@ def graph_multilabel_classification(
                                  out_dim=gdh.num_classes)
     logger.info(model)
 
-    # loss_func = torch.nn.CrossEntropyLoss()
     loss_func = torch.nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=cfg["model"]["optimizer"]["lr"])
 
