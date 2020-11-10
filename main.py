@@ -17,10 +17,11 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
-import torch
 import argparse
-import pandas as pd
-import networkx as nx
+from torch import cuda
+from torch.utils.data import DataLoader
+from pandas import DataFrame
+from networkx import adjacency_matrix
 from pathlib import Path
 from os import environ
 from os.path import join, exists
@@ -37,12 +38,11 @@ from File_Handlers.json_handler import save_json, read_json, json_keys2df,\
     read_labelled_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
-from Data_Handlers.graph_constructor_dgl import DGL_Graph
 from build_corpus_vocab import get_dataset_fields
-from Data_Handlers.graph_constructor_nx import get_node_features,\
-    add_edge_weights, create_tokengraph, generate_sample_subgraphs
+from Data_Handlers.token_handler_nx import Token_Dataset_nx
+from Data_Handlers.instance_handler_dgl import Instance_Dataset_DGL
 from Layers.GCN_forward import GCN_forward, GCN_forward_old
-from GNN_DGL.GNN_dgl import graph_multilabel_classification
+from Trainer.graph_trainer import graph_multilabel_classification
 from Transformers_simpletransformers.BERT_multilabel_classifier import BERT_classifier
 from finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
     train_mittens, preprocess_and_find_oov
@@ -57,7 +57,7 @@ n_classes = 4
 
 ## Enable multi GPU cuda environment:
 # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-if torch.cuda.is_available():
+if cuda.is_available():
     environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 
 """
@@ -219,7 +219,9 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
          labelled_target_name: str = cfg["data"]["target"]['labelled'],
          unlabelled_target_name: str = cfg["data"]["target"]['unlabelled'],
          mittens_iter: int = 1000, gcn_hops: int = 5,
-         glove_embs=None):
+         glove_embs=None,
+         train_batch_size=cfg['training']['train_batch_size'],
+         test_batch_size=cfg['training']['eval_batch_size']):
     if glove_embs is None:
         glove_embs = glove2dict()
     data_dir = Path(data_dir)
@@ -282,56 +284,82 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
 
         save_json(C_vocab, labelled_source_name + 'C_vocab', overwrite=True)
 
-    graph_path = labelled_source_name + "G.pkl"
-    if exists(graph_path):
-        G = nx.read_gpickle(graph_path)
-    else:
-        G = create_tokengraph(corpus_toks, C_vocab, S_vocab, T_vocab)
-        ## Calculate edge weights from cooccurrence stats:
-        G = add_edge_weights(G)
-        nx.write_gpickle(G, graph_path)
+    ## Read labelled datasets and prepare:
+    logger.info('Read labelled datasets and prepare')
+    train_dataset, test_dataset, train_vocab, test_vocab = prepare_datasets()
 
-    logger.info("Number of nodes: [{}]".format(len(G.nodes)))
-    logger.info("Number of edges: [{}]".format(len(G.edges)))
+    logger.info('Creating instance graphs')
+    train_instance_graphs = Instance_Dataset_DGL(train_dataset, train_vocab, labelled_source_name)
+    logger.debug(train_instance_graphs.num_labels)
+    # logger.debug(train_instance_graphs.graphs, train_instance_graphs.labels)
+
+    train_dataloader = DataLoader(train_instance_graphs, batch_size=train_batch_size, shuffle=True,
+                                  collate_fn=train_instance_graphs.batch_graphs)
+
+    logger.info(f"Number of training instance graphs: {len(train_instance_graphs)}")
+
+    test_instance_graphs = Instance_Dataset_DGL(test_dataset, train_vocab, labelled_target_name)
+
+    test_dataloader = DataLoader(test_instance_graphs, batch_size=test_batch_size, shuffle=True,
+                                 collate_fn=test_instance_graphs.batch_graphs)
+
+    logger.info(f"Number of testing instance graphs: {len(test_instance_graphs)}")
+
+    ## Create token graph:
+    logger.info(f'Creating token graph')
+    g_ob = Token_Dataset_nx(corpus_toks, C_vocab, S_vocab, T_vocab, dataset_name=labelled_source_name)
+    G = g_ob.G
+    num_tokens = g_ob.num_tokens
+
     node_list = list(G.nodes)
+    logger.info(f"Number of nodes {len(node_list)} and edges {len(G.edges)} in token graph")
 
     ## Create new embeddings for OOV tokens:
-    oov_filename = labelled_source_name + '_OOV_vectors_dict'
-    if exists(join(data_dir, oov_filename + '.pkl')):
+    oov_emb_filename = labelled_source_name + '_OOV_vectors_dict'
+    if exists(join(data_dir, oov_emb_filename + '.pkl')):
         logger.info('Read embeddings for OOV tokens')
-        oov_embs = load_pickle(pkl_file_path=data_dir,
-                               pkl_file_name=oov_filename)
+        oov_embs = load_pickle(filepath=data_dir, filename=oov_emb_filename)
     else:
         logger.info('Create new embeddings for OOV tokens')
         high_oov_tokens_list = list(high_oov_freqs.keys())
         c_corpus = corpus[0] + corpus[1]
         oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens_list, c_corpus)
         oov_embs = train_mittens(oov_mat_coo, high_oov_tokens_list, glove_embs, max_iter=mittens_iter)
-        save_pickle(oov_embs, filepath=data_dir, filename=oov_filename, overwrite=True)
-
-    logger.info('Creating instance graphs')
-    from Data_Handlers.graph_data_handler_dgl import Graph_Data_Handler
-
-    gdh = Graph_Data_Handler(dataset_dir=data_dir, dataset_info=cfg['data'])
-    gdh.setup(stage='da')
-    # gdh.train_dataloader()
-
-    logger.info('Classifying instance graphs')
-    train_epochs_output_dict, test_output = graph_multilabel_classification(
-        gdh, in_feats=100, hid_feats=cfg['gnn_params']['hid_dim'],
-        num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'])
-
-    ## TODO: Generate <UNK> embedding from low freq tokens:
+        save_pickle(oov_embs, filepath=data_dir, filename=oov_emb_filename, overwrite=True)
 
     ## Get adjacency matrix and node embeddings in same order:
-    logger.info('Accessing Adjacency matrix')
-    adj_filename = labelled_source_name + "adj.npz"
+    from Utils.utils import sp_coo2torch_coo
+    from torch import save, load
+    logger.info('Accessing token adjacency matrix')
+    adj_filename = join(data_dir, labelled_source_name + "_adj.pt")
     if exists(adj_filename):
-        adj = sparse.load_npz(adj_filename)
+        adj = load(adj_filename)
+        # adj = sp_coo2torch_coo(adj)
     else:
-        adj = nx.adjacency_matrix(G, nodelist=node_list, weight='edge_weight')
-        # adj_np = nx.to_numpy_matrix(G)
-        sparse.save_npz(adj_filename, adj)
+        adj = adjacency_matrix(G, nodelist=node_list, weight='weight')
+        adj = sp_coo2torch_coo(adj)
+        save(adj, adj_filename)
+
+    logger.info('Accessing token embeddings')
+    emb_filename = join(data_dir, labelled_source_name + "_emb.pt")
+    if exists(emb_filename):
+        X = load(emb_filename)
+    else:
+        logger.info('Get node embeddings:')
+        X = g_ob.get_node_embeddings(oov_embs, glove_embs, C_vocab['idx2str_map'])
+        # X = sp_coo2torch_coo(X)
+        save(X, emb_filename)
+
+    logger.info('Classifying combined graphs')
+    train_epochs_output_dict, test_output = graph_multilabel_classification(
+        adj, X, train_dataloader, test_dataloader, num_tokens=num_tokens,
+        in_feats=100, hid_feats=cfg['gnn_params']['hid_dim'],
+        num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'])
+
+    logger.info('Applying GCN Forward old')
+    X_hat = GCN_forward_old(adj, X, forward=gcn_hops)
+    # logger.info('Applying GCN Forward')
+    # X_hat = GCN_forward(adj, X, forward=gcn_hops)
 
     # ## Apply Label Propagation to get label vectors for unlabelled nodes:
     # logger.info('Apply Label Propagation to get label vectors for unlabelled nodes')
@@ -359,16 +387,91 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
     # X_labels_hat = GCN_forward(adj, all_node_labels, forward=gcn_hops)
     # torch.save(X_labels_hat, 'X_labels_hat_05.pt')
 
-    logger.info('Get node features')
-    merged_embs = merge_dicts(glove_embs, oov_embs)
-    # save_pickle(merged_embs, cfg["embeddings"]["saved_emb_file"], data_dir)
-    X = get_node_features(merged_embs, oov_embs, C_vocab['idx2str_map'], node_list)
-    logger.info('Applying GCN Forward old')
-    X_hat = GCN_forward_old(adj, X, forward=gcn_hops)
-    # logger.info('Applying GCN Forward')
-    # X_hat = GCN_forward(adj, X, forward=gcn_hops)
-
     return C_vocab['str2idx_map'], X_hat
+
+
+def prepare_datasets(train_df=None, test_df=None, stoi=None, vectors=None,
+                     dim=cfg['prep_vecs']['input_size'], split_test=False, get_iter=False,
+                     data_dir=cfg["paths"]["dataset_dir"][plat][user],
+                     train_filename=cfg["data"]["source"]['labelled'],
+                     test_filename=cfg["data"]["target"]['labelled']):
+    """ Creates train and test dataset from df and returns data loader.
+
+    :param get_iter: If iterator over the text samples should be returned
+    :param split_test: Splits the testing data
+    :param train_df: Training dataframe
+    :param test_df: Testing dataframe
+    :param vectors: Custom Vectors for each token
+    :param dim: Embedding dim
+    :param data_dir:
+    :param train_filename:
+    :param test_filename:
+    :return:
+    """
+    logger.info(f'Prepare labelled train (source) data: {train_filename}')
+    if train_df is None:
+        if train_filename.startswith('fire16'):
+            train_df = load_fire16()
+        else:
+            train_df = read_labelled_json(data_dir, train_filename)
+
+    train_data_name = train_filename + "_4class_data.csv"
+    train_df.to_csv(join(data_dir, train_data_name))
+
+    if stoi is None:
+        logger.critical('Setting GLOVE vectors:')
+        train_dataset, (train_vocab, train_label) = get_dataset_fields(
+            csv_dir=data_dir, csv_file=train_data_name, min_freq=1, labelled_data=True)
+    else:
+        logger.critical('Setting custom vectors:')
+        train_dataset, (train_vocab, train_label) = get_dataset_fields(
+            csv_dir=data_dir, csv_file=train_data_name, min_freq=1,
+            labelled_data=True, embedding_file=None, embedding_dir=None)
+        train_vocab.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
+
+    ## Plot representations:
+    # plot_features_tsne(train_vocab.vocab.vectors,
+    #                    list(train_vocab.vocab.stoi.keys()))
+
+    # train_vocab = {
+    #     'freqs':       train_vocab.vocab.freqs,
+    #     'str2idx_map': dict(train_vocab.vocab.stoi),
+    #     'idx2str_map': train_vocab.vocab.itos,
+    #     'vectors': train_vocab.vocab.vectors,
+    # }
+
+    ## Prepare labelled target data:
+    logger.info(f'Prepare labelled test (target) data: {test_filename}')
+    if test_df is None:
+        if test_filename.startswith('smerp17'):
+            test_df = load_smerp17()
+        else:
+            test_df = read_labelled_json(data_dir, test_filename, data_set='test')
+
+        if split_test:
+            test_extra_df, test_df = split_target(df=test_df, test_size=0.4)
+    test_data_name = test_filename + "_4class_data.csv"
+    test_df.to_csv(join(data_dir, test_data_name))
+    test_dataset, (test_vocab, test_label) = get_dataset_fields(
+        csv_dir=data_dir, csv_file=test_data_name, labelled_data=True)
+
+    # test_vocab = {
+    #     'freqs':       test_vocab.vocab.freqs,
+    #     'str2idx_map': dict(test_vocab.vocab.stoi),
+    #     'idx2str_map': test_vocab.vocab.itos,
+    #     'vectors': test_vocab.vocab.vectors,
+    # }
+
+    logger.info('Get iterator')
+    if get_iter:
+        train_batch_size = cfg['training']['train_batch_size']
+        test_batch_size = cfg['training']['eval_batch_size']
+        train_iter, val_iter = dataset2bucket_iter(
+            (train_dataset, test_dataset), batch_sizes=(train_batch_size, test_batch_size))
+
+        return train_dataset, test_dataset, train_vocab, test_vocab, train_iter, val_iter
+
+    return train_dataset, test_dataset, train_vocab, test_vocab
 
 
 def classify(train_df=None, test_df=None, stoi=None, vectors=None,
@@ -415,18 +518,18 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
 
     if stoi is None:
         logger.critical('GLOVE features')
-        train_dataset, (train_fields, train_label) = get_dataset_fields(
+        train_dataset, (train_vocab, train_label) = get_dataset_fields(
             csv_dir=data_dir, csv_file=train_data_name, min_freq=1, labelled_data=True)
     else:
         logger.critical('GCN features')
-        train_dataset, (train_fields, train_label) = get_dataset_fields(
+        train_dataset, (train_vocab, train_label) = get_dataset_fields(
             csv_dir=data_dir, csv_file=train_data_name, min_freq=1,
             labelled_data=True, embedding_file=None, embedding_dir=None)
-        train_fields.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
+        train_vocab.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
 
     ## Plot representations:
-    # plot_features_tsne(train_fields.vocab.vectors,
-    #                    list(train_fields.vocab.stoi.keys()))
+    # plot_features_tsne(train_vocab.vocab.vectors,
+    #                    list(train_vocab.vocab.stoi.keys()))
 
     ## Prepare labelled target data:
     logger.info('Prepare labelled target data')
@@ -434,7 +537,7 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
         test_df = read_labelled_json(data_dir, test_filename)
     test_data_name = test_filename + "_4class_data.csv"
     test_df.to_csv(join(data_dir, test_data_name))
-    test_dataset, (test_fields, test_label) = get_dataset_fields(
+    test_dataset, (test_vocab, test_label) = get_dataset_fields(
         csv_dir=data_dir, csv_file=test_data_name,  # init_vocab=True,
         labelled_data=True)
 
@@ -445,7 +548,7 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
     train_iter, val_iter = dataset2bucket_iter(
         (train_dataset, test_dataset), batch_sizes=(train_batch_size, test_batch_size))
 
-    size_of_vocab = len(train_fields.vocab)
+    size_of_vocab = len(train_vocab.vocab)
     num_output_nodes = n_classes
 
     # instantiate the model
@@ -462,7 +565,7 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
 
     # Initialize the pretrained embedding
     logger.info('Initialize the pretrained embedding')
-    pretrained_embeddings = train_fields.vocab.vectors
+    pretrained_embeddings = train_vocab.vocab.vectors
     model.embedding.weight.data.copy_(pretrained_embeddings)
 
     logger.debug(pretrained_embeddings.shape)
@@ -480,7 +583,7 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
         cls_thresh = [default_thresh] * n_classes
 
     predicted_labels = logit2label(
-        pd.DataFrame(val_preds_trues_best['preds'].cpu().numpy()), cls_thresh,
+        DataFrame(val_preds_trues_best['preds'].cpu().numpy()), cls_thresh,
         drop_irrelevant=False)
 
     logger.info('Calculate performance')
@@ -516,7 +619,7 @@ def get_supervised_result(model, train_iterator, val_iterator, test_iterator,
         cls_thresh = [0.5] * n_classes
 
     predicted_labels = logit2label(
-        pd.DataFrame(test_preds_trues['preds'].numpy()), cls_thresh,
+        DataFrame(test_preds_trues['preds'].numpy()), cls_thresh,
         drop_irrelevant=False)
 
     result = calculate_performance_pl(test_preds_trues['trues'],
@@ -566,20 +669,20 @@ if __name__ == "__main__":
 
     if cfg['data']['target']['labelled'].startswith('smerp17'):
         target_df = load_smerp17()
-        target_train_df, test_df = split_target(df=target_df, test_size=0.4)
+        target_train_df, test_df = split_target(df=target_df, test_size=0.999)
 
-    result, model_outputs = BERT_classifier(
-        train_df=train_df, test_df=test_df, dataset_name=args.dataset_name,
-        model_name=args.model_name, model_type=args.model_type,
-        num_epoch=args.num_train_epochs, use_cuda=True)
-
-    exit(0)
+    # result, model_outputs = BERT_classifier(
+    #     train_df=train_df, test_df=test_df, dataset_name=args.dataset_name,
+    #     model_name=args.model_name, model_type=args.model_type,
+    #     num_epoch=args.num_train_epochs, use_cuda=True)
 
     glove_embs = glove2dict()
 
     # train, test = split_target(test_df, test_size=0.3,
     #                            train_size=.6, stratified=False)
     s2i_dict, X_hat = main(gcn_hops=2, glove_embs=glove_embs)
+
+    exit(0)
 
     glove_target = classify(
         train_df=train_df, test_df=test_df, epoch=2, num_layers=2,
@@ -590,8 +693,6 @@ if __name__ == "__main__":
         vectors=X_hat, epoch=2, num_hidden_nodes=50,
         num_layers=2, dropout=.3, lr=3e-4)
     logger.info(gcn_target)
-
-    exit(0)
 
     epochs = [10, 25]
     layer_sizes = [1, 4]

@@ -84,7 +84,8 @@ class GCN(torch.nn.Module):
         x = F.relu(self.gc1(x, adj))
         x = F.dropout(x, self.dropout, training=self.training)
         x = self.gc2(x, adj)
-        return F.log_softmax(x, dim=1)
+        # return F.log_softmax(x, dim=1)
+        return x
 
 
 class GCN_DropEdgeLearn_Layer(torch.nn.Module):
@@ -100,6 +101,8 @@ class GCN_DropEdgeLearn_Layer(torch.nn.Module):
         """
         super(GCN_DropEdgeLearn_Layer, self).__init__()
         self.num_token = num_token
+        self.emb_dim = emb_dim
+        self.out_dim = out_dim
         self.weight = Parameter(torch.FloatTensor(emb_dim, out_dim))
         if bias:
             self.bias = Parameter(torch.FloatTensor(out_dim))
@@ -132,27 +135,27 @@ class GCN_DropEdgeLearn_Layer(torch.nn.Module):
             return X
 
     def get_adj_dropout(self, shape_A, adj_drop=0.2):
-        """ Applies dropout to the whole adjacency matrix.
+        """ Get dropout matrix of shape adjacency matrix
 
         TODO: symmetric dropout (for undirected graph)
 
         :param adj_drop: dropout rate
         """
-        ## Apply dropout to whole adjacency matrix:
-        adj_dropout = torch.nn.Dropout(p=adj_drop, inplace=False)
-        D = torch.ones(shape_A)
-        D_prime = adj_dropout(D)
-        return D_prime
+        ## Get dropout matrix of shape adjacency matrix:
+        adj_dropout = torch.nn.Dropout(p=adj_drop, inplace=True)
+        D_drop = torch.ones(shape_A)
+        adj_dropout(D_drop)
+        return D_drop
 
     def __repr__(self):
-        return self.__class__.__name__ + ' (' + str(self.num_token) + ')'\
+        return self.__class__.__name__ + ' (' + str(self.num_token) + '): '\
                + str(self.emb_dim) + ' -> ' + str(self.out_dim)
 
 
 class GCN_DropEdgeLearn_Model(torch.nn.Module):
     """ GCN model with DropEdge and learnable param matrix S. """
     def __init__(self, num_token, in_dim, hidden_dim, out_dim, num_layer=2, dropout=0.2,
-                 adj_dropout=0.0, training=True):
+                 adj_dropout=0.1, training=True):
         """GCN model with DropEdge and learnable param matrix S
 
         :param num_token: number of tokens
@@ -167,6 +170,10 @@ class GCN_DropEdgeLearn_Model(torch.nn.Module):
         super(GCN_DropEdgeLearn_Model, self).__init__()
         self.training = training
         self.dropout = dropout
+        self.num_token = num_token
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        self.num_layer = num_layer
 
         self.dropedgelearn_gcn1 = GCN_DropEdgeLearn_Layer(
             num_token, emb_dim=in_dim, out_dim=hidden_dim, adj_drop=adj_dropout)
@@ -191,7 +198,7 @@ class GCN_DropEdgeLearn_Model(torch.nn.Module):
 
         instance_batch: Instance graph batch
         instance_batch_embs: Embeddings from instance GAT
-        instance_batch_token_ids: Ordered set of token ids present in the current batch of instance graph
+        instance_batch_global_token_ids: Ordered set of token ids present in the current batch of instance graph
         token_graph: Large token graph
         token_embs: Embeddings from large GCN
         combine: How to combine two embeddings (Default: concatenate)
@@ -200,8 +207,8 @@ class GCN_DropEdgeLearn_Model(torch.nn.Module):
         Convert to boolean mask indicating the tokens present in the current batch of instances.
         Boolean mask size: List of number of tokens in the large graph.
         """
-        self.dropedgelearn_gcn.apply_targeted_dropout(
-            targeted_drop=targeted_drop_start + self.current_epoch / self.num_epoch)
+        # self.dropedgelearn_gcn.get_adj_dropout(
+        #     targeted_drop=targeted_drop_start + self.current_epoch / self.num_epoch)
         X = self.dropedgelearn_gcn1(A, X)
         X = F.dropout(X, self.dropout, training=self.training)
 
@@ -233,6 +240,10 @@ class GCN_DropEdgeLearn_Model(torch.nn.Module):
         # A = self.softmax(A)
 
         return A
+
+    # def __repr__(self):
+    #     return self.__class__.__name__ + ' (' + str(self.num_token) + ')'\
+    #            + str(self.in_dim) + ' -> ' + str(self.out_dim) + ' x ' + str(self.num_layer)
 
 
 if __name__ == "__main__":

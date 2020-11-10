@@ -22,7 +22,7 @@ import torch.nn.functional as F
 from dgl import DGLGraph
 from dgl.nn.pytorch.conv import GATConv, GraphConv
 
-from Layers.gcn_dropedgelearn import GCN_DropEdgeLearn_Model
+from Layers.gcn_dropedgelearn import GCN_DropEdgeLearn_Model, GCN
 
 
 class Instance_GAT_dgl(torch.nn.Module):
@@ -40,9 +40,10 @@ class Instance_GAT_dgl(torch.nn.Module):
         # Perform graph convolution and activation function.
         emb = F.relu(self.conv1(g, emb))
         emb = emb.view(-1, emb.size(1) * emb.size(2)).float()
-        emb = F.relu(self.conv2(g, emb))
+        # emb = F.relu(self.conv2(g, emb))
+        emb = self.conv2(g, emb)
         emb = emb.view(-1, emb.size(1) * emb.size(2)).float()
-        # g.ndata['emb'] = emb
+        g.ndata['emb'] = emb
         return emb
 
 
@@ -65,7 +66,7 @@ class BiLSTM_Classifier(torch.nn.Module):
     """ BiLSTM for classification. """
 
     # define all the layers used in model
-    def __init__(self, hidden_dim, output_dim, embedding_dim=100,
+    def __init__(self, embedding_dim, output_dim, hidden_dim=100,
                  n_layers=2, bidirectional=True, dropout=0.2, num_linear=1):
         super().__init__()
         self.lstm = torch.nn.LSTM(embedding_dim, hidden_dim, num_layers=n_layers,
@@ -94,7 +95,7 @@ class BiLSTM_Classifier(torch.nn.Module):
         ## NOTE: Sigmoid not required as BCEWithLogitsLoss calculates sigmoid
         # self.act = torch.nn.Sigmoid()
 
-    def forward(self, text, text_lengths):
+    def forward(self, text, text_lengths=None):
         """ Takes ids of input text, pads them and predict using BiLSTM.
 
         Args:
@@ -128,8 +129,10 @@ class GNN_Combined(torch.nn.Module):
     def __init__(self, num_token, in_dim, hidden_dim, num_heads, out_dim, num_classes, combine='concat'):
         super(GNN_Combined, self).__init__()
         self.combine = combine
-        self.token_gcn = GCN_DropEdgeLearn_Model(num_token=num_token, in_dim=in_dim, hidden_dim=hidden_dim,
-                                                 out_dim=out_dim, dropout=0.2, adj_dropout=0.0)
+        # self.token_gcn_dropedgelearn = GCN_DropEdgeLearn_Model(
+        #     num_token=num_token, in_dim=in_dim, hidden_dim=hidden_dim, out_dim=out_dim,
+        #     dropout=0.2, adj_dropout=0.0)
+        self.token_gcn = GCN(nfeat=in_dim, nhid=hidden_dim, nclass=out_dim, dropout=0.2)
 
         self.instance_gat_dgl = Instance_GAT_dgl(in_dim=in_dim, hidden_dim=hidden_dim,
                                                  num_heads=num_heads, out_dim=out_dim)
@@ -143,14 +146,21 @@ class GNN_Combined(torch.nn.Module):
                                       f' [{combine}] provided.')
         self.bilstm_classifier = BiLSTM_Classifier(final_dim, num_classes)
 
-    def forward(self, instance_batch, instance_batch_embs, instance_batch_token_ids,
-                token_graph, token_embs):
+    # def train(self, mode: bool = True):
+    #     self.token_gcn_dropedgelearn.train()
+    #     self.instance_gat_dgl.train()
+
+    def forward(self, instance_batch, instance_batch_embs, instance_batch_local_token_ids,
+                node_counts, instance_batch_global_token_ids, token_graph, token_embs):
         """ Combines embeddings of tokens from token and instance graph by concatenating.
 
         Take embeddings from token graph for tokens present in the instance graph batch.
 
+        :param instance_batch_local_token_ids: local node ids for a instance graph to repeat the node embeddings.
+        :param node_counts: As batching graphs lose information about the number of nodes in each instance graph,
+        node_counts is a list of nodes (unique) in each instance graph.
         :param combine: How to combine two embeddings (Default: concatenate)
-        :param instance_batch_token_ids: Ordered set of token ids present in the current instance batch
+        :param instance_batch_global_token_ids: Ordered set of token ids present in the current instance batch
         :param instance_batch_embs: Embeddings from instance GAT
         :param instance_batch: Instance graph batch
         :param token_embs: Embeddings from token GCN
@@ -160,20 +170,38 @@ class GNN_Combined(torch.nn.Module):
         instance_batch_embs = self.instance_gat_dgl(instance_batch, instance_batch_embs)
 
         ## Fetch embeddings from token graph
-        token_embs = self.token_gcn(token_graph, token_embs)
+        # token_embs = self.token_gcn_dropedgelearn(token_graph, token_embs)
+        token_embs = self.token_gcn(adj=token_graph, x=token_embs)
 
         ## Fetch embeddings from token graph of tokens present in instance batch only:
-        token_embs = token_embs[instance_batch_token_ids]
+        ## Fetch consecutive instance embs and global idx from token_embs:
+        combined_embs_batch = []
+        start_idx = 0
+        preds = []
+        for instance_local_ids, token_global_ids, node_count in zip(
+                instance_batch_local_token_ids, instance_batch_global_token_ids, node_counts):
+            end_idx = start_idx + node_count
+            # print(start_idx, end_idx, node_count)
+            # print(token_embs[token_global_ids].shape, instance_batch_embs[start_idx:end_idx][instance_local_ids].shape)
 
-        ## Combine both embeddings:
-        if self.combine == 'concat':
-            embs = torch.cat([instance_batch_embs, token_embs])
-        elif self.combine == 'avg':
-            embs = torch.mean(torch.stack([instance_batch_embs, token_embs]), dim=0)
-        else:
-            raise NotImplementedError(f'combine supports either concat or avg.'
-                                      f' [{self.combine}] provided.')
-        return self.bilstm_classifier(embs)
+            ## Combine both embeddings:
+            if self.combine == 'concat':
+                combined_emb = torch.cat([token_embs[token_global_ids],
+                                           instance_batch_embs[start_idx:end_idx][instance_local_ids]], dim=1)
+            elif self.combine == 'avg':
+                combined_emb = torch.mean(torch.stack(
+                    [token_embs[token_global_ids], instance_batch_embs[start_idx:end_idx][instance_local_ids]]), dim=0)
+            else:
+                raise NotImplementedError(f'combine supports either concat or avg.'
+                                          f' [{self.combine}] provided.')
+            start_idx = end_idx
+
+            combined_embs_batch.append(combined_emb)
+
+            pred = self.bilstm_classifier(combined_emb.unsqueeze(0))
+            preds.append(pred)
+
+        return torch.stack(preds).squeeze()
 
 
 if __name__ == "__main__":
