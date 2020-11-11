@@ -33,6 +33,7 @@ from Layers.BiLSTM_Classifier import BiLSTM_Classifier
 from File_Handlers.csv_handler import read_csv, load_csvs
 from File_Handlers.json_handler import save_json, read_json, json_keys2df,\
     read_labelled_json
+from File_Handlers.read_datasets import load_fire16, load_smerp17
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
 from Text_Processesor.build_corpus_vocab import get_dataset_fields
@@ -117,17 +118,20 @@ def create_vocab(s_lab_df=None, data_dir: str = dataset_dir,
     logger.info('creates vocab and other info.')
     ## Read source data
     if s_lab_df is None:
-        s_lab_df = read_labelled_json(data_dir, labelled_source_name)
+        # s_lab_df = read_labelled_json(data_dir, labelled_source_name)
+        s_lab_df = read_csv(data_dir, labelled_source_name)
+        s_lab_df = s_lab_df.sample(frac=1)
 
-        if labelled_source_name.startswith('fire16'):
-            ## Match label space between two datasets:
-            s_lab_df = labels_mapper(s_lab_df)
+        # if labelled_source_name.startswith('fire16'):
+        #     ## Match label space between two datasets:
+        #     s_lab_df = labels_mapper(s_lab_df)
 
     token2label_vec_map = freq_tokens_per_class(s_lab_df)
     # label_vec = token_dist2token_labels(cls_freq, vocab_set)
 
-    s_unlab_df = json_keys2df(['text'], json_filename=unlabelled_source_name,
-                              dataset_dir=data_dir)
+    # s_unlab_df = json_keys2df(['text'], json_filename=unlabelled_source_name,
+    #                           dataset_dir=data_dir)
+    s_unlab_df = read_csv(data_file=unlabelled_source_name, data_dir=data_dir)
 
     # s_lab_df.rename(columns={'tweets': 'text'}, inplace=True)
     s_lab_df['domain'] = 0
@@ -156,7 +160,7 @@ def create_vocab(s_lab_df=None, data_dir: str = dataset_dir,
     logger.info("Source vocab size: [{}]".format(len(S_fields.vocab)))
 
     ## Read target data
-    t_unlab_df = read_tweet_csv(data_dir, unlabelled_target_name + ".csv")
+    t_unlab_df = read_csv(data_dir, unlabelled_target_name)
 
     ## Prepare target data
     t_unlab_df.rename(columns={'tweets': 'text'}, inplace=True)
@@ -215,8 +219,7 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
          unlabelled_target_name: str = cfg["data"]["target"]['unlabelled'],
          train_batch_size=cfg['training']['train_batch_size'],
          test_batch_size=cfg['training']['eval_batch_size'],):
-    # data_dir = Path(data_dir)
-    # labelled_source_name = labelled_source_name
+    logger.critical(f'Current Learning Rate: [{lr}]')
     labelled_source_path = join(data_dir, labelled_source_name)
     unlabelled_source_name = unlabelled_source_name
     unlabelled_target_name = unlabelled_target_name
@@ -280,10 +283,13 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
 
     ## Read labelled datasets and prepare:
     logger.info('Read labelled datasets and prepare')
-    train_dataset, test_dataset, train_vocab, test_vocab = prepare_datasets()
+    # train_dataset, test_dataset, train_vocab, test_vocab = prepare_datasets()
+    train_dataset, test_dataset, train_vocab, test_vocab = prepare_splitted_datasets()
 
     logger.info('Creating instance graphs')
-    train_instance_graphs = Instance_Dataset_DGL(train_dataset, train_vocab, labelled_source_name)
+    train_instance_graphs = Instance_Dataset_DGL(train_dataset, train_vocab, labelled_source_name,
+                                                 # class_names=('0')
+                                                 )
     logger.debug(train_instance_graphs.num_labels)
     # logger.debug(train_instance_graphs.graphs, train_instance_graphs.labels)
 
@@ -292,7 +298,9 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
 
     logger.info(f"Number of training instance graphs: {len(train_instance_graphs)}")
 
-    test_instance_graphs = Instance_Dataset_DGL(test_dataset, train_vocab, labelled_target_name)
+    test_instance_graphs = Instance_Dataset_DGL(test_dataset, train_vocab, labelled_target_name,
+                                                # class_names=('0')
+                                                )
 
     test_dataloader = DataLoader(test_instance_graphs, batch_size=test_batch_size, shuffle=True,
                                  collate_fn=test_instance_graphs.batch_graphs)
@@ -351,11 +359,11 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
     logger.info('Classifying combined graphs')
     train_epochs_output_dict, test_output = graph_multilabel_classification(
         adj, X, train_dataloader, test_dataloader, num_tokens=num_tokens,
-        in_feats=100, hid_feats=cfg['gnn_params']['hid_dim'],
+        in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
         num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
 
-    logger.info('Applying GCN Forward old')
-    X_hat = GCN_forward_old(adj, X, forward=gcn_hops)
+    # logger.info('Applying GCN Forward old')
+    # X_hat = GCN_forward_old(adj, X, forward=gcn_hops)
     # logger.info('Applying GCN Forward')
     # X_hat = GCN_forward(adj, X, forward=gcn_hops)
 
@@ -740,13 +748,13 @@ if __name__ == "__main__":
     #     model_name=args.model_name, model_type=args.model_type,
     #     num_epoch=args.num_train_epochs, use_cuda=True)
 
-    glove_embs = glove2dict()
+    # glove_embs = glove2dict()
 
     # train, test = split_target(test_df, test_size=0.3,
     #                            train_size=.6, stratified=False)
-    lrs = [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]
+    lrs = [1e-3, 1e-4, 1e-5]
     for lr in lrs:
-        s2i_dict, X_hat = main(gcn_hops=2, glove_embs=glove_embs, lr=lr)
+        s2i_dict, X_hat = main(lr=lr)
 
     exit(0)
 
