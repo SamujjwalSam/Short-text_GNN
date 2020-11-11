@@ -25,9 +25,30 @@ from config import dataset_dir
 from Logger.logger import logger
 
 
-def read_tweet_csv(data_dir='/home/sam/Datasets/disaster_tweets',
-                   data_file='fire16_labeled_train.csv', index_col=0,
-                   header=0):
+def load_csvs(data_dir=dataset_dir,
+              filenames=('fire16_train', 'fire16_val', 'smerp17_test')):
+    """ Reads multiple csv files.
+
+    :param data_dir:
+    :param filenames:
+    :return:
+    """
+    dfs = []
+    for filename in filenames:
+        if exists(join(data_dir, filename+'.csv')):
+            df = pd.read_csv(join(data_dir, filename+'.csv'), index_col=0,
+                             header=0, encoding='utf-8', engine='python')
+            df = df.sample(frac=1)
+        else:
+            df = None
+
+        dfs.append(df)
+
+    return dfs
+
+
+def read_csv(data_dir=dataset_dir, data_file='fire16_labeled_train', index_col=0,
+             header=0):
     """ Reads csv file as DF.
 
     :param header:
