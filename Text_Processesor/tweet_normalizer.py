@@ -92,6 +92,34 @@ def find_numbers(text, replace=True,
     return text, numbers
 
 
+def seperate_string_number(string):
+    """ Separates numbers and str.
+
+    :param string:
+    :return:
+    """
+    if string[0] == '#' or string[0] == '@':
+        return string
+    previous_character = string[0]
+    groups = []
+    newword = string[0]
+    for x, i in enumerate(string[1:]):
+        if i.isalpha() and previous_character.isalpha():
+            newword += i
+        elif i.isnumeric() and previous_character.isnumeric():
+            newword += i
+        else:
+            groups.append(newword)
+            newword = i
+
+        previous_character = i
+
+        if x == len(string) - 2:
+            groups.append(newword)
+            newword = ''
+    return ' '.join(groups)
+
+
 def normalizeToken2(token):
     tokens = normalizeToken(token).strip().split()
     cleaned_tokens = str()
