@@ -1,12 +1,12 @@
 from os.path import join, exists
 from File_Handlers.json_handler import read_labelled_json
-from File_Handlers.csv_handler import read_tweet_csv
+from File_Handlers.csv_handler import read_csv
 from Class_mapper.FIRE16_SMERP17_map import labels_mapper
-from config import configuration as cfg, platform as plat, username as user
+from config import configuration as cfg, platform as plat, username as user, dataset_dir
+from Logger.logger import logger
 
 
-def load_fire16(data_dir=cfg["paths"]["dataset_dir"][plat][user],
-                filename='fire16_labeled', data_set='train'):
+def load_fire16(data_dir=dataset_dir, filename='fire16_labeled', data_set='train'):
     mapped_file = filename + '_4class.csv'
     if exists(join(data_dir, mapped_file)):
         # data_df = read_labelled_json(data_dir=data_dir, filename=mapped_file, data_set=data_set)

@@ -18,14 +18,18 @@ __taken_from__  : https://github.com/VinAIResearch/BERTweet
 
 import re
 # import nltk
+from os.path import join
+from nltk.corpus import stopwords
 from nltk.tokenize import TweetTokenizer
 from nltk.stem import PorterStemmer
 from nltk.stem import WordNetLemmatizer
 from emoji import demojize
 
 from File_Handlers.json_handler import read_json
+from config import configuration as cfg, platform as plat, username as user,\
+    dataset_dir
 
-acronym = read_json()
+acronym = read_json(join(cfg["paths"]['dataset_root'][plat][user], 'acronym'))
 
 
 def stemming(word, lemmatize=False):
@@ -138,35 +142,42 @@ def normalizeToken(token):
 def normalizeTweet(tweet: str, tokenizer: TweetTokenizer = TweetTokenizer(), return_tokens: bool = False,
                    lower_case: bool = True, remove_linebreaks: bool = True) -> list:
     # tweet2, _ = find_numbers(tweet)
-    tokens = tokenizer.tokenize(tweet.replace("’", "'").replace("…", "..."))
-    normTweet = " ".join([normalizeToken2(token) for token in tokens])
-
     if lower_case:
-        normTweet = normTweet.lower()
+        tweet = tweet.lower()
+
+    tokens = tokenizer.tokenize(tweet.replace("’", "'").replace("…", "..."))
+
+    if stopwords is not None:
+        tokens = [token for token in tokens if token.lower() not in stopwords]
+
+    if normalize:
+        tokens = [normalizeToken2(token) for token in tokens]
+
+    tokens = " ".join(tokens)
 
     if remove_linebreaks:
         ## Removes all 3 types of line breaks
-        normTweet = normTweet.replace("\r", " ").replace("\n", " ")
+        tokens = tokens.replace("\r", " ").replace("\n", " ")
 
-    normTweet = normTweet.replace("cannot ", "can not ")\
+    tokens = tokens.replace("cannot ", "can not ")\
         .replace("n't ", " not ")\
         .replace("n 't ", " not ")\
         .replace("ca n't", "can not")\
         .replace("ai n't", "is not")
-    normTweet = normTweet.replace("'m ", " 'm ")\
+    tokens = tokens.replace("'m ", " 'm ")\
         .replace("'re ", " are ")\
         .replace("'s ", " 's ")\
         .replace("'ll ", " will ")\
         .replace("'d ", " 'd ")\
         .replace("'ve ", " have ")
-    normTweet = normTweet.replace(" p . m .", "  p.m.")\
+    tokens = tokens.replace(" p . m .", "  p.m.")\
         .replace(" p . m ", " pm ")\
         .replace(" a . m .", " am.")\
         .replace(" a . m ", " am ")
 
-    normTweet = re.sub(r",([0-9]{2,4}) , ([0-9]{2,4})", r",\1,\2", normTweet)
-    normTweet = re.sub(r"([0-9]{1,3}) / ([0-9]{2,4})", r"\1/\2", normTweet)
-    normTweet = re.sub(r"([0-9]{1,3})- ([0-9]{2,4})", r"\1-\2", normTweet)
+    tokens = re.sub(r",([0-9]{2,4}) , ([0-9]{2,4})", r",\1,\2", tokens)
+    tokens = re.sub(r"([0-9]{1,3}) / ([0-9]{2,4})", r"\1/\2", tokens)
+    tokens = re.sub(r"([0-9]{1,3})- ([0-9]{2,4})", r"\1-\2", tokens)
 
     if return_tokens:
         return normTweet.split()

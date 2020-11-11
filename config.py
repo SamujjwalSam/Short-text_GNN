@@ -24,6 +24,7 @@ __last_modified__:
 """
 
 import json
+from os.path import join
 from Logger.logger import logger
 
 global seed
@@ -32,68 +33,151 @@ seed = 0
 global configuration
 configuration = {
     "data":         {
-        'name': 'fire16_smerp17',
+        # 'name':       'fire16_smerp17',
+        # 'train':      'fire16_train',
+        # 'val':        'fire16_val',
+        # 'test':       'smerp17_test',
+        # "source":     {
+        #     'labelled':   'fire16_labeled',
+        #     'unlabelled': 'fire16_unlabeled'
+        # },
+        # "target":     {
+        #     'labelled':   'smerp17_labeled',
+        #     'unlabelled': 'smerp17_unlabeled'
+        #     },
+        'name':       'smerp17_fire16',
+        'train':      'smerp17_train',
+        'val':        'smerp17_val',
+        'test':       'fire16_test',
         "source":     {
             'labelled':   'fire16_labeled',
             'unlabelled': 'fire16_unlabeled'
         },
         "target":     {
             'labelled':   'smerp17_labeled',
-            'unlabelled': 'smerp17_unlabeled'},
+            'unlabelled': 'smerp17_unlabeled'
+            },
+
+        # 'name':       'nepal_queensland',
+        # 'train':      '2015_Nepal_Earthquake_train',
+        # 'val':        '2015_Nepal_Earthquake_dev',
+        # 'test':       '2013_Queensland_Floods_test',
+        # "source":     {
+        #     'labelled':   '2015_Nepal_Earthquake_train',
+        #     'unlabelled': 'fire16_unlabeled'
+        # },
+        # "target":     {
+        #     'labelled':   '2013_Queensland_Floods_test',
+        #     'unlabelled': 'queensland_unlabeled'
+        # },
+
+        # "source":     {
+        #     'labelled':   'smerp17_labeled',
+        #     'unlabelled': 'smerp17_unlabeled'
+        # },
+        # "target":     {
+        #     'labelled':   'fire16_labeled',
+        #     'unlabelled': 'fire16_unlabeled'},
+
         # "dataset_name": "fire16_labeled",
         "val_split":  0.15,
-        "test_split": 0.25,
+        "test_split": 0.999,
         "show_stat":  False
     },
 
-    "transformer":        {
-        "model_type":           "distilbert",
-        "model_name":           "distilbert-base-uncased-distilled-squad",
-        "num_folds":            5,
-        "max_seq_len":          128,
-        'gradient_accumulation_steps': 1,
-        "max_vec_len":          5000,
-        "dropout":              0.1,
-        "dropout_external":     0.0,
-        "clipnorm":             1.0,
-        "data_slice":           5120,
-        "use_cuda":             False,
-        "normalize_inputs":     False,
-        "kernel_size":          1,
-        "stride":               1,
-        "padding":              1,
-        "context":              10,
-        "classify_count":       0,
-        "fce":                  True,
-        "optimizer":            {
-            "optimizer_type": "AdamW",
-            "learning_rate_scheduler":  "linear_warmup",
-            "lr":             3e-4,
-            "lr_decay":       0.,
-            "weight_decay":   0.,
-            "max_grad_norm":  1.0,
-            "adam_epsilon":   1e-8,
-            'warmup_ratio':   0.06,
-            'warmup_steps':   0.,
-            "momentum":       0.9,
-            "dampening":      0.9,
-            "alpha":          0.99,
-            "rho":            0.9,
-            "centered":       False
+    "paths":        {
+        "result_dir":    "results",
+        "log_dir":       "logs",
+        "cache_dir":     "cache",
+
+        "embedding_dir": {
+            "Windows": "D:\\Datasets\\Extreme Classification",
+            "OSX":     "/home/cs16resch01001/datasets/Extreme Classification",
+            "Linux":   {
+                "sam":            "/home/sam/Embeddings",
+                "cs14mtech11017": "/home/cs14mtech11017/Embeddings",
+                "cs16resch01001": "/home/cs16resch01001/Embeddings",
+                ## Code path: /home/cs14resch11001/codes/MNXC
+                "cs14resch11001": "/raid/ravi/pretrain"
+            }
         },
-        "view_grads":           False,
-        "view_train_precision": True
+
+        'dataset_root':  {
+            "Windows": "D:\\Datasets\\Extreme Classification",
+            "OSX":     "/home/cs16resch01001/datasets/Extreme Classification",
+            "Linux":   {
+                "sam":            "/home/sam/Datasets",
+                "cs14mtech11017": "/home/cs14mtech11017/Datasets",
+                "cs16resch01001": "/home/cs16resch01001/datasets",
+                "cs14resch11001": "/raid/ravi/Datasets/Extreme Classification"
+            }
+        }
+    },
+
+    "transformer":  {
+        "model_type":                  "distilbert",
+        "model_name":                  "distilbert-base-uncased-distilled-squad",
+        "num_folds":                   5,
+        "max_seq_len":                 128,
+        'gradient_accumulation_steps': 1,
+        "max_vec_len":                 5000,
+        "dropout":                     0.1,
+        "dropout_external":            0.0,
+        "clipnorm":                    1.0,
+        "data_slice":                  5120,
+        "use_cuda":                    {
+            "Windows": False,
+            "OSX":     False,
+            "Linux":   {
+                "sam":            False,
+                "cs14mtech11017": True,
+                "cs16resch01001": True,
+                "cs14resch11001": True
+            },
+        },
+        "normalize_inputs":            False,
+        "kernel_size":                 1,
+        "stride":                      1,
+        "padding":                     1,
+        "context":                     10,
+        "classify_count":              0,
+        "fce":                         True,
+        "optimizer":                   {
+            "optimizer_type":          "AdamW",
+            "learning_rate_scheduler": "linear_warmup",
+            "lr":                      3e-4,
+            "lr_decay":                0.,
+            "weight_decay":            0.,
+            "max_grad_norm":           1.0,
+            "adam_epsilon":            1e-8,
+            'warmup_ratio':            0.06,
+            'warmup_steps':            0.,
+            "momentum":                0.9,
+            "dampening":               0.9,
+            "alpha":                   0.99,
+            "rho":                     0.9,
+            "centered":                False
+        },
+        "view_grads":                  False,
+        "view_train_precision":        True
     },
 
     "model":        {
         "num_folds":            5,
         "max_sequence_length":  200,
-        "max_vec_len":          5000,
         "dropout":              0.2,
         "dropout_external":     0.0,
         "clipnorm":             1.0,
-        "data_slice":           5120,
-        "use_cuda":             False,
+        "use_cuda":             {
+            "Windows": False,
+            "OSX":     False,
+            "Linux":   {
+                "sam":            False,
+                "cs14mtech11017": True,
+                "cs16resch01001": True,
+                "cs14resch11001": True
+            },
+        },
         "normalize_inputs":     False,
         "kernel_size":          1,
         "stride":               1,
@@ -102,7 +186,7 @@ configuration = {
         "classify_count":       0,
         "optimizer":            {
             "optimizer_type": "adam",
-            "lr":             0.001,
+            "lr":             0.00001,
             "lr_decay":       0,
             "weight_decay":   0,
             "momentum":       0.9,
@@ -139,10 +223,10 @@ configuration = {
     },
 
     "training":     {
-        "num_epoch":             10,
-        "num_train_epoch":       10,
-        "train_batch_size":      32,
-        "eval_batch_size":       64,
+        "num_epoch":        25,
+        "num_train_epoch":  50,
+        "train_batch_size": 32,
+        "eval_batch_size":  64,
     },
 
     "prep_vecs":    {
@@ -163,35 +247,6 @@ configuration = {
         "encoding":         'latin-1',
         "sents_chunk_mode": "word_avg",
         "workers":          5
-    },
-
-    "paths":        {
-        "result_dir":    "results",
-        "log_dir":       "logs",
-        "cache_dir":     "cache",
-
-        "embedding_dir": {
-            "Windows": "D:\\Datasets\\Extreme Classification",
-            "OSX":     "/home/cs16resch01001/datasets/Extreme Classification",
-            "Linux":   {
-                "sam":            "/home/sam/Embeddings",
-                "cs14mtech11017": "/home/cs14mtech11017/Embeddings",
-                "cs16resch01001": "/home/cs16resch01001/Embeddings",
-                ## Code path: /home/cs14resch11001/codes/MNXC
-                "cs14resch11001": "/raid/ravi/pretrain"
-            }
-        },
-
-        "dataset_dir":   {
-            "Windows": "D:\\Datasets\\Extreme Classification",
-            "OSX":     "/home/cs16resch01001/datasets/Extreme Classification",
-            "Linux":   {
-                "sam":            "/home/sam/Datasets/disaster_tweets",
-                "cs14mtech11017": "/home/cs14mtech11017/Datasets/disaster_tweets",
-                "cs16resch01001": "/home/cs16resch01001/datasets/disaster_tweets",
-                "cs14resch11001": "/raid/ravi/Datasets/Extreme Classification"
-            }
-        }
     },
 }
 
@@ -261,6 +316,9 @@ global platform
 platform = config_cls.get_platform()
 global username
 username = config_cls.get_username()
+global dataset_dir
+dataset_dir = join(configuration["paths"]['dataset_root'][platform][username],
+                   configuration['data']['name'])
 
 
 def main():

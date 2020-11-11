@@ -1,8 +1,8 @@
 # coding=utf-8
 # !/usr/bin/python3.7  # Please use python 3.7
 """
-__synopsis__    : Short summary of the script.
-__description__ : Details and usage.
+__synopsis__    : Code related to applying GNN from DGL library
+__description__ : node and graph classification written in DGL library
 __project__     : Tweet_GNN_inductive
 __classes__     : Tweet_GNN_inductive
 __variables__   :
@@ -17,19 +17,19 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
-import torch
-import torch.optim as optim
+from torch import cuda, load, sigmoid, cat, optim, save, device, no_grad
+# import torch.optim as optim
 import torch.nn as nn
 from os.path import join
 from collections import OrderedDict
 
 from Logger.logger import logger
-from Utils.utils import save_model, load_model
-from config import configuration as cfg, platform as plat, username as user
-
+from Utils.utils import save_model, load_model, logit2label
+from Metrics.metrics import calculate_performance_sk as calculate_performance
+from config import configuration as cfg, platform as plat, username as user, dataset_dir
 
 # check whether cuda is available
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = device('cuda' if cuda.is_available() else 'cpu')
 n_classes = 4
 
 
@@ -45,8 +45,8 @@ def torchtext_batch2multilabel(batch, label_cols=None):
     """
     if label_cols is None:
         label_cols = [str(cls) for cls in range(n_classes)]
-    return torch.cat([getattr(batch, feat).unsqueeze(1) for feat in label_cols],
-                     dim=1).float()
+    return cat([getattr(batch, feat).unsqueeze(1) for feat in label_cols],
+               dim=1).float()
 
 
 def training(model, iterator, optimizer, criterion):
@@ -96,9 +96,9 @@ def training(model, iterator, optimizer, criterion):
         epoch_loss += loss.item()
         # logger.info(f"Train batch [{i}] loss: [{loss.item()}]")
 
-    output['preds'] = torch.cat(output['preds'])
-    output['trues'] = torch.cat(output['trues'])
-    output['ids'] = torch.cat(output['ids'])
+    output['preds'] = cat(output['preds'])
+    output['trues'] = cat(output['trues'])
+    output['ids'] = cat(output['ids'])
 
     return epoch_loss / len(iterator), output  # , epoch_acc / len(iterator)
 
@@ -188,12 +188,10 @@ def trainer(model, train_iterator, val_iterator, N_EPOCHS=5, optimizer=None,
         logger.info("=" * 10)
         logger.info("Epoch: [{}]".format(epoch))
         # train the model
-        train_loss, train_preds = training(model, train_iterator, optimizer,
-                                           criterion)
+        train_loss, train_preds = training(model, train_iterator, optimizer, criterion)
 
         # evaluate the model
-        val_loss, val_preds_trues = predict_with_label(model, val_iterator,
-                                                       criterion)
+        val_loss, val_preds_trues = predict_with_label(model, val_iterator, criterion)
         val_preds_trues['preds'] = sigmoid(val_preds_trues['preds'])
         # val_preds_trues_all[epoch] = val_preds_trues
 
@@ -219,10 +217,9 @@ def trainer(model, train_iterator, val_iterator, N_EPOCHS=5, optimizer=None,
     return model_best, val_preds_trues_best, val_preds_trues_all, losses
 
 
-def save_model(model, saved_model_dir=cfg["paths"]["dataset_dir"][plat][user],
-               saved_model_name='model'):
+def save_model(model, saved_model_dir=dataset_dir, saved_model_name='model'):
     try:
-        torch.save(model.state_dict(), join(saved_model_dir, saved_model_name))
+        save(model.state_dict(), join(saved_model_dir, saved_model_name))
     except Exception as e:
         logger.fatal(
             "Could not save model at [{}] due to Error: [{}]".format(join(
@@ -233,8 +230,7 @@ def save_model(model, saved_model_dir=cfg["paths"]["dataset_dir"][plat][user],
 
 def load_model(model, saved_model_dir, saved_model_name='model'):
     try:
-        model.load_state_dict(
-            torch.load(join(saved_model_dir, saved_model_name)))
+        model.load_state_dict(load(join(saved_model_dir, saved_model_name)))
     except Exception as e:
         logger.fatal(
             "Could not load model from [{}] due to Error: [{}]".format(join(
@@ -255,24 +251,19 @@ def get_optimizer(model, lr=cfg["model"]["optimizer"]["lr"],
                   centered=cfg["model"]["optimizer"]["centered"]):
     """Setup optimizer_type"""
     if optimizer_type == 'sgd':
-        optimizer = torch.optim.SGD(
-            model.parameters(), lr=lr, momentum=momentum,
-            dampening=dampening, weight_decay=weight_decay)
+        optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum,
+                              dampening=dampening, weight_decay=weight_decay)
     elif optimizer_type == 'adam':
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr,
-                                     weight_decay=weight_decay)
+        optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     elif optimizer_type == 'adadelta':
-        optimizer = torch.optim.Adadelta(model.parameters(), lr=lr, rho=rho,
-                                         weight_decay=weight_decay)
+        optimizer = optim.Adadelta(model.parameters(), lr=lr, rho=rho,
+                                   weight_decay=weight_decay)
     elif optimizer_type == 'adagrad':
-        optimizer = torch.optim.Adagrad(model.parameters(), lr=lr,
-                                        lr_decay=lr_decay,
-                                        weight_decay=weight_decay)
+        optimizer = optim.Adagrad(model.parameters(), lr=lr, lr_decay=lr_decay,
+                                  weight_decay=weight_decay)
     elif optimizer_type == 'rmsprop':
-        optimizer = torch.optim.RMSprop(
-            model.parameters(), lr=lr, alpha=alpha, momentum=0.9,
-            centered=centered, weight_decay=weight_decay)
+        optimizer = optim.RMSprop(model.parameters(), lr=lr, alpha=alpha, momentum=0.9,
+                                  centered=centered, weight_decay=weight_decay)
     else:
         raise Exception(f'Optimizer not supported: [{optimizer_type}]')
     return optimizer
-

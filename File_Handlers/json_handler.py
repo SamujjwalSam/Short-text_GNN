@@ -26,10 +26,10 @@ from sklearn.preprocessing import MultiLabelBinarizer
 
 from Logger.logger import logger
 # from Utils.utils import json_keys2df
-from config import configuration as cfg, platform as plat, username as user
+from config import configuration as cfg, dataset_dir
 
 
-def load_json(filename: str, filepath: str = '', ext: str = ".json",
+def load_json(filename: str, filepath: str = dataset_dir, ext: str = ".json",
               show_path: bool = True) -> OrderedDict:
     """ Reads json file as a Python OrderedDict.
 
@@ -66,7 +66,7 @@ def load_json(filename: str, filepath: str = '', ext: str = ".json",
 
 
 def json_keys2df(data_keys, json_data=None, json_filename=None,
-                 dataset_dir: str = '', replace_index=False) ->\
+                 dataset_dir: str = dataset_dir, replace_index=False) ->\
         pd.core.frame.DataFrame:
     """ Converts json tweet data to a DataFrame for only selected data_keys.
 
@@ -89,8 +89,7 @@ def json_keys2df(data_keys, json_data=None, json_filename=None,
     return json_df
 
 
-def read_json(file_path: str = join(cfg["paths"]["dataset_dir"][plat][user],
-                                    'acronym'),
+def read_json(file_path: str = join(dataset_dir, 'acronym'),
               convert_ordereddict=True) -> OrderedDict:
     """ Reads json file as OrderedDict.
 
@@ -112,7 +111,7 @@ def read_json(file_path: str = join(cfg["paths"]["dataset_dir"][plat][user],
         raise FileNotFoundError("File [{}] not found.".format(file_path))
 
 
-def save_json(data, filename, file_path='', overwrite=False, indent=2,
+def save_json(data, filename, file_path=dataset_dir, overwrite=False, indent=2,
               date_time_tag=''):
     """
 
@@ -131,8 +130,7 @@ def save_json(data, filename, file_path='', overwrite=False, indent=2,
         logger.error("File already exists and Overwrite == False.")
         return True
     try:
-        with open(join(file_path, date_time_tag + filename + ".json"),
-                  'w') as json_file:
+        with open(join(file_path, date_time_tag + filename + ".json"), 'w') as json_file:
             try:
                 json_file.write(dumps(data, indent=indent))
             except Exception as e:
@@ -154,8 +152,7 @@ def save_json(data, filename, file_path='', overwrite=False, indent=2,
 mlb = MultiLabelBinarizer()
 
 
-def read_labelled_json(data_dir=cfg["paths"]["dataset_dir"][plat][user],
-                       filename=cfg["data"]["target"]['labelled'],
+def read_labelled_json(data_dir=dataset_dir, filename=cfg['data']['test'],
                        data_keys=['text', 'classes'], data_set='train',
                        # rename_cols={"parsed_tweet": "text"},
                        ):

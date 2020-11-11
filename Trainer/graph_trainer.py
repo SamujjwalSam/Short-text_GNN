@@ -35,7 +35,7 @@ from Layers.gnn_combined import GNN_Combined
 from Metrics.metrics import calculate_performance_sk as calculate_performance
 from Utils.utils import logit2label
 from Logger.logger import logger
-from config import configuration as cfg, platform as plat, username as user
+from config import configuration as cfg, platform as plat, username as user, dataset_dir
 
 
 def train_node_classifier(g: graph, features: Tensor,
@@ -262,8 +262,8 @@ def graph_multilabel_classification(
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"]):
     # train_dataloader, test_dataloader = dataloaders
     model = GNN_Combined(num_tokens, in_dim=in_feats, hidden_dim=hid_feats,
-                         num_heads=num_heads, out_dim=hid_feats, num_classes=train_dataloader.dataset.num_labels)
-    # num_token, in_dim, hidden_dim, num_heads, out_dim, num_classes
+                         num_heads=num_heads, out_dim=hid_feats,
+                         num_classes=train_dataloader.dataset.num_labels)
     logger.info(model)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)

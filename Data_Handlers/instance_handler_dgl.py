@@ -29,7 +29,7 @@ from sklearn.model_selection import train_test_split
 from Utils.utils import iterative_train_test_split
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Logger.logger import logger
-from config import configuration as cfg, platform as plat, username as user
+from config import dataset_dir
 
 
 class Instance_Dataset_DGL(DGLDataset):
@@ -54,7 +54,7 @@ class Instance_Dataset_DGL(DGLDataset):
     """
 
     def __init__(self, dataset, vocab, dataset_name, graph_path=None, class_names=('0', '1', '2', '3'),
-                 url=None, raw_dir=None, data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
+                 url=None, raw_dir=None, data_dir: str = dataset_dir,
                  force_reload=False, verbose=False):
         # assert dataset_name.lower() in ['cora', 'citeseer', 'pubmed']
         # if dataset_name.lower() == 'cora':
@@ -75,7 +75,8 @@ class Instance_Dataset_DGL(DGLDataset):
         self.num_labels = len(self.class_names)
 
     def process(self):
-        ## Load of create graphs, labels and global ids:
+        ## Load or create graphs, labels, local and global ids:
+        logger.info("Load or create graphs, labels, local and global ids.")
         if exists(self.graph_path):
             self.graphs, self.instance_graph_local_node_ids, self.labels, \
             self.instance_graph_global_node_ids = self.load_instance_dgl(self.graph_path)

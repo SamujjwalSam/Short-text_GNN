@@ -17,24 +17,22 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
-import nltk
 import torch
 import pandas as pd
 import numpy as np
 import scipy.sparse as sp
 from functools import partial
-from os.path import join, exists
+from os.path import join
 from collections import OrderedDict, Counter
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
 from skmultilearn.model_selection import IterativeStratification
 from skmultilearn.model_selection.measures import\
     get_combination_wise_output_matrix
-from sklearn.feature_extraction.text import TfidfVectorizer
 
-from config import configuration as cfg, platform as plat, username as user
+from config import configuration as cfg, dataset_dir
 from File_Handlers.json_handler import read_labelled_json
-from tweet_normalizer import normalizeTweet
+from Text_Processesor.tweet_normalizer import normalizeTweet
 from Logger.logger import logger
 
 
@@ -63,13 +61,12 @@ def iterative_train_test_split(X, y, test_size, order=2, random_state=None):
     return X_train, y_train, X_test, y_test
 
 
-def split_target(df=None, data_dir=cfg["paths"]["dataset_dir"][plat][user],
-                 labelled_data_name=cfg["data"]["target"]['labelled'],
-                 test_size=0.3, train_size=None, n_classes=4, stratified=False):
+def split_target(df=None, data_dir=dataset_dir, labelled_dataname=cfg['data']['test'],
+                 test_size=0.999, train_size=None, n_classes=4, stratified=False):
     """ Splits labelled target data to train and test set.
 
     :param data_dir:
-    :param labelled_data_name:
+    :param labelled_dataname:
     :param test_size:
     :param train_size:
     :param n_classes:
@@ -78,7 +75,7 @@ def split_target(df=None, data_dir=cfg["paths"]["dataset_dir"][plat][user],
     logger.info('Splits labelled target data to train and test set.')
     ## Read target data
     if df is None:
-        df = read_labelled_json(data_dir, labelled_data_name)
+        df = read_labelled_json(data_dir, labelled_dataname)
     df, t_lab_test_df = split_df(df, test_size=test_size, stratified=stratified,
                                  order=2, n_classes=n_classes)
 
@@ -350,8 +347,7 @@ def merge_dicts(*dict_args):
     return result
 
 
-def save_model(model, saved_model_name='tweet_bilstm',
-               saved_model_dir=cfg["paths"]["dataset_dir"][plat][user]):
+def save_model(model, saved_model_name='tweet_bilstm', saved_model_dir=dataset_dir):
     try:
         torch.save(model.state_dict(), join(saved_model_dir, saved_model_name))
     except Exception as e:
@@ -362,8 +358,7 @@ def save_model(model, saved_model_name='tweet_bilstm',
     return True
 
 
-def load_model(model, saved_model_name='tweet_bilstm',
-               saved_model_dir=cfg["paths"]["dataset_dir"][plat][user]):
+def load_model(model, saved_model_name='tweet_bilstm', saved_model_dir=dataset_dir):
     try:
         model.load_state_dict(
             torch.load(join(saved_model_dir, saved_model_name)))

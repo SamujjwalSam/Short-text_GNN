@@ -14,19 +14,18 @@ __date__        : "07/05/20"
 __last_modified__:
 """
 
-import re
+# import re
 import csv
 import numpy as np
-import pandas as pd
+# import pandas as pd
 import pickle
 from os.path import join
 from collections import Counter
 from nltk.corpus import brown
 from mittens import Mittens
-# from sklearn.feature_extraction import stop_words
 from sklearn.feature_extraction.text import CountVectorizer
 
-from config import configuration as cfg, platform as plat, username as user
+from config import configuration as cfg, platform as plat, username as user, dataset_dir
 from Logger.logger import logger
 
 
@@ -51,10 +50,8 @@ def glove2dict(embedding_dir: str = cfg["paths"]["embedding_dir"][plat][user],
 
 
 def preprocess_and_find_oov(datasets: tuple, common_vocab: dict = None,
-                            glove_embs: dict = None, stopwords: list = None,
-                            labelled_vocab_set: set = None,
-                            special_tokens={'<unk>', '<pad>'}
-                            ):
+                            glove_embs: dict = None, labelled_vocab_set: set = None,
+                            special_tokens={'<unk>', '<pad>'}):
     """ Process and prepare data by removing stopwords, finding oovs and
      creating corpus.
 
@@ -65,14 +62,10 @@ def preprocess_and_find_oov(datasets: tuple, common_vocab: dict = None,
     :param common_vocab: Vocab generated from all datasets
     :param oov_min_freq: Count of min freq oov token which should be removed
     :param glove_embs: Original glove embeddings in key:value format.
-    :param stopwords:
     :param glove_embs: glove embeddings
 
     :return:
     """
-    ## TODO: Set STOPWORDs' freq = 0 to ignore them.
-    # if stopwords is None:
-    #     stopwords = list(stop_words.ENGLISH_STOP_WORDS)
     if glove_embs is None:
         glove_embs = glove2dict()
 
@@ -176,9 +169,6 @@ def process_data(data: list, glove_embs: dict = None,
 
     :return:
     """
-    ## Tokens other than stopwords:
-    # if stopwords is None:
-    #     stopwords = list(stop_words.ENGLISH_STOP_WORDS)
     if glove_embs is None:
         glove_embs = glove2dict()
 
@@ -228,11 +218,9 @@ def calculate_cooccurrence_mat(oov_vocab: list, corpus_str: list):
 
 
 def train_mittens(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=200,
-                  glove_oov_save_path=None,
-                  dataset_dir=cfg["paths"]["dataset_dir"][plat][user],
+                  glove_oov_save_path=None, dataset_dir=dataset_dir,
                   embedding_file=cfg["embeddings"]["embedding_file"],
-                  dataset_name=cfg["data"]["source"]['labelled']
-                               + cfg["data"]["target"]['labelled']):
+                  dataset_name=cfg['data']['train'] + cfg['data']['test']):
     """
 
     :param coocc_ar:

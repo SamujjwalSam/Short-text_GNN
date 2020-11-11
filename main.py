@@ -25,32 +25,27 @@ from networkx import adjacency_matrix
 from pathlib import Path
 from os import environ
 from os.path import join, exists
-from collections import OrderedDict
 from json import dumps
-from scipy import sparse
 
 # from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_propagation
-from Utils.utils import count_parameters, logit2label, split_df,\
-    freq_tokens_per_class, merge_dicts, split_target
+from Utils.utils import count_parameters, logit2label, freq_tokens_per_class, split_target
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
-from File_Handlers.csv_handler import read_tweet_csv
+from File_Handlers.csv_handler import read_csv, load_csvs
 from File_Handlers.json_handler import save_json, read_json, json_keys2df,\
     read_labelled_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
-from build_corpus_vocab import get_dataset_fields
+from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
 from Data_Handlers.instance_handler_dgl import Instance_Dataset_DGL
-from Layers.GCN_forward import GCN_forward, GCN_forward_old
+from Layers.GCN_forward import GCN_forward_old
 from Trainer.graph_trainer import graph_multilabel_classification
-from Transformers_simpletransformers.BERT_multilabel_classifier import BERT_classifier
-from finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
+from Text_Encoder.finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
     train_mittens, preprocess_and_find_oov
 from Trainer.trainer import trainer, predict_with_label
-from Class_mapper.FIRE16_SMERP17_map import labels_mapper
-from Plotter.plot_functions import plot_training_loss, plot_graph
+from Plotter.plot_functions import plot_training_loss
 from Metrics.metrics import calculate_performance_pl
-from config import configuration as cfg, platform as plat, username as user
+from config import configuration as cfg, platform as plat, username as user, dataset_dir
 from Logger.logger import logger
 
 n_classes = 4
@@ -106,11 +101,10 @@ if device.type == 'cuda':
 """
 
 
-def create_vocab(s_lab_df=None,
-                 data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
-                 labelled_source_name: str = cfg["data"]["source"]['labelled'],
+def create_vocab(s_lab_df=None, data_dir: str = dataset_dir,
+                 labelled_source_name: str = cfg['data']['train'],
                  unlabelled_source_name: str = cfg["data"]["source"]['unlabelled'],
-                 # labelled_target_name=cfg["data"]["target"]['labelled'],
+                 # labelled_target_name=cfg['data']['test'],
                  unlabelled_target_name: str = cfg["data"]["target"]['unlabelled']):
     """ creates vocab and other info.
 
@@ -146,11 +140,11 @@ def create_vocab(s_lab_df=None,
     ## Prepare source data
     s_unlab_df = s_unlab_df.append(s_lab_df[['text', 'domain', 'labelled']])
 
-    S_data_name = unlabelled_source_name + "_data.csv"
-    s_unlab_df.to_csv(join(data_dir, S_data_name))
+    S_dataname = unlabelled_source_name + "_data.csv"
+    s_unlab_df.to_csv(join(data_dir, S_dataname))
 
     S_dataset, (S_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
-                                                      csv_file=S_data_name)
+                                                      csv_file=S_dataname)
 
     S_vocab = {
         'freqs':       S_fields.vocab.freqs,
@@ -170,11 +164,11 @@ def create_vocab(s_lab_df=None,
     t_unlab_df['labelled'] = False
 
     ## Target dataset
-    T_data_name = unlabelled_target_name + "_data.csv"
-    t_unlab_df.to_csv(join(data_dir, T_data_name))
+    T_dataname = unlabelled_target_name + "_data.csv"
+    t_unlab_df.to_csv(join(data_dir, T_dataname))
 
     T_dataset, (T_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
-                                                      csv_file=T_data_name)
+                                                      csv_file=T_dataname)
     logger.info("Target vocab size: [{}]".format(len(T_fields.vocab)))
 
     T_vocab = {
@@ -186,16 +180,16 @@ def create_vocab(s_lab_df=None,
     ## Create combined data:
     c_df = s_unlab_df.append(t_unlab_df)
 
-    c_data_name = unlabelled_source_name + '_' + unlabelled_target_name\
+    c_dataname = unlabelled_source_name + '_' + unlabelled_target_name\
                   + "_data.csv"
-    c_df.to_csv(join(data_dir, c_data_name))
+    c_df.to_csv(join(data_dir, c_dataname))
 
     s_unlab_df = None
     t_unlab_df = None
     c_df = None
 
     C_dataset, (C_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
-                                                      csv_file=c_data_name)
+                                                      csv_file=c_dataname)
 
     C_vocab = {
         'freqs':       C_fields.vocab.freqs,
@@ -213,42 +207,41 @@ def create_vocab(s_lab_df=None,
            T_dataset, T_fields, token2label_vec_map, s_lab_df
 
 
-def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
-         labelled_source_name: str = cfg["data"]["source"]['labelled'],
+def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
+         mittens_iter: int = 1000, gcn_hops: int = 5, glove_embs=None,
+         labelled_source_name: str = cfg['data']['train'],
          unlabelled_source_name: str = cfg["data"]["source"]['unlabelled'],
-         labelled_target_name: str = cfg["data"]["target"]['labelled'],
+         labelled_target_name: str = cfg['data']['test'],
          unlabelled_target_name: str = cfg["data"]["target"]['unlabelled'],
-         mittens_iter: int = 1000, gcn_hops: int = 5,
-         glove_embs=None,
          train_batch_size=cfg['training']['train_batch_size'],
-         test_batch_size=cfg['training']['eval_batch_size']):
-    if glove_embs is None:
-        glove_embs = glove2dict()
-    data_dir = Path(data_dir)
-    labelled_source_name = labelled_source_name
+         test_batch_size=cfg['training']['eval_batch_size'],):
+    # data_dir = Path(data_dir)
+    # labelled_source_name = labelled_source_name
+    labelled_source_path = join(data_dir, labelled_source_name)
     unlabelled_source_name = unlabelled_source_name
     unlabelled_target_name = unlabelled_target_name
-    S_data_name = Path(unlabelled_source_name + "_data.csv")
-    T_data_name = Path(unlabelled_target_name + "_data.csv")
+    S_dataname = unlabelled_source_name + "_data.csv"
+    T_dataname = unlabelled_target_name + "_data.csv"
 
-    if exists(labelled_source_name + 'S_vocab.json') and exists(labelled_source_name + 'T_vocab.json') and exists(
-            labelled_source_name + 'labelled_token2vec_map.json'):
+    if exists(labelled_source_path + 'S_vocab.json') \
+        and exists(labelled_source_path + 'T_vocab.json') \
+        and exists(labelled_source_path + 'labelled_token2vec_map.json'):
         # ## Read labelled source data
         # s_lab_df = read_labelled_json(data_dir, labelled_source_name)
         # ## Match label space between two datasets:
         # if str(labelled_source_name).startswith('fire16'):
         #     s_lab_df = labels_mapper(s_lab_df)
 
-        C_vocab = read_json(labelled_source_name + 'C_vocab')
-        S_vocab = read_json(labelled_source_name + 'S_vocab')
-        T_vocab = read_json(labelled_source_name + 'T_vocab')
-        labelled_token2vec_map = read_json(labelled_source_name + 'labelled_token2vec_map')
+        C_vocab = read_json(labelled_source_path + 'C_vocab')
+        S_vocab = read_json(labelled_source_path + 'S_vocab')
+        T_vocab = read_json(labelled_source_path + 'T_vocab')
+        labelled_token2vec_map = read_json(labelled_source_path + 'labelled_token2vec_map')
 
-        if not exists(labelled_source_name + 'high_oov_freqs.json'):
+        if not exists(labelled_source_path + 'high_oov_freqs.json'):
             S_dataset, (S_fields, LABEL) = get_dataset_fields(
-                csv_dir=data_dir, csv_file=S_data_name)
+                csv_dir=data_dir, csv_file=S_dataname)
             T_dataset, (T_fields, LABEL) = get_dataset_fields(
-                csv_dir=data_dir, csv_file=T_data_name)
+                csv_dir=data_dir, csv_file=T_dataname)
     else:
         C_vocab, C_dataset, S_vocab, S_dataset, S_fields, T_vocab,\
         T_dataset, T_fields, labelled_token2vec_map, s_lab_df =\
@@ -257,18 +250,20 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
                          unlabelled_source_name=unlabelled_source_name,
                          unlabelled_target_name=unlabelled_target_name)
         ## Save vocabs:
-        save_json(C_vocab, labelled_source_name + 'C_vocab', overwrite=True)
-        save_json(S_vocab, labelled_source_name + 'S_vocab', overwrite=True)
-        save_json(T_vocab, labelled_source_name + 'T_vocab', overwrite=True)
-        save_json(labelled_token2vec_map, labelled_source_name + 'labelled_token2vec_map',
-                  overwrite=True)
+        save_json(C_vocab, labelled_source_path + 'C_vocab')
+        save_json(S_vocab, labelled_source_path + 'S_vocab')
+        save_json(T_vocab, labelled_source_path + 'T_vocab')
+        save_json(labelled_token2vec_map, labelled_source_path + 'labelled_token2vec_map')
 
-    if exists(labelled_source_name + 'high_oov_freqs.json') and exists(labelled_source_name + 'corpus.json') and\
-            exists(labelled_source_name + 'corpus_toks.json'):
-        high_oov_freqs = read_json(labelled_source_name + 'high_oov_freqs')
+    if glove_embs is None:
+        glove_embs = glove2dict()
+    if exists(labelled_source_path + 'high_oov_freqs.json') \
+        and exists(labelled_source_path + 'corpus.json') \
+        and exists(labelled_source_path + 'corpus_toks.json'):
+        high_oov_freqs = read_json(labelled_source_path + 'high_oov_freqs')
         # low_glove_freqs = read_json(labelled_source_name+'low_glove_freqs')
-        corpus = read_json(labelled_source_name + 'corpus', convert_ordereddict=False)
-        corpus_toks = read_json(labelled_source_name + 'corpus_toks', convert_ordereddict=False)
+        corpus = read_json(labelled_source_path + 'corpus', convert_ordereddict=False)
+        corpus_toks = read_json(labelled_source_path + 'corpus_toks', convert_ordereddict=False)
     else:
         ## Get all OOVs which does not have Glove embedding:
         high_oov_freqs, low_glove_freqs, corpus, corpus_toks =\
@@ -277,12 +272,11 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
                 labelled_vocab_set=set(labelled_token2vec_map.keys()))
 
         ## Save token sets: high_oov_freqs, low_glove_freqs, corpus, corpus_toks
-        save_json(high_oov_freqs, labelled_source_name + 'high_oov_freqs', overwrite=True)
+        save_json(high_oov_freqs, labelled_source_path + 'high_oov_freqs')
         # save_json(low_glove_freqs, labelled_source_name+'low_glove_freqs', overwrite=True)
-        save_json(corpus, labelled_source_name + 'corpus', overwrite=True)
-        save_json(corpus_toks, labelled_source_name + 'corpus_toks', overwrite=True)
-
-        save_json(C_vocab, labelled_source_name + 'C_vocab', overwrite=True)
+        save_json(corpus, labelled_source_path + 'corpus')
+        save_json(corpus_toks, labelled_source_path + 'corpus_toks')
+        save_json(C_vocab, labelled_source_path + 'C_vocab')
 
     ## Read labelled datasets and prepare:
     logger.info('Read labelled datasets and prepare')
@@ -330,15 +324,19 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
     ## Get adjacency matrix and node embeddings in same order:
     from Utils.utils import sp_coo2torch_coo
     from torch import save, load
+
     logger.info('Accessing token adjacency matrix')
-    adj_filename = join(data_dir, labelled_source_name + "_adj.pt")
-    if exists(adj_filename):
-        adj = load(adj_filename)
-        # adj = sp_coo2torch_coo(adj)
-    else:
-        adj = adjacency_matrix(G, nodelist=node_list, weight='weight')
-        adj = sp_coo2torch_coo(adj)
-        save(adj, adj_filename)
+    # adj_filename = join(data_dir, labelled_source_name + "_adj.pt")
+    # if exists(adj_filename):
+    #     adj = load(adj_filename)
+    #     # adj = sp_coo2torch_coo(adj)
+    # else:
+    #     adj = adjacency_matrix(G, nodelist=node_list, weight='weight')
+    #     adj = sp_coo2torch_coo(adj)
+    #     save(adj, adj_filename)
+
+    adj = adjacency_matrix(G, nodelist=node_list, weight='weight')
+    adj = sp_coo2torch_coo(adj)
 
     logger.info('Accessing token embeddings')
     emb_filename = join(data_dir, labelled_source_name + "_emb.pt")
@@ -354,7 +352,7 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
     train_epochs_output_dict, test_output = graph_multilabel_classification(
         adj, X, train_dataloader, test_dataloader, num_tokens=num_tokens,
         in_feats=100, hid_feats=cfg['gnn_params']['hid_dim'],
-        num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'])
+        num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
 
     logger.info('Applying GCN Forward old')
     X_hat = GCN_forward_old(adj, X, forward=gcn_hops)
@@ -392,9 +390,9 @@ def main(data_dir: str = cfg["paths"]["dataset_dir"][plat][user],
 
 def prepare_datasets(train_df=None, test_df=None, stoi=None, vectors=None,
                      dim=cfg['prep_vecs']['input_size'], split_test=False, get_iter=False,
-                     data_dir=cfg["paths"]["dataset_dir"][plat][user],
-                     train_filename=cfg["data"]["source"]['labelled'],
-                     test_filename=cfg["data"]["target"]['labelled']):
+                     data_dir=dataset_dir,
+                     train_filename=cfg['data']['train'],
+                     test_filename=cfg['data']['test']):
     """ Creates train and test dataset from df and returns data loader.
 
     :param get_iter: If iterator over the text samples should be returned
@@ -415,17 +413,17 @@ def prepare_datasets(train_df=None, test_df=None, stoi=None, vectors=None,
         else:
             train_df = read_labelled_json(data_dir, train_filename)
 
-    train_data_name = train_filename + "_4class_data.csv"
-    train_df.to_csv(join(data_dir, train_data_name))
+    train_dataname = train_filename + "_4class.csv"
+    train_df.to_csv(join(data_dir, train_dataname))
 
     if stoi is None:
         logger.critical('Setting GLOVE vectors:')
         train_dataset, (train_vocab, train_label) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=train_data_name, min_freq=1, labelled_data=True)
+            csv_dir=data_dir, csv_file=train_dataname, min_freq=1, labelled_data=True)
     else:
         logger.critical('Setting custom vectors:')
         train_dataset, (train_vocab, train_label) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=train_data_name, min_freq=1,
+            csv_dir=data_dir, csv_file=train_dataname, min_freq=1,
             labelled_data=True, embedding_file=None, embedding_dir=None)
         train_vocab.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
 
@@ -450,10 +448,10 @@ def prepare_datasets(train_df=None, test_df=None, stoi=None, vectors=None,
 
         if split_test:
             test_extra_df, test_df = split_target(df=test_df, test_size=0.4)
-    test_data_name = test_filename + "_4class_data.csv"
-    test_df.to_csv(join(data_dir, test_data_name))
+    test_dataname = test_filename + "_4class.csv"
+    test_df.to_csv(join(data_dir, test_dataname))
     test_dataset, (test_vocab, test_label) = get_dataset_fields(
-        csv_dir=data_dir, csv_file=test_data_name, labelled_data=True)
+        csv_dir=data_dir, csv_file=test_dataname, labelled_data=True)
 
     # test_vocab = {
     #     'freqs':       test_vocab.vocab.freqs,
@@ -474,13 +472,77 @@ def prepare_datasets(train_df=None, test_df=None, stoi=None, vectors=None,
     return train_dataset, test_dataset, train_vocab, test_vocab
 
 
+def prepare_splitted_datasets(stoi=None, vectors=None, split_test=False, get_iter=False,
+                              dim=cfg['prep_vecs']['input_size'],
+                              data_dir=dataset_dir,
+                              train_dataname=cfg["data"]["train"],
+                              val_dataname=cfg["data"]["val"],
+                              test_dataname=cfg["data"]["test"]):
+    """ Creates train and test dataset from df and returns data loader.
+
+    :param val_dataname:
+    :param get_iter: If iterator over the text samples should be returned
+    :param split_test: Splits the testing data
+    :param train_df: Training dataframe
+    :param test_df: Testing dataframe
+    :param vectors: Custom Vectors for each token
+    :param dim: Embedding dim
+    :param data_dir:
+    :param train_dataname:
+    :param test_dataname:
+    :return:
+    """
+    logger.info(f'Prepare labelled train (source) data: {train_dataname}')
+    train_df, val_df, test_df = load_csvs(data_dir=data_dir, filenames=(
+        train_dataname, val_dataname, test_dataname))
+    train_df = train_df.append(val_df)
+    train_dataname = train_dataname + "_tmp.csv"
+    train_df.to_csv(join(data_dir, train_dataname))
+
+    if stoi is None:
+        logger.critical('Setting default GLOVE vectors:')
+        train_dataset, (train_vocab, train_label) = get_dataset_fields(
+            csv_dir=data_dir, csv_file=train_dataname, min_freq=1, labelled_data=True)
+    else:
+        logger.critical('Setting custom vectors:')
+        train_dataset, (train_vocab, train_label) = get_dataset_fields(
+            csv_dir=data_dir, csv_file=train_dataname, min_freq=1,
+            labelled_data=True, embedding_file=None, embedding_dir=None)
+        train_vocab.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
+
+    ## Prepare labelled target data:
+    logger.info(f'Prepare labelled test (target) data: {test_dataname}')
+    if test_df is None:
+        if test_dataname.startswith('smerp17'):
+            test_df = load_smerp17()
+        else:
+            test_df = read_csv(data_file=test_dataname, data_dir=data_dir)
+            # test_df = read_labelled_json(data_dir, test_dataname, data_set='test')
+
+        if split_test:
+            test_extra_df, test_df = split_target(df=test_df, test_size=0.4)
+    test_dataname = test_dataname + "_4class.csv"
+    test_df.to_csv(join(data_dir, test_dataname))
+    test_dataset, (test_vocab, test_label) = get_dataset_fields(
+        csv_dir=data_dir, csv_file=test_dataname, labelled_data=True)
+
+    if get_iter:
+        logger.info('Geting iterators')
+        train_batch_size = cfg['training']['train_batch_size']
+        test_batch_size = cfg['training']['eval_batch_size']
+        train_iter, val_iter = dataset2bucket_iter(
+            (train_dataset, test_dataset), batch_sizes=(train_batch_size, test_batch_size))
+
+        return train_dataset, test_dataset, train_vocab, test_vocab, train_iter, val_iter
+
+    return train_dataset, test_dataset, train_vocab, test_vocab
+
+
 def classify(train_df=None, test_df=None, stoi=None, vectors=None,
              dim=cfg['prep_vecs']['input_size'],
-             data_dir=cfg["paths"]["dataset_dir"][plat][user],
-             train_filename=cfg["data"]["source"]['labelled'],
-             test_filename=cfg["data"]["target"]['labelled'],
-             cls_thresh=None, epoch=cfg['training']['num_epoch'],
-             num_layers=cfg['lstm_params']['num_layers'],
+             data_dir=dataset_dir, train_filename=cfg['data']['train'],
+             test_filename=cfg['data']['test'], cls_thresh=None,
+             epoch=cfg['training']['num_epoch'], num_layers=cfg['lstm_params']['num_layers'],
              num_hidden_nodes=cfg['lstm_params']['hid_size'],
              dropout=cfg['model']['dropout'], default_thresh=0.5,
              lr=cfg['model']['optimizer']['lr'],
@@ -513,17 +575,17 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
     # if train_df is None:
     #     train_df = read_labelled_json(data_dir, train_filename)
     #     train_df = labels_mapper(train_df)
-    train_data_name = train_filename + "_4class_data.csv"
-    train_df.to_csv(join(data_dir, train_data_name))
+    train_dataname = train_filename + "_4class.csv"
+    train_df.to_csv(join(data_dir, train_dataname))
 
     if stoi is None:
         logger.critical('GLOVE features')
         train_dataset, (train_vocab, train_label) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=train_data_name, min_freq=1, labelled_data=True)
+            csv_dir=data_dir, csv_file=train_dataname, min_freq=1, labelled_data=True)
     else:
         logger.critical('GCN features')
         train_dataset, (train_vocab, train_label) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=train_data_name, min_freq=1,
+            csv_dir=data_dir, csv_file=train_dataname, min_freq=1,
             labelled_data=True, embedding_file=None, embedding_dir=None)
         train_vocab.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
 
@@ -535,10 +597,10 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
     logger.info('Prepare labelled target data')
     if test_df is None:
         test_df = read_labelled_json(data_dir, test_filename)
-    test_data_name = test_filename + "_4class_data.csv"
-    test_df.to_csv(join(data_dir, test_data_name))
+    test_dataname = test_filename + "_4class.csv"
+    test_df.to_csv(join(data_dir, test_dataname))
     test_dataset, (test_vocab, test_label) = get_dataset_fields(
-        csv_dir=data_dir, csv_file=test_data_name,  # init_vocab=True,
+        csv_dir=data_dir, csv_file=test_dataname,  # init_vocab=True,
         labelled_data=True)
 
     # check whether cuda is available
@@ -660,16 +722,18 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    data_dir = cfg["paths"]["dataset_dir"][plat][user]
+    data_dir = dataset_dir
 
-    from File_Handlers.read_datasets import load_fire16, load_smerp17
+    # from File_Handlers.read_datasets import load_fire16, load_smerp17
 
-    if args.dataset_name.startswith('fire16'):
-        train_df = load_fire16()
-
-    if cfg['data']['target']['labelled'].startswith('smerp17'):
-        target_df = load_smerp17()
-        target_train_df, test_df = split_target(df=target_df, test_size=0.999)
+    # from File_Handlers.read_datasets import load_fire16, load_smerp17
+    #
+    # if args.dataset_name.startswith('fire16'):
+    #     train_df = load_fire16()
+    #
+    # if cfg['data']['target']['labelled'].startswith('smerp17'):
+    #     target_df = load_smerp17()
+    #     target_train_df, test_df = split_target(df=target_df, test_size=0.999)
 
     # result, model_outputs = BERT_classifier(
     #     train_df=train_df, test_df=test_df, dataset_name=args.dataset_name,
@@ -680,7 +744,9 @@ if __name__ == "__main__":
 
     # train, test = split_target(test_df, test_size=0.3,
     #                            train_size=.6, stratified=False)
-    s2i_dict, X_hat = main(gcn_hops=2, glove_embs=glove_embs)
+    lrs = [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]
+    for lr in lrs:
+        s2i_dict, X_hat = main(gcn_hops=2, glove_embs=glove_embs, lr=lr)
 
     exit(0)
 

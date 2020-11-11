@@ -34,7 +34,7 @@ from torch.utils.data import DataLoader
 from Metrics.metrics import calculate_performance_sk as calculate_performance
 from Utils.utils import logit2label
 from Logger.logger import logger
-from config import configuration as cfg, platform as plat, username as user
+from config import configuration as cfg, platform as plat, username as user, dataset_dir
 
 
 class GCN_Node_Classifier(torch.nn.Module):

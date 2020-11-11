@@ -46,22 +46,15 @@ def save_pickle(data, filename, filepath='', overwrite=False, tag=False):
     """
     logger.debug(("Writing to pickle file: ",
                   join(filepath, filename + ".pkl")))
-    if not overwrite and exists(
-            join(filepath, filename + ".pkl")):
+    if not overwrite and exists(join(filepath, filename + ".pkl")):
         logger.debug("File already exists and Overwrite == False.")
         return True
     try:
         if tag:
-            if exists(date_time_tag + join(filepath,
-                                           filename +
-                                           ".pkl")):
-                logger.debug(("Overwriting on pickle file: ",
-                              date_time_tag + join(filepath,
-                                                   filename +
-                                                   ".pkl")))
-            with open(date_time_tag + join(filepath,
-                                           filename + ".pkl"),
-                      'wb') as pkl_file:
+            if exists(date_time_tag + join(filepath, filename + ".pkl")):
+                logger.debug(("Overwriting on pickle file: ", date_time_tag +
+                              join(filepath, filename + ".pkl")))
+            with open(date_time_tag + join(filepath, filename + ".pkl"), 'wb') as pkl_file:
                 pickle.dump(data, pkl_file)
             pkl_file.close()
             return True
@@ -69,10 +62,8 @@ def save_pickle(data, filename, filepath='', overwrite=False, tag=False):
             if exists(
                     join(filepath, filename + ".pkl")):
                 logger.debug(("Overwriting on pickle file: ",
-                              join(filepath,
-                                   filename + ".pkl")))
-            with open(join(filepath, filename + ".pkl"),
-                      'wb') as pkl_file:
+                              join(filepath, filename + ".pkl")))
+            with open(join(filepath, filename + ".pkl"), 'wb') as pkl_file:
                 pickle.dump(data, pkl_file)
             pkl_file.close()
             return True
@@ -92,14 +83,11 @@ def load_pickle(filename, filepath=''):
     """
     try:
         if exists(join(filepath, filename + ".pkl")):
-            logger.debug(("Reading pickle file: ",
-                          join(filepath, filename + ".pkl")))
-            with open(join(filepath, filename + ".pkl"),
-                      'rb') as pkl_file:
+            logger.debug(("Reading pickle file: ", join(filepath, filename + ".pkl")))
+            with open(join(filepath, filename + ".pkl"), 'rb') as pkl_file:
                 loaded = pickle.load(pkl_file)
             return loaded
     except Exception as e:
-        logger.debug(("Could not write to pickle file:",
-                      join(filepath, filename + ".pkl")))
+        logger.debug(("Could not write to pickle file:", join(filepath, filename + ".pkl")))
         logger.debug(("Failure reason:", e))
         return False

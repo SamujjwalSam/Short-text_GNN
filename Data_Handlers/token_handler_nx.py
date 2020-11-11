@@ -27,15 +27,14 @@ from torch.utils.data import Dataset
 from networkx.readwrite.gpickle import write_gpickle, read_gpickle
 
 from Logger.logger import logger
-from File_Handlers.pkl_handler import save_pickle, load_pickle
-from config import configuration as cfg, platform as plat, username as user
+from config import dataset_dir
 
 
 class Token_Dataset_nx(Dataset):
     """ Token graph dataset in NX. """
 
     def __init__(self, corpus_toks, C_vocab, S_vocab, T_vocab, dataset_name,
-                 data_dir: str = cfg["paths"]["dataset_dir"][plat][user], graph_path=None):
+                 data_dir: str = dataset_dir, graph_path=None):
         # assert dataset_name.lower() in ['fire16', 'smerp17'], f'Dataset {dataset_name} not supported.'
         if dataset_name.startswith('fire16'):
             lab_dataname = 'fire16_labelled'
@@ -673,13 +672,13 @@ if __name__ == "__main__":
             'There is no sentence in this corpus longer than this one.',
             'My dog is named Patrick.']
 
-    from tweet_normalizer import normalizeTweet
+    from Text_Processesor.tweet_normalizer import normalizeTweet
 
     txts_toks = []
     for txt in txts:
         txts_toks.append(normalizeTweet(txt, return_tokens=True))
 
-    from build_corpus_vocab import build_corpus
+    from Text_Processesor.build_corpus_vocab import build_corpus
 
     corpus, vocab = build_corpus(txts_toks)
 

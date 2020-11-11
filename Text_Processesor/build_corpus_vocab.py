@@ -17,16 +17,14 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
-from os.path import join, exists
 from collections import Counter
 from functools import partial
-from sklearn.feature_extraction import stop_words
+# from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import CountVectorizer
 
-from tweet_normalizer import normalizeTweet
 from Data_Handlers.torchtext_handler import prepare_fields, create_vocab,\
-    create_tabular_dataset, dataset2iter, split_dataset, save_dataset,\
-    load_dataset
+    create_tabular_dataset, dataset2iter, split_dataset
+from Text_Processesor.tweet_normalizer import normalizeTweet
 from config import configuration as cfg, platform as plat, username as user
 
 
@@ -36,8 +34,7 @@ def get_dataset_fields(
         init_vocab: bool = True, labelled_data: bool = False,
         target_train_portion=None,
         embedding_dir: [None, str] = cfg["paths"]["embedding_dir"][plat][user],
-        embedding_file: [None, str] = cfg["embeddings"]["embedding_file"],
-        ):
+        embedding_file: [None, str] = cfg["embeddings"]["embedding_file"],):
     ## Create tokenizer:
     tokenizer = partial(normalizeTweet, return_tokens=True)
 
