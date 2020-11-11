@@ -40,16 +40,14 @@ def read_tweet_csv(data_dir='/home/sam/Datasets/disaster_tweets',
     if not data_dir.exists():
         raise FileNotFoundError("Directory [{}] not found.".format(data_dir))
 
-    data_file = data_dir / data_file
+    data_file = data_dir / (data_file+'.csv')
     logger.info(f"Reading csv file from [{data_file}]")
     if not data_file.exists():
         raise FileNotFoundError("File [{}] not found.".format(data_file))
 
     df = pd.read_csv(data_file, index_col=index_col, header=header,
-                     encoding='utf-8',
-                     engine='python',
-                     # lineterminator='\n'
-                     )
+                     encoding='utf-8', engine='python')
+    df = df.sample(frac=1.)
 
     logger.info("Dataset size: [{}]".format(df.shape))
     logger.info("Few dataset samples: \n[{}]".format(df.head()))

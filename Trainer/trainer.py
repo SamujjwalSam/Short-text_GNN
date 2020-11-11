@@ -103,7 +103,7 @@ def training(model, iterator, optimizer, criterion):
     return epoch_loss / len(iterator), output  # , epoch_acc / len(iterator)
 
 
-def predict_with_label(model, iterator, criterion=None):
+def predict_with_label(model, iterator, criterion=None, metric=True):
     """ Predicts and calculates performance. Labels mandatory
 
     Args:
@@ -120,13 +120,13 @@ def predict_with_label(model, iterator, criterion=None):
     if criterion is None:
         criterion = nn.BCEWithLogitsLoss()
 
-    preds_trues = {'preds': [], 'trues': [], 'ids': []}
+    preds_trues = {'preds': [], 'trues': [], 'ids': [], 'losses': [], 'results': []}
 
     # deactivating dropout layers
     model.eval()
 
     # deactivates autograd
-    with torch.no_grad():
+    with no_grad():
         for i, batch in enumerate(iterator):
             # retrieve text and no. of words
             text, text_lengths = batch.text
@@ -143,12 +143,22 @@ def predict_with_label(model, iterator, criterion=None):
 
             # keep track of loss and accuracy
             epoch_loss += loss.item()
+            preds_trues['losses'].append(epoch_loss)
             # epoch_acc += acc.item()
             # epoch_acc += acc["accuracy"]["unnormalize"]
+        if metric:
+            ## Converting raw scores to probabilities using Sigmoid:
+            preds = sigmoid(predictions)
 
-        preds_trues['preds'] = torch.cat(preds_trues['preds'])
-        preds_trues['trues'] = torch.cat(preds_trues['trues'])
-        preds_trues['ids'] = torch.cat(preds_trues['ids'])
+            ## Converting probabilities to class labels:
+            preds = logit2label(preds.detach(), cls_thresh=0.5)
+            trues = cat(preds_trues['trues'])
+            result_dict = calculate_performance(trues, preds)
+
+        preds_trues['preds'] = cat(preds_trues['preds'])
+        preds_trues['trues'] = cat(preds_trues['trues'])
+        preds_trues['ids'] = cat(preds_trues['ids'])
+        preds_trues['losses'] = cat(preds_trues['losses'])
 
     return epoch_loss / len(iterator), preds_trues
 
@@ -193,6 +203,11 @@ def trainer(model, train_iterator, val_iterator, N_EPOCHS=5, optimizer=None,
         # evaluate the model
         val_loss, val_preds_trues = predict_with_label(model, val_iterator, criterion)
         val_preds_trues['preds'] = sigmoid(val_preds_trues['preds'])
+        record_train_losses.append(train_loss)
+        record_val_losses.append(val_loss)
+
+        # logger.info(f"Epoch {epoch}, Train loss {train_loss}, Eval loss {val_loss},"
+        #             f" Macro F1 {test_output['result']['f1']['macro'].item()}")
         # val_preds_trues_all[epoch] = val_preds_trues
 
         # save the best model
@@ -203,11 +218,6 @@ def trainer(model, train_iterator, val_iterator, N_EPOCHS=5, optimizer=None,
             # torch.save(model.state_dict(), 'saved_weights.pt')
             save_model(model)
             # save_model(saved_model_name='tweet_bilstm_'+str(epoch))
-
-        logger.info(f'\tTrain Loss: {train_loss:.6f}')
-        record_train_losses.append(train_loss)
-        logger.info(f'\t Val. Loss: {val_loss:.6f}')
-        record_val_losses.append(val_loss)
 
     losses = {
         "train": record_train_losses,

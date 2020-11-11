@@ -97,19 +97,13 @@ def normalizeToken2(token):
     cleaned_tokens = str()
     for token in tokens:
         ## Remove special characters:
-        token_split = re.sub('[^A-Za-z0-9]+', ' ', token).strip()
+        token = re.sub('[^A-Za-z0-9.;?:$#@%\'&]+', ' ', token).strip()
 
         ## Split if str and int are merged:
-        token_clean = re.findall(r'(\w+?)(\d+)', token_split)
-        if token_clean:
-            for t in token_clean:
-                for tt in t:
-                    cleaned_tokens += ' ' + tt
-        else:
-            for token2 in token_split.split():
-                cleaned_tokens += ' ' + token2
+        if token:
+            cleaned_tokens += ' '+seperate_string_number(token)
 
-    return cleaned_tokens
+    return cleaned_tokens.strip()
 
 
 def normalizeToken(token):
@@ -139,8 +133,21 @@ def normalizeToken(token):
             return token
 
 
-def normalizeTweet(tweet: str, tokenizer: TweetTokenizer = TweetTokenizer(), return_tokens: bool = False,
-                   lower_case: bool = True, remove_linebreaks: bool = True) -> list:
+def normalizeTweet(tweet: str, tokenizer: TweetTokenizer = TweetTokenizer(),
+                   return_tokens=False, normalize=True, lower_case=True,
+                   stopwords=stopwords.words('english'), remove_linebreaks=True)\
+        -> [list, str]:
+    """ Splits a string into either list ordered tokens or normalized string.
+
+    :param stopwords: Pass None if stopwords should not be removed.
+    :param tweet:
+    :param tokenizer:
+    :param return_tokens:
+    :param normalize:
+    :param lower_case:
+    :param remove_linebreaks:
+    :return:
+    """
     # tweet2, _ = find_numbers(tweet)
     if lower_case:
         tweet = tweet.lower()
@@ -180,9 +187,9 @@ def normalizeTweet(tweet: str, tokenizer: TweetTokenizer = TweetTokenizer(), ret
     tokens = re.sub(r"([0-9]{1,3})- ([0-9]{2,4})", r"\1-\2", tokens)
 
     if return_tokens:
-        return normTweet.split()
+        return tokens.split()
 
-    return " ".join(normTweet.split())
+    return " ".join(tokens.split())
 
 
 if __name__ == "__main__":

@@ -136,9 +136,9 @@ def train_graph_classifier(model, G, X,
         epoch_loss /= (iter + 1)
         losses, test_output = test_graph_classifier(
             model, G, X, loss_func=loss_func, data_loader=eval_data_loader)
+        logger.info(dumps(test_output['result'], indent=4))
         logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, Eval loss {losses},"
                     f" Macro F1 {test_output['result']['f1']['macro'].item()}")
-        logger.info(dumps(test_output['result'], indent=4))
         train_epoch_losses.append(epoch_loss)
         preds = cat(preds)
 

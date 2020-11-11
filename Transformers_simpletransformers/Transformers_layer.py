@@ -30,7 +30,7 @@ from transformers import AutoModel, AutoTokenizer
 from simpletransformers.classification import ClassificationModel
 from simpletransformers.classification.classification_utils import InputExample, convert_examples_to_features
 
-from config import configuration as cfg, platform as plat, username as user
+from config import configuration as cfg, platform as plat, username as user, dataset_dir
 from Metrics.metrics import calculate_performance_pl
 from Logger.logger import logger
 from File_Handlers.json_handler import read_labelled_json
@@ -447,8 +447,7 @@ class TransformerPretrain():
         #             param.requires_grad = False
         #         logger.info(f"Froze Layer: {layer_idx}")
 
-    def read_data(self, data_dir=cfg["paths"]["dataset_dir"][plat][user],
-                  filename=cfg["data"]["source"]['labelled']):
+    def read_data(self, data_dir=dataset_dir, filename=cfg['data']['train']):
         new_df = read_labelled_json(data_dir, filename)
         new_df = format_inputs(new_df)
         return new_df

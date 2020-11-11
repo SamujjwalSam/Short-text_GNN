@@ -28,7 +28,7 @@ from simpletransformers.classification import MultiLabelClassificationModel, Mul
 # import torch.multiprocessing
 # torch.multiprocessing.set_sharing_strategy('file_system')
 
-from config import configuration as cfg, platform as plat, username as user
+from config import configuration as cfg, platform as plat, username as user, dataset_dir
 from Metrics.metrics import calculate_performance_pl, calculate_performance_sk
 from Logger.logger import logger
 
@@ -57,12 +57,12 @@ def macro_f1(labels, preds, threshold=0.5):
     -------
 
     """
-    np.savetxt(join(cfg['paths']["dataset_dir"][plat][user],
-                    cfg["data"]["source"]['labelled'] + "_" +
+    np.savetxt(join(cfg['paths']['dataset_root'][plat][user],
+                    cfg['data']['train'] + "_" +
                     cfg['transformer']['model_type'] + '_labels.txt'),
                labels)
-    np.savetxt(join(cfg['paths']["dataset_dir"][plat][user],
-                    cfg["data"]["source"]['labelled'] + "_" +
+    np.savetxt(join(cfg['paths']['dataset_root'][plat][user],
+                    cfg['data']['train'] + "_" +
                     cfg['transformer']['model_type'] + '_preds.txt'),
                preds)
 
@@ -82,7 +82,7 @@ def macro_f1(labels, preds, threshold=0.5):
 
 def BERT_classifier(train_df: pd.core.frame.DataFrame,
                     test_df: pd.core.frame.DataFrame, n_classes: int = 4,
-                    dataset_name: str = cfg["data"]["source"]['labelled'],
+                    dataset_name: str = cfg['data']['train'],
                     model_name: str = cfg['transformer']['model_name'],
                     model_type: str = cfg['transformer']['model_type'],
                     num_epoch: int = cfg['training']['num_epoch'],
@@ -213,8 +213,8 @@ def BERT_classifier(train_df: pd.core.frame.DataFrame,
     missed_examples.to_csv(missed_examples_path)
 
     # logger.info(dumps(result, indent=4))
-    # with open(join(cfg['paths']["dataset_dir"][plat][user],
-    #                cfg["data"]["source"]['labelled'] + "_" + model_name +
+    # with open(join(cfg['paths']['dataset_root'][plat][user],
+    #                cfg['data']['train'] + "_" + model_name +
     #                '_result.json'), 'w') as f:
     #     dump(result, f)
 
@@ -254,7 +254,7 @@ if __name__ == "__main__":
     from File_Handlers.json_handler import read_labelled_json
     from Class_mapper.FIRE16_SMERP17_map import labels_mapper
 
-    data_dir = cfg["paths"]["dataset_dir"][plat][user]
+    data_dir = dataset_dir
 
     train_df = read_labelled_json(data_dir, args.dataset_name)
     train_df = labels_mapper(train_df)

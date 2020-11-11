@@ -24,6 +24,8 @@ from dgl.nn.pytorch.conv import GATConv, GraphConv
 
 from Layers.gcn_dropedgelearn import GCN_DropEdgeLearn_Model, GCN
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 class Instance_GAT_dgl(torch.nn.Module):
     """ GAT architecture for instance graphs. """
@@ -150,8 +152,10 @@ class GNN_Combined(torch.nn.Module):
     #     self.token_gcn_dropedgelearn.train()
     #     self.instance_gat_dgl.train()
 
-    def forward(self, instance_batch, instance_batch_embs, instance_batch_local_token_ids,
-                node_counts, instance_batch_global_token_ids, token_graph, token_embs):
+    def forward(self, instance_batch: DGLGraph, instance_batch_embs: torch.Tensor,
+                instance_batch_local_token_ids: list, node_counts: list,
+                instance_batch_global_token_ids: list, token_graph: torch.Tensor,
+                token_embs: torch.Tensor) -> torch.Tensor:
         """ Combines embeddings of tokens from token and instance graph by concatenating.
 
         Take embeddings from token graph for tokens present in the instance graph batch.
@@ -182,12 +186,13 @@ class GNN_Combined(torch.nn.Module):
                 instance_batch_local_token_ids, instance_batch_global_token_ids, node_counts):
             end_idx = start_idx + node_count
             # print(start_idx, end_idx, node_count)
-            # print(token_embs[token_global_ids].shape, instance_batch_embs[start_idx:end_idx][instance_local_ids].shape)
+            # print(token_embs[token_global_ids].shape, instance_batch_embs[start_idx:end_idx][
+            # instance_local_ids].shape)
 
             ## Combine both embeddings:
             if self.combine == 'concat':
                 combined_emb = torch.cat([token_embs[token_global_ids],
-                                           instance_batch_embs[start_idx:end_idx][instance_local_ids]], dim=1)
+                                          instance_batch_embs[start_idx:end_idx][instance_local_ids]], dim=1)
             elif self.combine == 'avg':
                 combined_emb = torch.mean(torch.stack(
                     [token_embs[token_global_ids], instance_batch_embs[start_idx:end_idx][instance_local_ids]]), dim=0)

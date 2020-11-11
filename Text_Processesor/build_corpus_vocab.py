@@ -39,7 +39,9 @@ def get_dataset_fields(
     tokenizer = partial(normalizeTweet, return_tokens=True)
 
     (TEXT, LABEL), labelled_fields, unlabelled_fields = prepare_fields(
-        text_headers=text_headers, tokenizer=tokenizer)
+        text_headers=text_headers, tokenizer=tokenizer, n_classes=4  ## TODO:
+        # for binary dataset
+    )
 
     ## Create dataset from saved csv file:
     if labelled_data:
@@ -111,7 +113,9 @@ class Vocabulary:
     HASH_token = 4  # Used for #hashtags in tweets
     USER_token = 5  # Used for @user in tweets
 
-    def __init__(self, name='vocab', tokenizer=None, stopwords: list = None):
+    def __init__(self, name='vocab', tokenizer=None,
+                 # stopwords: list = stopwords.words('english')
+                 ):
         self.name = name
         self.token2index = {}
         self.token2count = {}
@@ -128,8 +132,6 @@ class Vocabulary:
         self.num_sentences = 0
         self.longest_sentence = 0
         self.shortest_sentence = 0
-        if stopwords is None:
-            stopwords = list(stop_words.ENGLISH_STOP_WORDS)
         if tokenizer is None:
             ## Create tokenizer:
             self.tokenizer = partial(normalizeTweet, return_tokens=True)
@@ -193,8 +195,6 @@ def _test_Vocabulary():
 
 
 if __name__ == "__main__":
-    from tweet_normalizer import normalizeTweet
-
     t1 = "SC has first two presumptive cases of coronavirus, DHEC confirms "\
          "https://postandcourier.com/health/covid19/sc-has-first-two"\
          "-presumptive-cases-of-coronavirus-dhec-confirms/article_bddfe4ae"\

@@ -217,7 +217,7 @@ def calculate_cooccurrence_mat(oov_vocab: list, corpus_str: list):
     return coocc_ar
 
 
-def train_mittens(coocc_ar, oov_vocabs, pre_glove, emb_dim=100, max_iter=200,
+def train_mittens(coocc_ar, oov_vocabs, pre_glove, emb_dim=cfg['embeddings']['emb_dim'], max_iter=200,
                   glove_oov_save_path=None, dataset_dir=dataset_dir,
                   embedding_file=cfg["embeddings"]["embedding_file"],
                   dataset_name=cfg['data']['train'] + cfg['data']['test']):

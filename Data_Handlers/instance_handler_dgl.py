@@ -128,7 +128,6 @@ class Instance_Dataset_DGL(DGLDataset):
             '_instance_graph_global_node_ids', filepath=self.data_dir)
         self.instance_graph_local_node_ids = load_pickle(self.dataset_name +
             'instance_graph_local_node_ids', filepath=self.data_dir)
-        # load processed data from directory graph_path
         self.graphs, self.labels = load_dgl(graph_path, infopath)
         return self.graphs, self.instance_graph_local_node_ids, \
                self.labels, self.instance_graph_global_node_ids
@@ -289,6 +288,7 @@ def save_dgl(graphs, labels, graph_path, info=None, info_path=None):
     :param info_path:
     """
     # save graphs and labels
+    logger.info(f'Saving graph data: {graph_path}')
     save_graphs(graph_path, graphs, {'labels': labels})
     # save other information in python dict
     if info_path is not None:
@@ -303,6 +303,7 @@ def load_dgl(graph_path, info_path=None):
     :return:
     """
     # load processed data from directory graph_path
+    logger.info(f'Loading graph data from: {graph_path}')
     graphs, label_dict = load_graphs(graph_path)
     labels = label_dict['labels']
     if info_path is not None:

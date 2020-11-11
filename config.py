@@ -200,9 +200,9 @@ configuration = {
     },
 
     "embeddings":   {
-        'embedding_file': 'glove.6B.100d',
-        'saved_emb_file': 'merged_100d',
-        'emb_dim':        100,
+        'embedding_file': 'glove.6B.300d',
+        'saved_emb_file': 'merged_300d',
+        'emb_dim':        300,
     },
 
     "lstm_params":  {
@@ -223,7 +223,7 @@ configuration = {
     },
 
     "training":     {
-        "num_epoch":        25,
+        "num_epoch":        15,
         "num_train_epoch":  50,
         "train_batch_size": 32,
         "eval_batch_size":  64,
@@ -238,7 +238,7 @@ configuration = {
         "num_chunks":         10,
         "vectorizer":         "doc2vec",
         "sample_repeat_mode": "append",
-        "input_size":         100,
+        "input_size":         300,
         "tfidf_avg":          False,
         "idf":                True
     },

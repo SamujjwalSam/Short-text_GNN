@@ -304,13 +304,17 @@ def freq_tokens_per_class(df: pd.core.frame.DataFrame, normalize: bool = True):
         tweet_toks = set(tokenizer(tweet.text))
         for token in tweet_toks:
             # token_cls_freq[token] = {}
+            num_classes = len(tweet[1:])
             try:
                 token_cls_freq[token]
             except KeyError:
-                token_cls_freq[token] = [0.0] * len(tweet[1:])
-            for cls, val in tweet[1:].items():
+                token_cls_freq[token] = [0.0] * num_classes
+            for cls, (_, val) in zip(range(num_classes), tweet[1:].items()):
                 if val == 1:
-                    token_cls_freq[token][cls] += 1
+                    token_cls_freq[token][int(cls)] += 1
+            # for cls, val in tweet[1:].items():
+            #     if val == 1:
+            #         token_cls_freq[token][int(cls)] += 1
                     # try:
                     #     token_cls_freq[token][cls] += 1
                     # except KeyError:
