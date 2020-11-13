@@ -213,13 +213,13 @@ def precision_at_k(actuals, predictions, k=5, pos_label=1):
 
     ## Converting to Numpy as it has supported funcions.
     if torch.is_tensor(actuals):
-        print(f"'actuals' is of [{type(actuals)}] type. Converting to Numpy.")
+        logger.info(f"'actuals' is of [{type(actuals)}] type. Converting to Numpy.")
         actuals = actuals.numpy()
-        print(actuals)
+        logger.info(actuals)
     if torch.is_tensor(predictions):
-        print(f"'predictions' is of [{type(predictions)}] type. Converting to Numpy.")
+        logger.info(f"'predictions' is of [{type(predictions)}] type. Converting to Numpy.")
         predictions = predictions.data.numpy()
-        print(predictions)
+        logger.info(predictions)
 
     n_pos_vals = (actuals == pos_label).sum()
     desc_order = np.argsort(predictions, -k)  # [::-1] reverses array
@@ -377,11 +377,11 @@ def main():
     true = torch.tensor([[0, 1], [1, 0]])
     pred = torch.tensor([[0, 1], [0, 0]])
     pl_dict = calculate_performance_pl(true, pred)
-    print(pl_dict)
+    logger.info(pl_dict)
     pl_sk_dict = calculate_performance_sk(true, pred)
-    print(pl_sk_dict)
+    logger.info(pl_sk_dict)
     sk_dict = calculate_performance_sk(true.numpy(), pred.numpy())
-    print(sk_dict)
+    logger.info(sk_dict)
 
     true = np.array([[0, 1, 0, 0], [0, 1, 1, 0], [1, 0, 1, 0]])
     pred = np.array([[0, 1, 0, 1], [0, 1, 0, 0], [0, 0, 1, 0]])

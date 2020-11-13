@@ -28,6 +28,7 @@ from emoji import demojize
 from File_Handlers.json_handler import read_json
 from config import configuration as cfg, platform as plat, username as user,\
     dataset_dir
+from Logger.logger import logger
 
 acronym = read_json(join(cfg["paths"]['dataset_root'][plat][user], 'acronym'))
 
@@ -231,6 +232,6 @@ if __name__ == "__main__":
          "relief efforts in #Nepal "\
          "#earthquake\nhttp://t.co/ujtFuZAiY9\n@SunnyLeone"
 
-    # print(normalizeTweet(t1))
-    print(normalizeTweet(t2))
-    print(normalizeTweet(t2, return_tokens=True))
+    # logger.info(normalizeTweet(t1))
+    logger.info(normalizeTweet(t2))
+    logger.info(normalizeTweet(t2, return_tokens=True))

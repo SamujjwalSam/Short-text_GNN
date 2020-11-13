@@ -23,6 +23,7 @@ import scipy.sparse as sp
 
 from Utils.utils import sp_coo2torch_coo
 from Label_Propagation_PyTorch.adj_propagator import Adj_Propagator
+from Logger.logger import logger
 
 
 def GCN_forward_old(adj: sp.csr.csr_matrix, X: torch.Tensor, forward: int = 2
@@ -101,7 +102,7 @@ def main():
     for i in range(5):
         G_k.nodes[i]['x'] = np.random.rand(7, )
     output = GCN_forward(G_k_data)
-    print(output)
+    logger.info(output)
 
 
 if __name__ == "__main__":

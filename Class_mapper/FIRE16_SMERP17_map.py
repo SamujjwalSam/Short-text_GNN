@@ -81,7 +81,7 @@ def main():
     a = [1, 0, 1]
     b = [1, 0, 0]
     out = np.logical_or(a, b) * 1
-    print(out)
+    logger.info(out)
 
 
 if __name__ == "__main__":

@@ -91,17 +91,29 @@ configuration = {
         'num_classes': 1,
         'class_names': ('0'),
 
-        'name':        'nepal_queensland',
+        # 'name':        'nepal_queensland',
+        # 'train':       '2015_Nepal_Earthquake_train',
+        # 'val':         '2015_Nepal_Earthquake_dev',
+        # 'test':        '2013_Queensland_Floods_test',
+        # "source":      {
+        #     'labelled':   '2015_Nepal_Earthquake_train',
+        #     'unlabelled': 'fire16_unlabeled'
+        # },
+        # "target":      {
+        #     'labelled':   '2013_Queensland_Floods_test',
+        #     'unlabelled': 'queensland_unlabeled'},
+
+        'name':        'nepal_nepal',
         'train':       '2015_Nepal_Earthquake_train',
         'val':         '2015_Nepal_Earthquake_dev',
-        'test':        '2013_Queensland_Floods_test',
+        'test':        '2015_Nepal_Earthquake_test',
         "source":      {
             'labelled':   '2015_Nepal_Earthquake_train',
             'unlabelled': 'fire16_unlabeled'
         },
         "target":      {
-            'labelled':   '2013_Queensland_Floods_test',
-            'unlabelled': 'queensland_unlabeled'},
+            'labelled':   '2015_Nepal_Earthquake_train',
+            'unlabelled': 'fire16_unlabeled'},
 
         # 'name':       'queensland_nepal',
         # 'train':      '2013_Queensland_Floods_train',
@@ -115,15 +127,18 @@ configuration = {
         #     'labelled':   '2015_Nepal_Earthquake_test',
         #     'unlabelled': 'fire16_unlabeled'},
 
+        # 'name':       'queensland_queensland',
+        # 'train':      '2013_Queensland_Floods_train',
+        # 'val':        '2013_Queensland_Floods_dev',
+        # 'test':       '2013_Queensland_Floods_test',
         # "source":     {
-        #     'labelled':   'smerp17_labeled',
-        #     'unlabelled': 'smerp17_unlabeled'
+        #     'labelled':   '2013_Queensland_Floods_train',
+        #     'unlabelled': 'queensland_unlabeled'
         # },
         # "target":     {
-        #     'labelled':   'fire16_labeled',
-        #     'unlabelled': 'fire16_unlabeled'},
+        #     'labelled':   '2013_Queensland_Floods_train',
+        #     'unlabelled': 'queensland_unlabeled'},
 
-        # "dataset_name": "fire16_labeled",
         "val_split":   0.15,
         "test_split":  0.999,
         "show_stat":   False

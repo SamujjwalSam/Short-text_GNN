@@ -86,15 +86,15 @@ In [6]: torch.cuda.is_available()
 Out[6]: True
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print('Using device:', device)
-print()
+logger.info('Using device:', device)
+logger.info()
 
 #Additional Info when using cuda
 if device.type == 'cuda':
-    print(torch.cuda.get_device_name(0))
-    print('Memory Usage:')
-    print('Allocated:', round(torch.cuda.memory_allocated(0)/1024**3,1), 'GB')
-    print('Cached:   ', round(torch.cuda.memory_cached(0)/1024**3,1), 'GB')
+    logger.info(torch.cuda.get_device_name(0))
+    logger.info('Memory Usage:')
+    logger.info('Allocated:', round(torch.cuda.memory_allocated(0)/1024**3,1), 'GB')
+    logger.info('Cached:   ', round(torch.cuda.memory_cached(0)/1024**3,1), 'GB')
     
     
 >>> import platform
@@ -784,8 +784,7 @@ if __name__ == "__main__":
 
     # train, test = split_target(test_df, test_size=0.3,
     #                            train_size=.6, stratified=False)
-    lrs = [1e-4, 1e-5]
-    hid_dims = [100, 150, 200]
+    lrs = [1e-5, 1e-4, 1e-3]
     for lr in lrs:
         s2i_dict = main(lr=lr)
 

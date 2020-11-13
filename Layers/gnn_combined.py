@@ -185,8 +185,8 @@ class GNN_Combined(torch.nn.Module):
         for instance_local_ids, token_global_ids, node_count in zip(
                 instance_batch_local_token_ids, instance_batch_global_token_ids, node_counts):
             end_idx = start_idx + node_count
-            # print(start_idx, end_idx, node_count)
-            # print(token_embs[token_global_ids].shape, instance_batch_embs[start_idx:end_idx][
+            # logger.info(start_idx, end_idx, node_count)
+            # logger.info(token_embs[token_global_ids].shape, instance_batch_embs[start_idx:end_idx][
             # instance_local_ids].shape)
 
             ## Combine both embeddings:

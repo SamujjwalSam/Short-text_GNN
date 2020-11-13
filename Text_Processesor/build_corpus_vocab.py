@@ -26,6 +26,7 @@ from Data_Handlers.torchtext_handler import prepare_fields, create_vocab,\
     create_tabular_dataset, dataset2iter, split_dataset
 from Text_Processesor.tweet_normalizer import normalizeTweet
 from config import configuration as cfg, platform as plat, username as user
+from Logger.logger import logger
 
 
 def get_dataset_fields(
@@ -86,8 +87,8 @@ def build_corpus(df, txts: list = None, corpus: list = None):
 
     vectorizer = CountVectorizer()
     X = vectorizer.fit_transform(df.text)
-    print(X.shape)
-    print(vectorizer.get_feature_names())
+    logger.info(X.shape)
+    logger.info(vectorizer.get_feature_names())
 
     for txt in txts:
         # corpus = corpus + txt
@@ -171,27 +172,27 @@ class Vocabulary:
 
 def _test_Vocabulary():
     voc = Vocabulary('test')
-    print(voc)
+    logger.info(voc)
     corpus = ['This is the first sentence.',
               'This is the second.',
               'There is no sentence in this corpus longer than this one.',
               'My dog is named Patrick.']
-    # print(corpus)
+    # logger.info(corpus)
     for sent in corpus:
         voc.add_sentence(sent)
 
-    print('Token 4 corresponds to token:', voc.to_token(4))
-    print('Token "this" corresponds to index:', voc.to_index('this'))
+    logger.info('Token 4 corresponds to token:', voc.to_token(4))
+    logger.info('Token "this" corresponds to index:', voc.to_index('this'))
     for token in range(voc.num_tokens):
-        print(voc.to_token(token))
+        logger.info(voc.to_token(token))
 
     sent_tkns = []
     sent_idxs = []
     for token in corpus[3].split(' '):
         sent_tkns.append(token)
         sent_idxs.append(voc.to_index(token))
-    print(sent_tkns)
-    print(sent_idxs)
+    logger.info(sent_tkns)
+    logger.info(sent_idxs)
 
 
 if __name__ == "__main__":
@@ -212,12 +213,12 @@ if __name__ == "__main__":
 
     corpus1, vocab1 = build_corpus(txts)
 
-    print(corpus1, vocab1)
+    logger.info(corpus1, vocab1)
 
     t3 = "#India dispatched 100,000 bottles of"
     t3_toks = normalizeTweet(t3)
 
     corpus3, vocab3 = build_corpus([t3_toks], corpus1)
 
-    print(corpus3, vocab3)
+    logger.info(corpus3, vocab3)
     _test_Vocabulary()

@@ -19,6 +19,7 @@ __license__     : "This source code is licensed under the MIT-style license
 
 import torch as t
 from Utils.utils import dot
+from Logger.logger import logger
 
 # import numpy as np
 # from scipy import sparse
@@ -99,4 +100,4 @@ if __name__ == "__main__":
     lpa = Adj_Propagator()
     Y = t.rand(4, 3)
     Y_hat = lpa(adj, Y)
-    print(Y_hat)
+    logger.info(Y_hat)

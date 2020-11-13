@@ -319,7 +319,7 @@ if __name__ == "__main__":
     lpa = Adj_Propagator(adj)
     inputs = t.rand(4, 3)
     outputs = lpa(inputs)
-    print(outputs)
+    logger.info(outputs)
 
     data = prepare_features()
     labels = discretize_labels()

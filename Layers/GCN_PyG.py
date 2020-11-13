@@ -17,12 +17,15 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.nn import ModuleList
 from torch_geometric.nn import GCNConv
 from torch_geometric.data import Data
 from torch_geometric import utils as tg_utils
+
+from Logger.logger import logger
 
 
 def netrowkx2geometric(G):
@@ -102,14 +105,14 @@ def main():
         G_k.nodes[i]['x'] = np.random.rand(7, )
     G_k_data = netrowkx2geometric(G_k)
 
-    print(G_k_data.x)
-    print(G_k_data.edge_index)
+    logger.info(G_k_data.x)
+    logger.info(G_k_data.edge_index)
 
     gcn_net = GCN_Net_multi_linear(num_node_features=7, hid_dim=5,
                                    num_classes=2, num_gcn_layers=2)
 
     output = gcn_net(G_k_data)
-    print(output)
+    logger.info(output)
 
 
 if __name__ == "__main__":

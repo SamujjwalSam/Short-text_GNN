@@ -89,23 +89,16 @@ class Token_Dataset_nx(Dataset):
         :return:
         """
         emb_shape = embs[list(embs.keys())[0]].shape
-        try:
-            embs['<unk>']
-        except KeyError:
-            embs['<unk>'] = np.random.normal(size=emb_shape)
-        try:
-            embs['<pad>']
-        except KeyError:
-            embs['<pad>'] = np.zeros(emb_shape)
+        embs.get('<unk>', np.random.normal(size=emb_shape))
+        embs.get('<pad>', np.zeros(emb_shape))
 
         X = []
         for node_id in self.node_list:
+            # logger.info(node_id)
+            # logger.info(i2s[node_id])
             node_txt = i2s[node_id]
-            # print(node_id, node_txt)
-            try:
-                node_emb = oov_embs[node_txt]
-            except KeyError:
-                node_emb = embs[node_txt]
+            # logger.info(node_id, node_txt)
+            node_emb = oov_embs.get(node_txt, embs[node_txt])
             X.append(node_emb)
 
         X = np.stack(X)
@@ -246,15 +239,8 @@ class Token_Dataset_nx(Dataset):
 
         ## Add token's id as node to the graph
         for token_txt, token_id in c_vocab['str2idx_map'].items():
-            try:
-                s_co = s_vocab['freqs'][token_txt]
-            except KeyError:
-                s_co = 0
-
-            try:
-                t_co = t_vocab['freqs'][token_txt]
-            except KeyError:
-                t_co = 0
+            s_co = s_vocab['freqs'].get(token_txt, 0)
+            t_co = t_vocab['freqs'].get(token_txt, 0)
             G.add_node(token_id, node_txt=token_txt, s_co=s_co, t_co=t_co)
 
         ## Add edges based on token co-occurrence within sliding window:
@@ -635,7 +621,7 @@ def ego_graph_nbunch_window(G: nx.Graph, nbunch: list,
                 continue
                 ## TODO: Ignoring non-existing nodes for now; need to handle
                 ## similar to OOV token
-                # print(f"Node [{nbunch[i]}] not found in G.")
+                # logger.info(f"Node [{nbunch[i]}] not found in G.")
                 # if i > 0:
                 #     G.add_edge(nbunch[i-1], nbunch[i], weight=weight)
                 #     G.add_edge(nbunch[i], nbunch[i+1], weight=weight)
@@ -705,7 +691,7 @@ if __name__ == "__main__":
 
     g_ob = Token_Dataset_nx(corpus_toks, C_vocab, S_vocab, T_vocab, )
     G = g_ob.G
-    print(G.nodes)
+    logger.info(G.nodes)
 
     ## Testing
     test_txts = ['There sam is no sentence',
@@ -721,6 +707,6 @@ if __name__ == "__main__":
     # txt_h = ego_graph_nbunch(G, txt)
 
     for txt in txt_h.values():
-        print(txt.nodes)
+        logger.info(txt.nodes)
         plot_graph(txt)
-    print("Successfully printed.")
+    logger.info("Successfully printed.")

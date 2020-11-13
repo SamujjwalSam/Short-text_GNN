@@ -125,6 +125,7 @@ class Instance_Dataset_DGL(DGLDataset):
         if graph_path is None:
             graph_path = self.graph_path
 
+        logger.info(f'Loading graphs from {join(self.data_dir, self.dataset_name)}')
         self.instance_graph_global_node_ids = load_pickle(self.dataset_name +
             '_instance_graph_global_node_ids', filepath=self.data_dir)
         self.instance_graph_local_node_ids = load_pickle(self.dataset_name +

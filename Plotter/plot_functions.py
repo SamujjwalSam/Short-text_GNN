@@ -97,12 +97,12 @@ def plot_training_loss(training_losses: list, val_losses: list,
 def calculate_sd():
     for name, dataset in {"FIRE16": FIRE16, "SMERP17": smerp_results,
                           "Kaggle": kaggle_results}.items():
-        print(f"Dataset: [{name}]")
+        logger.info(f"Dataset: [{name}]")
     for algo, data in dataset.items():
-        print(f"\tMetric: [{algo}]")
+        logger.info(f"\tMetric: [{algo}]")
         for i, v in data.items():
             sd = statistics.stdev(v)
-            print(f"\t\t {sd:.3},")
+            logger.info(f"\t\t {sd:.3},")
 
 
 def plot_pr(data, classes=None, n_groups=7, bar_elev=.4, set_ylim=0.35,
