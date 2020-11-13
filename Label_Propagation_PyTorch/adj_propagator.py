@@ -18,6 +18,7 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import torch as t
+from Utils.utils import dot
 
 # import numpy as np
 # from scipy import sparse
@@ -50,20 +51,6 @@ import torch as t
 #     res = sp_dropout(x, dropout_mask)
 #     res /= keep_prob
 #     return res
-
-
-def dot(x: t.Tensor, y: t.Tensor) -> t.Tensor:
-    """ dot product between 2 tensors for dense and sparse format.
-
-    :param x:
-    :param y:
-    :return:
-    """
-    if x.is_sparse:
-        res = t.spmm(x, y)
-    else:
-        res = t.matmul(x, y)
-    return res
 
 
 class Adj_Propagator(t.nn.Module):

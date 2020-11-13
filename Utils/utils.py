@@ -36,6 +36,20 @@ from Text_Processesor.tweet_normalizer import normalizeTweet
 from Logger.logger import logger
 
 
+def dot(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    """ dot product between 2 tensors for dense and sparse format.
+
+    :param x:
+    :param y:
+    :return:
+    """
+    if x.is_sparse:
+        res = torch.spmm(x, y)
+    else:
+        res = torch.matmul(x, y)
+    return res
+
+
 def iterative_train_test_split(X, y, test_size, order=2, random_state=None):
     """Iteratively stratified train/test split
 
@@ -52,7 +66,9 @@ def iterative_train_test_split(X, y, test_size, order=2, random_state=None):
         :param random_state:
     """
 
-    stratifier = IterativeStratification(n_splits=2, order=order, sample_distribution_per_fold=[test_size, 1.0-test_size], random_state=random_state)
+    stratifier = IterativeStratification(n_splits=2, order=order,
+                                         sample_distribution_per_fold=[test_size, 1.0 - test_size],
+                                         random_state=random_state)
     train_indexes, test_indexes = next(stratifier.split(X, y))
 
     X_train, y_train = X[train_indexes, :], y[train_indexes, :]
@@ -62,7 +78,7 @@ def iterative_train_test_split(X, y, test_size, order=2, random_state=None):
 
 
 def split_target(df=None, data_dir=dataset_dir, labelled_dataname=cfg['data']['test'],
-                 test_size=0.999, train_size=None, n_classes=4, stratified=False):
+                 test_size=0.999, train_size=None, n_classes=cfg['data']['num_classes'], stratified=False):
     """ Splits labelled target data to train and test set.
 
     :param data_dir:
@@ -158,7 +174,7 @@ def count_parameters(model):
 
 
 def split_data(lab_tweets, test_size=0.3, stratified=True, random_state=0,
-               order=2, n_classes=4):
+               order=2, n_classes=cfg['data']['num_classes']):
     """ Splits json data.
 
     :param lab_tweets:
@@ -219,7 +235,7 @@ def split_data(lab_tweets, test_size=0.3, stratified=True, random_state=0,
 
 
 def split_df(df, test_size=0.3, stratified=True, random_state=0,
-             order=2, n_classes=4):
+             order=2, n_classes=cfg['data']['num_classes']):
     """ Splits Dataframe.
 
     :param n_classes:
@@ -315,10 +331,10 @@ def freq_tokens_per_class(df: pd.core.frame.DataFrame, normalize: bool = True):
             # for cls, val in tweet[1:].items():
             #     if val == 1:
             #         token_cls_freq[token][int(cls)] += 1
-                    # try:
-                    #     token_cls_freq[token][cls] += 1
-                    # except KeyError:
-                    #     token_cls_freq[token][cls] = 1
+            # try:
+            #     token_cls_freq[token][cls] += 1
+            # except KeyError:
+            #     token_cls_freq[token][cls] = 1
 
     if normalize:
         cls_counts = []

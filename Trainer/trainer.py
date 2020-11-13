@@ -30,7 +30,7 @@ from config import configuration as cfg, platform as plat, username as user, dat
 
 # check whether cuda is available
 device = device('cuda' if cuda.is_available() else 'cpu')
-n_classes = 4
+n_classes = cfg['data']['num_classes']
 
 
 def torchtext_batch2multilabel(batch, label_cols=None):

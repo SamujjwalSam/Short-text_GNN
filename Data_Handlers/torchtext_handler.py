@@ -25,13 +25,14 @@ from os.path import join
 from torchtext import data
 
 from Logger.logger import logger
+from config import configuration as cfg
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def prepare_fields(text_headers: list = None, label_headers=None, tokenizer='spacy',
                    batch_first: bool = True, include_lengths: bool = True,
-                   n_classes: int = 4):
+                   n_classes: int = cfg['data']['num_classes']):
     """ Generates fields present on the dataset.
 
     Args:
@@ -190,7 +191,8 @@ def load_dataset(load_dir, name):
 
 def create_vocab(dataset: data.dataset.TabularDataset, TEXT_field: data.field.Field,
                  LABEL_field: data.field.LabelField = None, embedding_file: [None, str] = None,
-                 embedding_dir: [None, str] = None, min_freq: int = 1, show_vocab_details: bool = True) -> None:
+                 embedding_dir: [None, str] = None, min_freq: int = 2,
+                 show_vocab_details: bool = True) -> None:
     """ Creates vocabulary using TorchText.
 
     :param dataset:
@@ -313,7 +315,7 @@ class MultiIterator:
         return sum(len(it) for it in self.iters)
 
 
-def torchtext_batch2multilabel(batch, label_cols=None, n_classes=7):
+def torchtext_batch2multilabel(batch, label_cols=None, n_classes=cfg['data']['num_classes']):
     """ Returns labels for a TorchText batch.
 
     Args:

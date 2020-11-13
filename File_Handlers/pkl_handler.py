@@ -47,7 +47,8 @@ def save_pickle(data, filename, filepath='', overwrite=False, tag=False):
     logger.debug(("Writing to pickle file: ",
                   join(filepath, filename + ".pkl")))
     if not overwrite and exists(join(filepath, filename + ".pkl")):
-        logger.debug("File already exists and Overwrite == False.")
+        logger.debug(f"File {join(filepath, date_time_tag + filename + '.json')} "
+                     f"already exists and Overwrite == False.")
         return True
     try:
         if tag:

@@ -123,11 +123,11 @@ def save_json(data, filename, file_path=dataset_dir, overwrite=False, indent=2,
     :param date_time_tag:
     :return:
     """
-    logger.info(("Saving JSON file: ",
-                 join(file_path, date_time_tag + filename + ".json")))
+    logger.info(("Saving JSON file: ", join(file_path, date_time_tag + filename + ".json")))
     if not overwrite and exists(
             join(file_path, date_time_tag + filename + ".json")):
-        logger.error("File already exists and Overwrite == False.")
+        logger.error(f"File {join(file_path, date_time_tag + filename + '.json')} "
+                     f"already exists and Overwrite == False.")
         return True
     try:
         with open(join(file_path, date_time_tag + filename + ".json"), 'w') as json_file:

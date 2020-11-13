@@ -230,7 +230,7 @@ def test_graph_classifier(model: GNN_Combined, G, X, loss_func,
 
 
 def graph_multilabel_classification(
-        G, X, train_dataloader, test_dataloader, num_tokens: int, in_feats: int = 100,
+        G, X, train_dataloader, val_dataloader, test_dataloader, num_tokens: int, in_feats: int = 100,
         hid_feats: int = 50, num_heads: int = 2, epochs=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
         n_classes=cfg['data']['num_classes']):
@@ -247,7 +247,7 @@ def graph_multilabel_classification(
 
     epoch_losses, train_epochs_output_dict = train_graph_classifier(
         model, G, X, train_dataloader, loss_func=loss_func,
-        optimizer=optimizer, epochs=epochs, eval_data_loader=test_dataloader)
+        optimizer=optimizer, epochs=epochs, eval_data_loader=val_dataloader)
 
     start_time = timeit.default_timer()
     losses, test_output = test_graph_classifier(

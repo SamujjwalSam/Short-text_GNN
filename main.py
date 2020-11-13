@@ -293,13 +293,13 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
 
     ## Read labelled datasets and prepare:
     logger.info('Read labelled datasets and prepare')
-    # train_dataset, test_dataset, train_vocab, test_vocab = prepare_datasets()
-    train_dataset, test_dataset, train_vocab, test_vocab = prepare_splitted_datasets()
+    train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab\
+        = prepare_splitted_datasets()
 
     logger.info('Creating instance graphs')
-    train_instance_graphs = Instance_Dataset_DGL(train_dataset, train_vocab, labelled_source_name,
-                                                 class_names=('0')
-                                                 )
+    train_instance_graphs = Instance_Dataset_DGL(
+        train_dataset, train_vocab, labelled_source_name, class_names=cfg[
+            'data']['class_names'])
     logger.debug(train_instance_graphs.num_labels)
     # logger.debug(train_instance_graphs.graphs, train_instance_graphs.labels)
 
@@ -308,9 +308,18 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
 
     logger.info(f"Number of training instance graphs: {len(train_instance_graphs)}")
 
-    test_instance_graphs = Instance_Dataset_DGL(test_dataset, train_vocab, labelled_target_name,
-                                                class_names=('0')
-                                                )
+    val_instance_graphs = Instance_Dataset_DGL(
+        val_dataset, train_vocab, labelled_target_name, class_names=cfg[
+            'data']['class_names'])
+
+    val_dataloader = DataLoader(val_instance_graphs, batch_size=test_batch_size,
+                                shuffle=True, collate_fn=val_instance_graphs.batch_graphs)
+
+    logger.info(f"Number of validating instance graphs: {len(val_instance_graphs)}")
+
+    test_instance_graphs = Instance_Dataset_DGL(
+        test_dataset, train_vocab, labelled_target_name, class_names=cfg[
+            'data']['class_names'])
 
     test_dataloader = DataLoader(test_instance_graphs, batch_size=test_batch_size, shuffle=True,
                                  collate_fn=test_instance_graphs.batch_graphs)
@@ -369,7 +378,7 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
 
     logger.info('Classifying combined graphs')
     train_epochs_output_dict, test_output = graph_multilabel_classification(
-        adj, X, train_dataloader, test_dataloader, num_tokens=num_tokens,
+        adj, X, train_dataloader, val_dataloader, test_dataloader, num_tokens=num_tokens,
         in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
         num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
 
@@ -511,7 +520,7 @@ def prepare_splitted_datasets(stoi=None, vectors=None, split_test=False, get_ite
     :param test_dataname:
     :return:
     """
-    logger.info(f'Prepare labelled train (source) data: {train_dataname}')
+    logger.info(f'Prepare labelled TRAINING (source) data: {train_dataname}')
     train_df, val_df, test_df = load_csvs(data_dir=data_dir, filenames=(
         train_dataname, val_dataname, test_dataname))
     logger.info(f"Train {train_df.shape}, Val {test_df.shape}, Test {val_df.shape}.")
@@ -529,32 +538,42 @@ def prepare_splitted_datasets(stoi=None, vectors=None, split_test=False, get_ite
             labelled_data=True, embedding_file=None, embedding_dir=None)
         train_vocab.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
 
-    ## Prepare labelled target data:
-    logger.info(f'Prepare labelled test (target) data: {test_dataname}')
-    if test_df is None:
-        if test_dataname.startswith('smerp17'):
-            test_df = load_smerp17()
-        else:
-            test_df = read_csv(data_file=test_dataname, data_dir=data_dir)
-            # test_df = read_labelled_json(data_dir, test_dataname, data_set='test')
+    ## Prepare labelled validation data:
+    logger.info(f'Prepare labelled VALIDATION (source) data: {val_dataname}')
+    if val_df is None:
+        val_df = read_csv(data_file=val_dataname, data_dir=data_dir)
+        # val_df = read_labelled_json(data_dir, val_dataname, data_set='test')
+    val_dataname = val_dataname + "_tmp.csv"
+    val_df.to_csv(join(data_dir, val_dataname))
+    val_dataset, (val_vocab, val_label) = get_dataset_fields(
+        csv_dir=data_dir, csv_file=val_dataname, labelled_data=True)
 
-        if split_test:
-            test_extra_df, test_df = split_target(df=test_df, test_size=0.4)
-    test_dataname = test_dataname + "_4class.csv"
+    ## Prepare labelled target data:
+    logger.info(f'Prepare labelled TESTING (target) data: {test_dataname}')
+    if test_df is None:
+        test_df = read_csv(data_file=test_dataname, data_dir=data_dir)
+        # test_df = read_labelled_json(data_dir, test_dataname, data_set='test')
+
+        # if split_test:
+        #     test_extra_df, test_df = split_target(df=test_df, test_size=0.4)
+    test_dataname = test_dataname + "_tmp.csv"
     test_df.to_csv(join(data_dir, test_dataname))
     test_dataset, (test_vocab, test_label) = get_dataset_fields(
         csv_dir=data_dir, csv_file=test_dataname, labelled_data=True)
 
     if get_iter:
-        logger.info('Geting iterators')
+        logger.info('Geting train, val and test iterators')
         train_batch_size = cfg['training']['train_batch_size']
+        val_batch_size = cfg['training']['eval_batch_size']
         test_batch_size = cfg['training']['eval_batch_size']
-        train_iter, val_iter = dataset2bucket_iter(
-            (train_dataset, test_dataset), batch_sizes=(train_batch_size, test_batch_size))
+        train_iter, val_iter, test_iter = dataset2bucket_iter(
+            (train_dataset, val_dataset, test_dataset), batch_sizes=(
+                train_batch_size, val_batch_size, test_batch_size))
 
-        return train_dataset, test_dataset, train_vocab, test_vocab, train_iter, val_iter
+        return train_dataset, val_dataset, test_dataset, train_vocab,\
+               val_vocab, test_vocab, train_iter, val_iter, test_iter
 
-    return train_dataset, test_dataset, train_vocab, test_vocab
+    return train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab
 
 
 def classify(train_df=None, test_df=None, stoi=None, vectors=None,

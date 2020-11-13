@@ -67,6 +67,45 @@ def calculate_performance_sk(true: (np.ndarray, torch.tensor), pred: (np.ndarray
     return scores
 
 
+def calculate_performance_bin_sk(true: (np.ndarray, torch.tensor), pred: (np.ndarray, torch.tensor), print_result=False) -> dict:
+    """
+
+    :param pred: Multi-hot
+    :param true: Multi-hot
+    :param print_result:
+
+    """
+    scores = {"accuracy": {}}
+    scores["accuracy"]["unnormalize"] = accuracy_score(true, pred)
+    scores["accuracy"]["normalize"] = accuracy_score(true, pred, normalize=True)
+
+    scores["precision"] = {}
+    scores["precision"]["classes"] = precision_score(true, pred, average=None).tolist()
+    scores["precision"]["weighted"] = precision_score(true, pred, average='weighted')
+    scores["precision"]["micro"] = precision_score(true, pred, average='micro')
+    scores["precision"]["macro"] = precision_score(true, pred, average='macro')
+    # scores["precision"]["samples"] = precision_score(true, pred, average='samples')
+
+    scores["recall"] = {}
+    scores["recall"]["classes"] = recall_score(true, pred, average=None).tolist()
+    scores["recall"]["weighted"] = recall_score(true, pred, average='weighted')
+    scores["recall"]["micro"] = recall_score(true, pred, average='micro')
+    scores["recall"]["macro"] = recall_score(true, pred, average='macro')
+    # scores["recall"]["samples"] = recall_score(true, pred, average='samples')
+
+    scores["f1"] = {}
+    scores["f1"]["classes"] = f1_score(true, pred, average=None).tolist()
+    scores["f1"]["weighted"] = f1_score(true, pred, average='weighted')
+    scores["f1"]["micro"] = f1_score(true, pred, average='micro')
+    scores["f1"]["macro"] = f1_score(true, pred, average='macro')
+    # scores["f1"]["samples"] = f1_score(true, pred, average='samples')
+
+    if print_result:
+        logger.info(dumps(scores, indent=4))
+
+    return scores
+
+
 def flatten_results(results: dict):
     """ Flattens the nested result dict and save as csv.
 

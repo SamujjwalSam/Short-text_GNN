@@ -22,19 +22,7 @@ import torch
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
-
-def dot(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-    """ dot product between 2 tensors for dense and sparse format.
-
-    :param x:
-    :param y:
-    :return:
-    """
-    if x.is_sparse:
-        res = torch.spmm(x, y)
-    else:
-        res = torch.matmul(x, y)
-    return res
+from Utils.utils import dot
 
 
 class GraphConvolutionLayer(torch.nn.Module):

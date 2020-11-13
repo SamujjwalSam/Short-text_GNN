@@ -81,7 +81,8 @@ def macro_f1(labels, preds, threshold=0.5):
 
 
 def BERT_classifier(train_df: pd.core.frame.DataFrame,
-                    test_df: pd.core.frame.DataFrame, n_classes: int = 4,
+                    test_df: pd.core.frame.DataFrame,
+                    n_classes: int = cfg['data']['num_classes'],
                     dataset_name: str = cfg['data']['train'],
                     model_name: str = cfg['transformer']['model_name'],
                     model_type: str = cfg['transformer']['model_type'],

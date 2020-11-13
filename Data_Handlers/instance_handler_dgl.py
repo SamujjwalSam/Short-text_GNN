@@ -19,7 +19,7 @@ __license__     : "This source code is licensed under the MIT-style license
 
 from os.path import join, exists
 from torch import tensor, stack
-from torch.utils.data import DataLoader
+# from torch.utils.data import DataLoader
 from collections import OrderedDict
 from dgl import graph, add_self_loop, save_graphs, load_graphs, batch as g_batch
 from dgl.data.utils import makedirs, save_info, load_info
@@ -29,7 +29,7 @@ from sklearn.model_selection import train_test_split
 from Utils.utils import iterative_train_test_split
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Logger.logger import logger
-from config import dataset_dir
+from config import configuration as cfg, dataset_dir
 
 
 class Instance_Dataset_DGL(DGLDataset):
@@ -53,7 +53,8 @@ class Instance_Dataset_DGL(DGLDataset):
         Whether to print out progress information
     """
 
-    def __init__(self, dataset, vocab, dataset_name, graph_path=None, class_names=('0', '1', '2', '3'),
+    def __init__(self, dataset, vocab, dataset_name, graph_path=None,
+                 class_names=cfg['data']['class_names'],
                  url=None, raw_dir=None, data_dir: str = dataset_dir,
                  force_reload=False, verbose=False):
         # assert dataset_name.lower() in ['cora', 'citeseer', 'pubmed']
@@ -149,7 +150,7 @@ class Instance_Dataset_DGL(DGLDataset):
     #     return DataLoader((self.graphs, self.labels, self.instance_graph_global_node_ids),
     #                       batch_size=train_batch_size, shuffle=True, collate_fn=self.batch_graphs)
 
-    def create_instance_dgls(self, dataset, vocab, class_names=('0', '1', '2', '3')):
+    def create_instance_dgls(self, dataset, vocab, class_names=cfg['data']['class_names']):
         """Create dgl for each instance in the dataset.
 
         :param dataset: TorchText dataset object containing tokenized examples.
@@ -193,23 +194,25 @@ class Instance_Dataset_DGL(DGLDataset):
         global_node_ids = []
         g_node_vecs = []
         instance_token2nodeids_map = OrderedDict()
-        repeated_local_instance_ids = []
-
+        local_ids = []
         ## Get vectors for tokens:
         for token in tokens:
             global_id = vocab.vocab.stoi[token]
             global_node_ids.append(global_id)
+
             try:
                 instance_token2nodeids_map[token]
             except KeyError:
                 instance_token2nodeids_map[token] = node_id
                 g_node_vecs.append(tokenid2vec_map[global_id])
                 node_id += 1
-                # token_ids += [token2id[token]]
-            repeated_local_instance_ids.append(instance_token2nodeids_map[token])
+
+            local_ids.append(instance_token2nodeids_map[token])
 
         ## Create edge using sliding window:
         u, v = get_sliding_edges(tokens, instance_token2nodeids_map)
+        if not u or not v:
+            logger.warning(f"Empty edge list u: {u}, v: {v} for {tokens}.")
 
         ## Create instance graph:
         g = graph((tensor(u), tensor(v)))
@@ -221,7 +224,7 @@ class Instance_Dataset_DGL(DGLDataset):
         if tokenid2vec_map is not None:
             g.ndata['emb'] = stack(g_node_vecs)
 
-        return g, repeated_local_instance_ids, global_node_ids
+        return g, local_ids, global_node_ids
 
     def split_instance_dgls(self, graphs, labels, test_size=0.3, stratified=False, random_state=0):
         """ Splits graphs and labels to train and test.

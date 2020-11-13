@@ -17,16 +17,16 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
-# import torch
 import numpy as np
 import networkx as nx
 
 from os.path import join, exists
-from torch import from_numpy
+from torch import from_numpy, Tensor, sparse, sqrt, diag
 from torch.utils.data import Dataset
 from networkx.readwrite.gpickle import write_gpickle, read_gpickle
 
 from Logger.logger import logger
+from Utils.utils import dot
 from config import dataset_dir
 
 
@@ -58,6 +58,27 @@ class Token_Dataset_nx(Dataset):
         self.node_list = list(self.G.nodes)
         self.num_tokens = len(self.node_list)
         self.X = None
+
+    @staticmethod
+    def normalize_adj(A: Tensor, eps: float = 1E-9) -> Tensor:
+        """ Normalize adjacency matrix for LPA:
+        A = D^(-1/2) * A * D^(-1/2)
+        A = softmax(A)
+
+        :param A: adjacency matrix
+        :param eps: small value
+        :return:
+        """
+        D = sparse.sum(A, dim=0)
+        D = sqrt(1.0 / (D.to_dense() + eps))
+        D = diag(D).to_sparse()
+        # nz_indices = torch.nonzero(D, as_tuple=False)
+        # D = torch.sparse.FloatTensor(nz_indices.T, D, adj.shape)
+        A = dot(D, A.to_dense()).to_sparse()
+        A = dot(A, D.to_dense()).to_sparse()
+        # A = self.softmax(A)
+
+        return A
 
     def get_node_embeddings(self, oov_embs: dict, embs: dict, i2s: list):
         """ Generates embeddings in node_list order.
