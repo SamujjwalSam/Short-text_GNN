@@ -17,29 +17,30 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
+import torch
+import random
 import argparse
-from torch import cuda
+import numpy as np
+from torch import cuda, save, load
 from torch.utils.data import DataLoader
 from pandas import DataFrame
 from networkx import adjacency_matrix
-from pathlib import Path
 from os import environ
 from os.path import join, exists
 from json import dumps
 
 # from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_propagation
-from Utils.utils import count_parameters, logit2label, freq_tokens_per_class, split_target
+from Utils.utils import count_parameters, logit2label, freq_tokens_per_class, split_target, sp_coo2torch_coo
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
 from File_Handlers.csv_handler import read_csv, load_csvs
-from File_Handlers.json_handler import save_json, read_json, json_keys2df,\
-    read_labelled_json
+from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 from File_Handlers.read_datasets import load_fire16, load_smerp17
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
 from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
 from Data_Handlers.instance_handler_dgl import Instance_Dataset_DGL
-from Layers.GCN_forward import GCN_forward_old
+# from Layers.GCN_forward import GCN_forward_old
 from Trainer.graph_trainer import graph_multilabel_classification
 from Text_Encoder.finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
     train_mittens, preprocess_and_find_oov
@@ -49,12 +50,22 @@ from Metrics.metrics import calculate_performance_pl
 from config import configuration as cfg, platform as plat, username as user, dataset_dir
 from Logger.logger import logger
 
-n_classes = 4
-
 ## Enable multi GPU cuda environment:
 # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if cuda.is_available():
     environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
+
+
+def set_all_seeds(seed=0):
+    random.seed(seed)
+    environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+
+
+set_all_seeds(0)
 
 """
 In [1]: import torch
@@ -184,8 +195,7 @@ def create_vocab(s_lab_df=None, data_dir: str = dataset_dir,
     ## Create combined data:
     c_df = s_unlab_df.append(t_unlab_df)
 
-    c_dataname = unlabelled_source_name + '_' + unlabelled_target_name\
-                  + "_data.csv"
+    c_dataname = unlabelled_source_name + '_' + unlabelled_target_name + "_data.csv"
     c_df.to_csv(join(data_dir, c_dataname))
 
     s_unlab_df = None
@@ -218,7 +228,7 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
          labelled_target_name: str = cfg['data']['test'],
          unlabelled_target_name: str = cfg["data"]["target"]['unlabelled'],
          train_batch_size=cfg['training']['train_batch_size'],
-         test_batch_size=cfg['training']['eval_batch_size'],):
+         test_batch_size=cfg['training']['eval_batch_size'], ):
     logger.critical(f'Current Learning Rate: [{lr}]')
     labelled_source_path = join(data_dir, labelled_source_name)
     unlabelled_source_name = unlabelled_source_name
@@ -226,9 +236,9 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
     S_dataname = unlabelled_source_name + "_data.csv"
     T_dataname = unlabelled_target_name + "_data.csv"
 
-    if exists(labelled_source_path + 'S_vocab.json') \
-        and exists(labelled_source_path + 'T_vocab.json') \
-        and exists(labelled_source_path + 'labelled_token2vec_map.json'):
+    if exists(labelled_source_path + 'S_vocab.json')\
+            and exists(labelled_source_path + 'T_vocab.json')\
+            and exists(labelled_source_path + 'labelled_token2vec_map.json'):
         # ## Read labelled source data
         # s_lab_df = read_labelled_json(data_dir, labelled_source_name)
         # ## Match label space between two datasets:
@@ -260,9 +270,9 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
 
     if glove_embs is None:
         glove_embs = glove2dict()
-    if exists(labelled_source_path + 'high_oov_freqs.json') \
-        and exists(labelled_source_path + 'corpus.json') \
-        and exists(labelled_source_path + 'corpus_toks.json'):
+    if exists(labelled_source_path + 'high_oov_freqs.json')\
+            and exists(labelled_source_path + 'corpus.json')\
+            and exists(labelled_source_path + 'corpus_toks.json'):
         high_oov_freqs = read_json(labelled_source_path + 'high_oov_freqs')
         # low_glove_freqs = read_json(labelled_source_name+'low_glove_freqs')
         corpus = read_json(labelled_source_path + 'corpus', convert_ordereddict=False)
@@ -288,7 +298,7 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
 
     logger.info('Creating instance graphs')
     train_instance_graphs = Instance_Dataset_DGL(train_dataset, train_vocab, labelled_source_name,
-                                                 # class_names=('0')
+                                                 class_names=('0')
                                                  )
     logger.debug(train_instance_graphs.num_labels)
     # logger.debug(train_instance_graphs.graphs, train_instance_graphs.labels)
@@ -299,7 +309,7 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
     logger.info(f"Number of training instance graphs: {len(train_instance_graphs)}")
 
     test_instance_graphs = Instance_Dataset_DGL(test_dataset, train_vocab, labelled_target_name,
-                                                # class_names=('0')
+                                                class_names=('0')
                                                 )
 
     test_dataloader = DataLoader(test_instance_graphs, batch_size=test_batch_size, shuffle=True,
@@ -330,10 +340,8 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
         save_pickle(oov_embs, filepath=data_dir, filename=oov_emb_filename, overwrite=True)
 
     ## Get adjacency matrix and node embeddings in same order:
-    from Utils.utils import sp_coo2torch_coo
-    from torch import save, load
-
     logger.info('Accessing token adjacency matrix')
+    ## Note: Saving sparse tensor usually gets corrupted.
     # adj_filename = join(data_dir, labelled_source_name + "_adj.pt")
     # if exists(adj_filename):
     #     adj = load(adj_filename)
@@ -342,16 +350,19 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
     #     adj = adjacency_matrix(G, nodelist=node_list, weight='weight')
     #     adj = sp_coo2torch_coo(adj)
     #     save(adj, adj_filename)
-
     adj = adjacency_matrix(G, nodelist=node_list, weight='weight')
     adj = sp_coo2torch_coo(adj)
+
+    ## Normalize Adjacency matrix:
+    logger.info('Normalize Adjacency matrix')
+    adj = g_ob.normalize_adj(adj)
 
     logger.info('Accessing token embeddings')
     emb_filename = join(data_dir, labelled_source_name + "_emb.pt")
     if exists(emb_filename):
         X = load(emb_filename)
     else:
-        logger.info('Get node embeddings:')
+        logger.info('Get node embeddings from token graph')
         X = g_ob.get_node_embeddings(oov_embs, glove_embs, C_vocab['idx2str_map'])
         # X = sp_coo2torch_coo(X)
         save(X, emb_filename)
@@ -393,12 +404,12 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
     # X_labels_hat = GCN_forward(adj, all_node_labels, forward=gcn_hops)
     # torch.save(X_labels_hat, 'X_labels_hat_05.pt')
 
-    return C_vocab['str2idx_map'], X_hat
+    return C_vocab['str2idx_map']  # , X_hat
 
 
 def prepare_datasets(train_df=None, test_df=None, stoi=None, vectors=None,
-                     dim=cfg['prep_vecs']['input_size'], split_test=False, get_iter=False,
-                     data_dir=dataset_dir,
+                     dim=cfg['embeddings']['emb_dim'], split_test=False,
+                     get_iter=False, data_dir=dataset_dir,
                      train_filename=cfg['data']['train'],
                      test_filename=cfg['data']['test']):
     """ Creates train and test dataset from df and returns data loader.
@@ -481,7 +492,7 @@ def prepare_datasets(train_df=None, test_df=None, stoi=None, vectors=None,
 
 
 def prepare_splitted_datasets(stoi=None, vectors=None, split_test=False, get_iter=False,
-                              dim=cfg['prep_vecs']['input_size'],
+                              dim=cfg['embeddings']['emb_dim'],
                               data_dir=dataset_dir,
                               train_dataname=cfg["data"]["train"],
                               val_dataname=cfg["data"]["val"],
@@ -503,7 +514,7 @@ def prepare_splitted_datasets(stoi=None, vectors=None, split_test=False, get_ite
     logger.info(f'Prepare labelled train (source) data: {train_dataname}')
     train_df, val_df, test_df = load_csvs(data_dir=data_dir, filenames=(
         train_dataname, val_dataname, test_dataname))
-    train_df = train_df.append(val_df)
+    logger.info(f"Train {train_df.shape}, Val {test_df.shape}, Test {val_df.shape}.")
     train_dataname = train_dataname + "_tmp.csv"
     train_df.to_csv(join(data_dir, train_dataname))
 
@@ -547,7 +558,8 @@ def prepare_splitted_datasets(stoi=None, vectors=None, split_test=False, get_ite
 
 
 def classify(train_df=None, test_df=None, stoi=None, vectors=None,
-             dim=cfg['prep_vecs']['input_size'],
+             n_classes=cfg['data']['num_classes'],
+             dim=cfg['embeddings']['emb_dim'],
              data_dir=dataset_dir, train_filename=cfg['data']['train'],
              test_filename=cfg['data']['test'], cls_thresh=None,
              epoch=cfg['training']['num_epoch'], num_layers=cfg['lstm_params']['num_layers'],
@@ -559,6 +571,7 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
              ):
     """
 
+    :param n_classes:
     :param test_batch_size:
     :param train_df:
     :param test_df:
@@ -670,7 +683,7 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
 
 
 def get_supervised_result(model, train_iterator, val_iterator, test_iterator,
-                          EPOCHS=5, cls_thresh=None):
+                          EPOCHS=5, cls_thresh=None, n_classes=cfg['data']['num_classes']):
     """ Train and Predict on full supervised mode.
 
     Returns:
@@ -752,9 +765,10 @@ if __name__ == "__main__":
 
     # train, test = split_target(test_df, test_size=0.3,
     #                            train_size=.6, stratified=False)
-    lrs = [1e-3, 1e-4, 1e-5]
+    lrs = [1e-4, 1e-5]
+    hid_dims = [100, 150, 200]
     for lr in lrs:
-        s2i_dict, X_hat = main(lr=lr)
+        s2i_dict = main(lr=lr)
 
     exit(0)
 
