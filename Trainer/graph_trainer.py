@@ -17,101 +17,32 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
-import time
-# import dgl
-from torch import nn, stack, Tensor, LongTensor, utils, sigmoid, mean, cat, FloatTensor, BoolTensor
-import numpy as np
-# import networkx as nx
+import timeit
+from torch import nn, stack, utils, sigmoid, mean, cat, device, cuda
+from os import environ
 from json import dumps
-# import matplotlib.pyplot as plt
 from collections import OrderedDict
-from dgl import batch as g_batch, mean_nodes, graph
-# from dgl.nn.pytorch.conv import GATConv, GraphConv
-import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from Layers.gnn_combined import GNN_Combined
-from Metrics.metrics import calculate_performance_sk as calculate_performance
-from Utils.utils import logit2label
+from Metrics.metrics import calculate_performance_sk as calculate_performance,\
+    calculate_performance_bin_sk
+from Utils.utils import logit2label, count_parameters
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user, dataset_dir
 
-
-def train_node_classifier(g: graph, features: Tensor,
-                          labels: Tensor, labelled_mask: Tensor,
-                          model: GNN_Combined, loss_func,
-                          optimizer, epochs: int = 5) -> None:
-    """
-
-    :param g:
-    :param features:
-    :param labels:
-    :param labelled_mask:
-    :param model:
-    :param loss_func:
-    :param optimizer:
-    :param epochs:
-    """
-    model.train()
-    dur = []
-    for epoch in range(epochs):
-        t0 = time.time()
-        logits = model(g, features)
-        logp = F.log_softmax(logits, 1)
-        loss = loss_func(logp[labelled_mask], labels[labelled_mask])
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        dur.append(time.time() - t0)
-
-        logger.info("Epoch {:05d} | Loss {:.4f} | Time(s) {:.4f}".format(
-            epoch, loss.item(), np.mean(dur)))
-
-
-def node_binary_classification(model, hid_feats: int = 4, out_feats: int = 7,
-                               num_heads: int = 2) -> None:
-    """
-
-    :param model:
-    :param hid_feats:
-    :param out_feats:
-    :param num_heads:
-    :return:
-    """
-    from dgl.data import citation_graph as citegrh
-
-    def load_cora_data():
-        data = citegrh.load_cora()
-        features = FloatTensor(data.features)
-        labels = LongTensor(data.labels)
-        mask = BoolTensor(data.train_mask)
-        g = graph(data.graph)
-        return g, features, labels, mask
-
-    g, features, labels, mask = load_cora_data()
-
-    net = model(in_dim=features.size(1), hidden_dim=hid_feats, out_dim=out_feats, num_heads=num_heads)
-    logger.info(net)
-
-    loss_func = F.nll_loss
-
-    optimizer = optim.Adam(net.parameters(), lr=1e-3)
-    train_node_classifier(g, features, labels, labelled_mask=mask, model=net,
-                          loss_func=loss_func, optimizer=optimizer, epochs=5)
-
-
-def test_node_classifier():
-    pass
+device = device('cuda' if cuda.is_available() else 'cpu')
+if cuda.is_available():
+    environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 
 
 def train_graph_classifier(model, G, X,
                            data_loader: utils.data.dataloader.DataLoader,
                            loss_func: nn.modules.loss.BCEWithLogitsLoss,
                            optimizer, epochs: int = 5,
-                           eval_data_loader: utils.data.dataloader.DataLoader = None):
+                           eval_data_loader: utils.data.dataloader.DataLoader = None,
+                           n_classes=cfg['data']['num_classes']):
     logger.info("Started training...")
     train_epoch_losses = []
     train_epoch_dict = OrderedDict()
@@ -124,12 +55,28 @@ def train_graph_classifier(model, G, X,
             ## Store emb in a separate file as self_loop removes emb info:
             emb = graph_batch.ndata['emb']
             # graph_batch = dgl.add_self_loop(graph_batch)
+            if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+                graph_batch = graph_batch.to(device)
+                emb = emb.to(device)
+                # local_ids = local_ids.to(device)
+                # node_counts = node_counts.to(device)
+                # global_ids = global_ids.to(device)
+                G = G.to(device)
+                X = X.to(device)
+            start_time = timeit.default_timer()
             prediction = model(graph_batch, emb, local_ids, node_counts, global_ids, G, X)
+            if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+                prediction = prediction.to(device)
+            if prediction.dim() == 1:
+                prediction = prediction.unsqueeze(1)
             loss = loss_func(prediction, label)
-            logger.info(f"Iteration {iter}, loss: {loss.detach().item()}")
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            train_time = timeit.default_timer() - start_time
+            train_count = label.shape[0]
+            logger.info(f"Training time per example: [{train_time / train_count} sec]")
+            logger.info(f"Iteration {iter}, loss: {loss.detach().item()}")
             epoch_loss += loss.detach().item()
             preds.append(prediction.detach())
             trues.append(label.detach())
@@ -137,6 +84,9 @@ def train_graph_classifier(model, G, X,
         losses, test_output = test_graph_classifier(
             model, G, X, loss_func=loss_func, data_loader=eval_data_loader)
         logger.info(dumps(test_output['result'], indent=4))
+        # losses, test_output = test_graph_classifier(
+        #     model, G, X, loss_func=loss_func, data_loader=test_data_loader)
+        # logger.info(dumps(test_output['result'], indent=4))
         logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, Eval loss {losses},"
                     f" Macro F1 {test_output['result']['f1']['macro'].item()}")
         train_epoch_losses.append(epoch_loss)
@@ -148,7 +98,10 @@ def train_graph_classifier(model, G, X,
         ## Converting probabilities to class labels:
         preds = logit2label(preds.detach(), cls_thresh=0.5)
         trues = cat(trues)
-        result_dict = calculate_performance(trues, preds)
+        if n_classes == 1:
+            result_dict = calculate_performance_bin_sk(trues, preds)
+        else:
+            result_dict = calculate_performance(trues, preds)
         # logger.info(dumps(result_dict, indent=4))
         train_epoch_dict[epoch] = {
             'preds':  preds,
@@ -161,7 +114,8 @@ def train_graph_classifier(model, G, X,
 
 
 def test_graph_classifier(model: GNN_Combined, G, X, loss_func,
-                          data_loader: utils.data.dataloader.DataLoader):
+                          data_loader: utils.data.dataloader.DataLoader,
+                          n_classes=cfg['data']['num_classes']):
     model.eval()
     preds = []
     trues = []
@@ -170,7 +124,23 @@ def test_graph_classifier(model: GNN_Combined, G, X, loss_func,
         ## Store emb in a separate file as self_loop removes emb info:
         emb = graph_batch.ndata['emb']
         # graph_batch = dgl.add_self_loop(graph_batch)
+        if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+            graph_batch = graph_batch.to(device)
+            emb = emb.to(device)
+            # local_ids = local_ids.to(device)
+            # node_counts = node_counts.to(device)
+            # global_ids = global_ids.to(device)
+            G = G.to(device)
+            X = X.to(device)
+        start_time = timeit.default_timer()
         prediction = model(graph_batch, emb, local_ids, node_counts, global_ids, G, X)
+        test_time = timeit.default_timer() - start_time
+        test_count = label.shape[0]
+        logger.info(f"Test time per example: [{test_time / test_count} sec]")
+        if prediction.dim() == 1:
+            prediction = prediction.unsqueeze(1)
+        if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+            prediction = prediction.to(device)
         loss = loss_func(prediction, label)
         preds.append(prediction.detach())
         trues.append(label.detach())
@@ -184,7 +154,10 @@ def test_graph_classifier(model: GNN_Combined, G, X, loss_func,
     ## Converting probabilities to class labels:
     preds = logit2label(preds.detach(), cls_thresh=0.5)
     trues = cat(trues)
-    result_dict = calculate_performance(trues, preds)
+    if n_classes == 1:
+        result_dict = calculate_performance_bin_sk(trues, preds)
+    else:
+        result_dict = calculate_performance(trues, preds)
     test_output = {
         'preds':  preds,
         'trues':  trues,
@@ -259,12 +232,16 @@ def test_graph_classifier(model: GNN_Combined, G, X, loss_func,
 def graph_multilabel_classification(
         G, X, train_dataloader, test_dataloader, num_tokens: int, in_feats: int = 100,
         hid_feats: int = 50, num_heads: int = 2, epochs=cfg['training']['num_epoch'],
-        loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"]):
+        loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
+        n_classes=cfg['data']['num_classes']):
     # train_dataloader, test_dataloader = dataloaders
     model = GNN_Combined(num_tokens, in_dim=in_feats, hidden_dim=hid_feats,
                          num_heads=num_heads, out_dim=hid_feats,
                          num_classes=train_dataloader.dataset.num_labels)
     logger.info(model)
+    count_parameters(model)
+    if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+        model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
@@ -272,8 +249,13 @@ def graph_multilabel_classification(
         model, G, X, train_dataloader, loss_func=loss_func,
         optimizer=optimizer, epochs=epochs, eval_data_loader=test_dataloader)
 
+    start_time = timeit.default_timer()
     losses, test_output = test_graph_classifier(
         model, G, X, loss_func=loss_func, data_loader=test_dataloader)
+    test_time = timeit.default_timer() - start_time
+    test_count = test_dataloader.dataset.__len__()
+    logger.info(f"Total inference time for [{test_count}] examples: [{test_time} sec]"
+                f"\nPer example: [{test_time / test_count} sec]")
     logger.info(dumps(test_output['result'], indent=4))
 
     return train_epochs_output_dict, test_output
