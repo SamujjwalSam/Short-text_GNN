@@ -19,10 +19,11 @@ __license__     : "This source code is licensed under the MIT-style license
 
 import numpy as np
 import networkx as nx
-
+# from scipy.spatial.distance import cosine
 from os.path import join, exists
 from torch import from_numpy, Tensor, sparse, sqrt, diag
 from torch.utils.data import Dataset
+from torch.nn.functional import kl_div, softmax
 from networkx.readwrite.gpickle import write_gpickle, read_gpickle
 
 from Logger.logger import logger
@@ -36,9 +37,9 @@ class Token_Dataset_nx(Dataset):
     def __init__(self, corpus_toks, C_vocab, S_vocab, T_vocab, dataset_name,
                  data_dir: str = dataset_dir, graph_path=None):
         # assert dataset_name.lower() in ['fire16', 'smerp17'], f'Dataset {dataset_name} not supported.'
-        if dataset_name.startswith('fire16'):
-            lab_dataname = 'fire16_labelled'
-            unlab_dataname = 'fire16_unlabelled'
+        # if dataset_name.startswith('fire16'):
+        #     lab_dataname = 'fire16_labelled'
+        #     unlab_dataname = 'fire16_unlabelled'
         super(Token_Dataset_nx, self).__init__()
         self.data_dir = data_dir
         self.dataset_name = dataset_name
@@ -52,7 +53,7 @@ class Token_Dataset_nx(Dataset):
         else:
             self.G = self.create_token_graph(corpus_toks, C_vocab, S_vocab, T_vocab)
             ## Calculate edge weights from cooccurrence stats:
-            self.G = self.add_edge_weights()
+            # self.G = self.add_edge_weights()
             self.save_graph(self.graph_path)
 
         self.node_list = list(self.G.nodes)
@@ -89,16 +90,20 @@ class Token_Dataset_nx(Dataset):
         :return:
         """
         emb_shape = embs[list(embs.keys())[0]].shape
-        embs.get('<unk>', np.random.normal(size=emb_shape))
-        embs.get('<pad>', np.zeros(emb_shape))
+        embs['<unk>'] = embs.get('<unk>', np.random.normal(size=emb_shape))
+        embs['<pad>'] = embs.get('<pad>', np.zeros(emb_shape))
+        embs['HTTPURL'] = embs.get('HTTPURL', np.random.normal(size=emb_shape))
 
         X = []
         for node_id in self.node_list:
-            # logger.info(node_id)
-            # logger.info(i2s[node_id])
+            # logger.info((node_id, i2s[node_id]))
             node_txt = i2s[node_id]
-            # logger.info(node_id, node_txt)
-            node_emb = oov_embs.get(node_txt, embs[node_txt])
+            # logger.info((node_id, node_txt))
+            # node_emb = oov_embs.get(node_txt, embs[node_txt])
+            try:
+                node_emb = oov_embs[node_txt]
+            except KeyError:
+                node_emb = embs[node_txt]
             X.append(node_emb)
 
         X = np.stack(X)
@@ -114,6 +119,8 @@ class Token_Dataset_nx(Dataset):
         :param alpha: Decides weight between source and target occurrences.
         :return:
         """
+        ## TODO: set alpha = 1 if occurrence in either source or target is 0.
+
         for n1, n2, edge_data in self.G.edges(data=True):
             n1_data = self.G.nodes[n1]
             n2_data = self.G.nodes[n2]
@@ -122,11 +129,40 @@ class Token_Dataset_nx(Dataset):
             wt = ((1 - alpha) * c1) + (alpha * c2)
             if clear_data:
                 edge_data.clear()
+
             self.G[n1][n2]['weight'] = wt
 
         if clear_data:
             for n in self.G.nodes:
                 self.G.nodes[n].clear()
+
+        return self.G
+
+    def normalize_edge_weights(self, label_vectors: np.array, eps=1e-9):
+        """ Recalculate edge weight using LPA label vector similarity.
+
+        NOTE: should be called after add_edge_weights().
+
+        :param label_vectors: Propagated class probability vectors per token.
+        :return:
+        """
+
+        for n1, n2, edge_data in self.G.edges(data=True):
+            # n1_data = self.G.nodes[n1]
+            # n2_data = self.G.nodes[n2]
+            n1_label_vec = label_vectors[n1] + eps
+            n2_label_vec = label_vectors[n2] + eps
+            # label_wt = cosine_similarity(n1_label_vec, n2_label_vec).numpy()
+            # label_wt = cosine(n1_label_vec+eps, n2_label_vec+eps)
+            label_wt = -kl_div(softmax(from_numpy(n1_label_vec), dim=0),
+                               softmax(from_numpy(n2_label_vec), dim=0),
+                               reduction='batchmean').item()
+            # logger.debug((n1_label_vec+eps, n2_label_vec+eps))
+            # wt = edge_data['weight']
+            # wt_f = wt + label_wt
+            # logger.debug((n1, n2, label_wt, wt, wt_f))
+
+            self.G[n1][n2]['weight'] = edge_data['weight'] + label_wt
 
         return self.G
 

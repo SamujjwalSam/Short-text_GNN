@@ -17,7 +17,7 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
-import torch as t
+from torch import rand, Tensor, sparse, tensor
 import numpy as np
 import random
 from scipy import sparse
@@ -25,7 +25,7 @@ from sklearn.semi_supervised import LabelSpreading
 from imblearn.under_sampling import RandomUnderSampler
 
 from Label_Propagation_PyTorch.adj_propagator import Adj_Propagator
-from Utils.utils import sp_coo2torch_coo
+# from Utils.utils import sp_coo2torch_coo
 from Logger.logger import logger
 
 
@@ -63,8 +63,7 @@ from Logger.logger import logger
 #     return x_vectors
 
 
-def discretize_labelled(labelled_dict: dict, thresh1=0.1, k=2,
-                        label_neg=0., label_pos=1.):
+def discretize_labelled(labelled_dict: dict, thresh1=0.1, k=2, label_neg=0., label_pos=1.):
     """ Discretize probabilities of labelled tokens.
 
     :param k:
@@ -264,7 +263,7 @@ def lpa_accuracy(preds_set: np.ndarray, labels: np.ndarray) -> dict:
     return result
 
 
-def propagate_multilabels(features: t.Tensor, labels: np.ndarray) -> np.ndarray:
+def propagate_multilabels(features: Tensor, labels: np.ndarray) -> np.ndarray:
     """
 
     :param features:
@@ -284,26 +283,18 @@ def propagate_multilabels(features: t.Tensor, labels: np.ndarray) -> np.ndarray:
     return np.stack(all_preds).T
 
 
-def lpa_mse(Y_hat: t.Tensor, Y: t.Tensor) -> t.Tensor:
+def lpa_mse(Y_hat: Tensor, Y: Tensor) -> Tensor:
     return (Y_hat - Y).abs().mean()
 
 
-def label_propagation(adj: sparse.csr.csr_matrix, Y: list, labelled_masks: tuple,
-                      lpa_epoch: int = 1) -> t.Tensor:
+def label_propagation(adj: sparse, Y: list, labelled_masks: tuple,
+                      lpa_epoch: int = 1) -> Tensor:
     logger.info("Applying Label Propagation")
-    if isinstance(adj, sparse.csr.csr_matrix):
-        # convert to PyTorch sparse
-        adj = sp_coo2torch_coo(adj)
-    if isinstance(Y, list):
-        Y = np.stack(Y)
-    if isinstance(Y, np.ndarray):
-        # convert to PyTorch
-        Y = t.from_numpy(Y).float()
 
     lpa = Adj_Propagator()
-    Y_hat = Y
+    Y = tensor(Y)
     for i in range(lpa_epoch):
-        Y_hat = lpa(adj, Y_hat)
+        Y_hat = lpa(adj, Y)
         mse = lpa_mse(Y_hat[labelled_masks[0]], Y[labelled_masks[0]])
         # lpa_accuracy(Y_hat[labelled_masks[1]], Y[labelled_masks[1]])
         logger.info(f'Label Propagation epoch {i} MSE: {mse}')
@@ -315,9 +306,9 @@ def label_propagation(adj: sparse.csr.csr_matrix, Y: list, labelled_masks: tuple
 
 
 if __name__ == "__main__":
-    adj = t.rand(4, 4)
+    adj = rand(4, 4)
     lpa = Adj_Propagator(adj)
-    inputs = t.rand(4, 3)
+    inputs = rand(4, 3)
     outputs = lpa(inputs)
     logger.info(outputs)
 

@@ -29,7 +29,7 @@ from os import environ
 from os.path import join, exists
 from json import dumps
 
-# from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_propagation
+from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_propagation
 from Utils.utils import count_parameters, logit2label, freq_tokens_per_class, split_target, sp_coo2torch_coo
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
 from File_Handlers.csv_handler import read_csv, load_csvs
@@ -222,8 +222,9 @@ def create_vocab(s_lab_df=None, data_dir: str = dataset_dir,
 
 
 def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
-         mittens_iter: int = 1000, gcn_hops: int = 5, glove_embs=None,
+         mittens_iter: int = 300, gcn_hops: int = 5, glove_embs=None,
          labelled_source_name: str = cfg['data']['train'],
+         labelled_val_name: str = cfg['data']['val'],
          unlabelled_source_name: str = cfg["data"]["source"]['unlabelled'],
          labelled_target_name: str = cfg['data']['test'],
          unlabelled_target_name: str = cfg["data"]["target"]['unlabelled'],
@@ -289,7 +290,7 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
         # save_json(low_glove_freqs, labelled_source_name+'low_glove_freqs', overwrite=True)
         save_json(corpus, labelled_source_path + 'corpus')
         save_json(corpus_toks, labelled_source_path + 'corpus_toks')
-        save_json(C_vocab, labelled_source_path + 'C_vocab')
+        save_json(C_vocab, labelled_source_path + 'C_vocab', overwrite=True)
 
     ## Read labelled datasets and prepare:
     logger.info('Read labelled datasets and prepare')
@@ -309,7 +310,7 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
     logger.info(f"Number of training instance graphs: {len(train_instance_graphs)}")
 
     val_instance_graphs = Instance_Dataset_DGL(
-        val_dataset, train_vocab, labelled_target_name, class_names=cfg[
+        val_dataset, train_vocab, labelled_val_name, class_names=cfg[
             'data']['class_names'])
 
     val_dataloader = DataLoader(val_instance_graphs, batch_size=test_batch_size,
@@ -338,10 +339,10 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
     ## Create new embeddings for OOV tokens:
     oov_emb_filename = labelled_source_name + '_OOV_vectors_dict'
     if exists(join(data_dir, oov_emb_filename + '.pkl')):
-        logger.info('Read embeddings for OOV tokens')
+        logger.info('Read OOV embeddings:')
         oov_embs = load_pickle(filepath=data_dir, filename=oov_emb_filename)
     else:
-        logger.info('Create new embeddings for OOV tokens')
+        logger.info('Create OOV embeddings using Mittens:')
         high_oov_tokens_list = list(high_oov_freqs.keys())
         c_corpus = corpus[0] + corpus[1]
         oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens_list, c_corpus)
@@ -362,52 +363,56 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
     adj = adjacency_matrix(G, nodelist=node_list, weight='weight')
     adj = sp_coo2torch_coo(adj)
 
-    ## Normalize Adjacency matrix:
-    logger.info('Normalize Adjacency matrix')
-    adj = g_ob.normalize_adj(adj)
-
-    logger.info('Accessing token embeddings')
+    logger.info('Accessing token graph node embeddings:')
     emb_filename = join(data_dir, labelled_source_name + "_emb.pt")
     if exists(emb_filename):
         X = load(emb_filename)
     else:
-        logger.info('Get node embeddings from token graph')
+        logger.info('Get node embeddings from token graph:')
         X = g_ob.get_node_embeddings(oov_embs, glove_embs, C_vocab['idx2str_map'])
         # X = sp_coo2torch_coo(X)
         save(X, emb_filename)
-
-    logger.info('Classifying combined graphs')
-    train_epochs_output_dict, test_output = graph_multilabel_classification(
-        adj, X, train_dataloader, val_dataloader, test_dataloader, num_tokens=num_tokens,
-        in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
-        num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
 
     # logger.info('Applying GCN Forward old')
     # X_hat = GCN_forward_old(adj, X, forward=gcn_hops)
     # logger.info('Applying GCN Forward')
     # X_hat = GCN_forward(adj, X, forward=gcn_hops)
 
-    # ## Apply Label Propagation to get label vectors for unlabelled nodes:
-    # logger.info('Apply Label Propagation to get label vectors for unlabelled nodes')
-    # all_node_labels, labelled_masks = fetch_all_nodes(
-    #     node_list, labelled_token2vec_map, C_vocab['idx2str_map'],
-    #     default_fill=[0., 0., 0., 0.])
-    #
-    # label_proba_filename = labelled_source_name + "labels_propagated.pt"
-    # if exists(label_proba_filename):
-    #     labels_propagated = torch.load(label_proba_filename)
-    # else:
-    #     labels_propagated = label_propagation(adj, all_node_labels,
-    #                                           labelled_masks)
-    #     torch.save(labels_propagated, label_proba_filename)
-    #
-    # # Create label to propagated vector map:
+    ## Apply Label Propagation to get label vectors for unlabelled nodes:
+    logger.info('Getting propagated label vectors:')
+    label_proba_filename = labelled_source_name + "_lpa_vecs.pt"
+    if exists(label_proba_filename):
+        lpa_vecs = torch.load(label_proba_filename)
+    else:
+        all_node_labels, labelled_masks = fetch_all_nodes(
+            node_list, labelled_token2vec_map, C_vocab['idx2str_map'],
+            default_fill=[0., 0., 0., 0.])
+        lpa_vecs = label_propagation(adj, all_node_labels, labelled_masks)
+        torch.save(lpa_vecs, label_proba_filename)
+
+    logger.info('Recalculate edge weights using LPA vectors:')
+    g_ob.normalize_edge_weights(lpa_vecs.numpy())
+
+    adj = adjacency_matrix(g_ob.G, nodelist=node_list, weight='weight')
+    adj = sp_coo2torch_coo(adj)
+
+    ## Normalize Adjacency matrix:
+    logger.info('Normalize token graph:')
+    adj = g_ob.normalize_adj(adj)
+
+    # ## Create label to propagated vector map:
     # logger.info('Create label to propagated vector map')
     # node_txt2label_vec = {}
     # for node_id in node_list:
     #     node_txt2label_vec[C_vocab['idx2str_map'][node_id]] =\
-    #         labels_propagated[node_id].tolist()
-    # pd.DataFrame.from_dict(node_txt2label_vec, orient='index').to_csv(labelled_source_name + 'node_txt2label_vec.csv')
+    #         lpa_vecs[node_id].tolist()
+    # DataFrame.from_dict(node_txt2label_vec, orient='index').to_csv(labelled_source_name + 'node_txt2label_vec.csv')
+
+    logger.info('Classifying combined graphs')
+    train_epochs_output_dict, test_output = graph_multilabel_classification(
+        adj, X, train_dataloader, val_dataloader, test_dataloader, num_tokens=num_tokens,
+        in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
+        num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
 
     # ## Propagating label vectors using GCN forward instead of LPA:
     # X_labels_hat = GCN_forward(adj, all_node_labels, forward=gcn_hops)
@@ -746,21 +751,21 @@ def save_glove(glove_embs, glove_dir=cfg["paths"]["embedding_dir"][plat][user],
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-
-    ## Required parameters
-    parser.add_argument("-d", "--dataset_name",
-                        default=cfg['data']['source']['labelled'], type=str)
-    parser.add_argument("-m", "--model_name",
-                        default=cfg['transformer']['model_name'], type=str)
-    parser.add_argument("-mt", "--model_type",
-                        default=cfg['transformer']['model_type'], type=str)
-    parser.add_argument("-ne", "--num_train_epochs",
-                        default=cfg['training']['num_epoch'], type=int)
-    parser.add_argument("-c", "--use_cuda",
-                        default=cfg['model']['use_cuda'], action='store_true')
-
-    args = parser.parse_args()
+    # parser = argparse.ArgumentParser()
+    #
+    # ## Required parameters
+    # parser.add_argument("-d", "--dataset_name",
+    #                     default=cfg['data']['source']['labelled'], type=str)
+    # parser.add_argument("-m", "--model_name",
+    #                     default=cfg['model']['model_name'], type=str)
+    # parser.add_argument("-mt", "--model_type",
+    #                     default=cfg['model']['model_type'], type=str)
+    # parser.add_argument("-ne", "--num_train_epochs",
+    #                     default=cfg['training']['num_epoch'], type=int)
+    # parser.add_argument("-c", "--use_cuda",
+    #                     default=cfg['model']['use_cuda'], action='store_true')
+    #
+    # args = parser.parse_args()
 
     data_dir = dataset_dir
 
@@ -784,7 +789,7 @@ if __name__ == "__main__":
 
     # train, test = split_target(test_df, test_size=0.3,
     #                            train_size=.6, stratified=False)
-    lrs = [1e-5, 1e-4, 1e-3]
+    lrs = [1e-3, 1e-4, 1e-5]
     for lr in lrs:
         s2i_dict = main(lr=lr)
 

@@ -42,6 +42,7 @@ def train_graph_classifier(model, G, X,
                            loss_func: nn.modules.loss.BCEWithLogitsLoss,
                            optimizer, epochs: int = 5,
                            eval_data_loader: utils.data.dataloader.DataLoader = None,
+                           test_data_loader: utils.data.dataloader.DataLoader = None,
                            n_classes=cfg['data']['num_classes']):
     logger.info("Started training...")
     train_epoch_losses = []
@@ -81,14 +82,18 @@ def train_graph_classifier(model, G, X,
             preds.append(prediction.detach())
             trues.append(label.detach())
         epoch_loss /= (iter + 1)
-        losses, test_output = test_graph_classifier(
+        val_losses, val_output = eval_graph_classifier(
             model, G, X, loss_func=loss_func, data_loader=eval_data_loader)
-        logger.info(dumps(test_output['result'], indent=4))
-        # losses, test_output = test_graph_classifier(
-        #     model, G, X, loss_func=loss_func, data_loader=test_data_loader)
-        # logger.info(dumps(test_output['result'], indent=4))
-        logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, Eval loss {losses},"
-                    f" Macro F1 {test_output['result']['f1']['macro'].item()}")
+        logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
+        test_losses, test_output = eval_graph_classifier(
+            model, G, X, loss_func=loss_func, data_loader=test_data_loader)
+        logger.info(f'test_output: \n{dumps(test_output["result"], indent=4)}')
+        logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
+                    f"{val_losses}, test loss {test_losses}, Val Macro F1 "
+                    f"{val_output['result']['f1']['macro'].item()} Test Macro F1"
+                    f" {test_output['result']['f1']['macro'].item()}")
+        # logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
+        #             f"{val_losses}, Val Macro F1 {val_output['result']['f1']['macro'].item()}")
         train_epoch_losses.append(epoch_loss)
         preds = cat(preds)
 
@@ -113,7 +118,7 @@ def train_graph_classifier(model, G, X,
     return train_epoch_losses, train_epoch_dict
 
 
-def test_graph_classifier(model: GNN_Combined, G, X, loss_func,
+def eval_graph_classifier(model: GNN_Combined, G, X, loss_func,
                           data_loader: utils.data.dataloader.DataLoader,
                           n_classes=cfg['data']['num_classes']):
     model.eval()
@@ -247,10 +252,11 @@ def graph_multilabel_classification(
 
     epoch_losses, train_epochs_output_dict = train_graph_classifier(
         model, G, X, train_dataloader, loss_func=loss_func,
-        optimizer=optimizer, epochs=epochs, eval_data_loader=val_dataloader)
+        optimizer=optimizer, epochs=epochs, eval_data_loader=val_dataloader,
+        test_data_loader=test_dataloader)
 
     start_time = timeit.default_timer()
-    losses, test_output = test_graph_classifier(
+    losses, test_output = eval_graph_classifier(
         model, G, X, loss_func=loss_func, data_loader=test_dataloader)
     test_time = timeit.default_timer() - start_time
     test_count = test_dataloader.dataset.__len__()
