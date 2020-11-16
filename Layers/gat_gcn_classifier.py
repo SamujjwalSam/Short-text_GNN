@@ -32,7 +32,9 @@ class Instance_GAT_dgl(torch.nn.Module):
 
     def __init__(self, in_dim: int, hidden_dim: int, num_heads: int, out_dim: int):
         super(Instance_GAT_dgl, self).__init__()
-        self.conv1 = GATConv(in_dim, hidden_dim, num_heads)
+        self.conv1 = GATConv(in_dim, hidden_dim, num_heads,
+                             # feat_drop=0.1, attn_drop=0.1, residual=True
+                             )
         self.conv2 = GATConv(hidden_dim * num_heads, out_dim, 1)
 
     def forward(self, g: DGLGraph, emb: torch.Tensor = None) -> torch.Tensor:
@@ -127,9 +129,9 @@ class BiLSTM_Classifier(torch.nn.Module):
         return logits
 
 
-class GNN_Combined(torch.nn.Module):
+class GAT_GCN_Classifier(torch.nn.Module):
     def __init__(self, num_token, in_dim, hidden_dim, num_heads, out_dim, num_classes, combine='concat'):
-        super(GNN_Combined, self).__init__()
+        super(GAT_GCN_Classifier, self).__init__()
         self.combine = combine
         # self.token_gcn_dropedgelearn = GCN_DropEdgeLearn_Model(
         #     num_token=num_token, in_dim=in_dim, hidden_dim=hidden_dim, out_dim=out_dim,
@@ -186,7 +188,7 @@ class GNN_Combined(torch.nn.Module):
                 instance_batch_local_token_ids, instance_batch_global_token_ids, node_counts):
             end_idx = start_idx + node_count
             # logger.info(start_idx, end_idx, node_count)
-            # logger.info(token_embs[token_global_ids].shape, instance_batch_embs[start_idx:end_idx][
+            # logger.info(token_embs[token_global_ids].shape, instance_embs_batch[start_idx:end_idx][
             # instance_local_ids].shape)
 
             ## Combine both embeddings:
@@ -209,7 +211,41 @@ class GNN_Combined(torch.nn.Module):
         return torch.stack(preds).squeeze()
 
 
+class GAT_BiLSTM_Classifier(torch.nn.Module):
+    def __init__(self, in_dim: int, hidden_dim: int, num_heads: int, out_dim: int,
+                 num_classes: int) -> None:
+        super(GAT_BiLSTM_Classifier, self).__init__()
+        self.instance_gat_dgl = Instance_GAT_dgl(in_dim=in_dim, hidden_dim=hidden_dim,
+                                                 num_heads=num_heads, out_dim=out_dim)
+        self.bilstm_classifier = BiLSTM_Classifier(out_dim, num_classes)
+
+    def forward(self, instance_graph_batch: DGLGraph, instance_embs_batch: torch.Tensor,
+                instance_batch_local_token_ids: list, node_counts: list) -> torch.Tensor:
+        """ Instance graph classification using GAT.
+
+        :param instance_batch_local_token_ids:
+        :param node_counts:
+        :param instance_embs_batch: Embeddings from instance GAT
+        :param instance_graph_batch: Instance graph batch
+        """
+        ## Fetch embeddings from instance graphs:
+        instance_embs_batch = self.instance_gat_dgl(instance_graph_batch, instance_embs_batch)
+
+        preds = []
+        start_idx = 0
+        for instance_local_ids, node_count in zip(instance_batch_local_token_ids, node_counts):
+            end_idx = start_idx + node_count
+            combined_emb = instance_embs_batch[start_idx:end_idx][instance_local_ids]
+
+            pred = self.bilstm_classifier(combined_emb.unsqueeze(0))
+            preds.append(pred)
+
+            start_idx = end_idx
+
+        return torch.stack(preds).squeeze()
+
+
 if __name__ == "__main__":
-    test = GNN_Combined(in_dim=5, hidden_dim=3, num_heads=2, out_dim=4, num_classes=2)
+    test = GAT_GCN_Classifier(in_dim=5, hidden_dim=3, num_heads=2, out_dim=4, num_classes=2)
 
     test()

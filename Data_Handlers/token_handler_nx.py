@@ -23,7 +23,7 @@ import networkx as nx
 from os.path import join, exists
 from torch import from_numpy, Tensor, sparse, sqrt, diag
 from torch.utils.data import Dataset
-from torch.nn.functional import kl_div, softmax
+from torch.nn.functional import kl_div, softmax, mse_loss, l1_loss
 from networkx.readwrite.gpickle import write_gpickle, read_gpickle
 
 from Logger.logger import logger
@@ -138,7 +138,7 @@ class Token_Dataset_nx(Dataset):
 
         return self.G
 
-    def normalize_edge_weights(self, label_vectors: np.array, eps=1e-9):
+    def normalize_edge_weights(self, label_vectors: Tensor, eps=1e-9):
         """ Recalculate edge weight using LPA label vector similarity.
 
         NOTE: should be called after add_edge_weights().
@@ -150,19 +150,17 @@ class Token_Dataset_nx(Dataset):
         for n1, n2, edge_data in self.G.edges(data=True):
             # n1_data = self.G.nodes[n1]
             # n2_data = self.G.nodes[n2]
+            # logger.debug(edge_data)
             n1_label_vec = label_vectors[n1] + eps
             n2_label_vec = label_vectors[n2] + eps
-            # label_wt = cosine_similarity(n1_label_vec, n2_label_vec).numpy()
-            # label_wt = cosine(n1_label_vec+eps, n2_label_vec+eps)
-            label_wt = -kl_div(softmax(from_numpy(n1_label_vec), dim=0),
-                               softmax(from_numpy(n2_label_vec), dim=0),
+            # label_cosine = cosine_similarity(n1_label_vec, n2_label_vec).numpy()
+            label_l1 = l1_loss(n1_label_vec, n2_label_vec).numpy()
+            label_mse = mse_loss(n1_label_vec, n2_label_vec).numpy()
+            label_kl = -kl_div(softmax(n1_label_vec, dim=0),
+                               softmax(n2_label_vec, dim=0),
                                reduction='batchmean').item()
-            # logger.debug((n1_label_vec+eps, n2_label_vec+eps))
-            # wt = edge_data['weight']
-            # wt_f = wt + label_wt
-            # logger.debug((n1, n2, label_wt, wt, wt_f))
 
-            self.G[n1][n2]['weight'] = edge_data['weight'] + label_wt
+            self.G[n1][n2]['weight'] = edge_data['weight'] + label_mse
 
         return self.G
 

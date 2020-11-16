@@ -25,7 +25,7 @@ from collections import OrderedDict
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from Layers.gnn_combined import GNN_Combined
+from Layers.gat_gcn_classifier import GAT_GCN_Classifier
 from Metrics.metrics import calculate_performance_sk as calculate_performance,\
     calculate_performance_bin_sk
 from Utils.utils import logit2label, count_parameters
@@ -118,7 +118,7 @@ def train_graph_classifier(model, G, X,
     return train_epoch_losses, train_epoch_dict
 
 
-def eval_graph_classifier(model: GNN_Combined, G, X, loss_func,
+def eval_graph_classifier(model: GAT_GCN_Classifier, G, X, loss_func,
                           data_loader: utils.data.dataloader.DataLoader,
                           n_classes=cfg['data']['num_classes']):
     model.eval()
@@ -234,15 +234,15 @@ def eval_graph_classifier(model: GNN_Combined, G, X, loss_func,
 #     return epoch_loss / len(iterator), preds_trues
 
 
-def graph_multilabel_classification(
+def GAT_GCN_trainer(
         G, X, train_dataloader, val_dataloader, test_dataloader, num_tokens: int, in_feats: int = 100,
         hid_feats: int = 50, num_heads: int = 2, epochs=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
         n_classes=cfg['data']['num_classes']):
     # train_dataloader, test_dataloader = dataloaders
-    model = GNN_Combined(num_tokens, in_dim=in_feats, hidden_dim=hid_feats,
-                         num_heads=num_heads, out_dim=hid_feats,
-                         num_classes=train_dataloader.dataset.num_labels)
+    model = GAT_GCN_Classifier(num_tokens, in_dim=in_feats, hidden_dim=hid_feats,
+                               num_heads=num_heads, out_dim=hid_feats,
+                               num_classes=train_dataloader.dataset.num_labels)
     logger.info(model)
     count_parameters(model)
     if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
@@ -276,7 +276,7 @@ def main():
         Read Only
     :return:
     """
-    graph_multilabel_classification(in_feats=1, hid_feats=4, num_heads=2)
+    GAT_GCN_trainer(in_dim=1, hid_dim=4, num_heads=2)
 
 
 if __name__ == "__main__":

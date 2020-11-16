@@ -184,8 +184,8 @@ class GCN_DropEdgeLearn_Model(torch.nn.Module):
         Need token to index information to fetch from large graph.
         Arrange small tokens and large tokens in same order.
 
-        instance_batch: Instance graph batch
-        instance_batch_embs: Embeddings from instance GAT
+        instance_graph_batch: Instance graph batch
+        instance_embs_batch: Embeddings from instance GAT
         instance_batch_global_token_ids: Ordered set of token ids present in the current batch of instance graph
         token_graph: Large token graph
         token_embs: Embeddings from large GCN

@@ -41,7 +41,8 @@ from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
 from Data_Handlers.instance_handler_dgl import Instance_Dataset_DGL
 # from Layers.GCN_forward import GCN_forward_old
-from Trainer.graph_trainer import graph_multilabel_classification
+from Trainer.GCN_GAT_trainer import GAT_GCN_trainer
+from Trainer.GAT_trainer import GAT_multilabel_classification
 from Text_Encoder.finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
     train_mittens, preprocess_and_find_oov
 from Trainer.trainer import trainer, predict_with_label
@@ -221,7 +222,7 @@ def create_vocab(s_lab_df=None, data_dir: str = dataset_dir,
            T_dataset, T_fields, token2label_vec_map, s_lab_df
 
 
-def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
+def main(model_type='GNN', data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
          mittens_iter: int = 300, gcn_hops: int = 5, glove_embs=None,
          labelled_source_name: str = cfg['data']['train'],
          labelled_val_name: str = cfg['data']['val'],
@@ -229,7 +230,7 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
          labelled_target_name: str = cfg['data']['test'],
          unlabelled_target_name: str = cfg["data"]["target"]['unlabelled'],
          train_batch_size=cfg['training']['train_batch_size'],
-         test_batch_size=cfg['training']['eval_batch_size'], ):
+         test_batch_size=cfg['training']['eval_batch_size'], use_lpa=False):
     logger.critical(f'Current Learning Rate: [{lr}]')
     labelled_source_path = join(data_dir, labelled_source_name)
     unlabelled_source_name = unlabelled_source_name
@@ -327,92 +328,105 @@ def main(data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
 
     logger.info(f"Number of testing instance graphs: {len(test_instance_graphs)}")
 
-    ## Create token graph:
-    logger.info(f'Creating token graph')
-    g_ob = Token_Dataset_nx(corpus_toks, C_vocab, S_vocab, T_vocab, dataset_name=labelled_source_name)
-    G = g_ob.G
-    num_tokens = g_ob.num_tokens
+    # model_type = 'GAT'
+    logger.info(f'Classifying graphs using {model_type} model.')
+    if model_type == 'GAT':
+        logger.info('Using GAT model')
+        train_epochs_output_dict, test_output = GAT_multilabel_classification(
+            train_dataloader, val_dataloader, test_dataloader,
+            in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
+            num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
 
-    node_list = list(G.nodes)
-    logger.info(f"Number of nodes {len(node_list)} and edges {len(G.edges)} in token graph")
-
-    ## Create new embeddings for OOV tokens:
-    oov_emb_filename = labelled_source_name + '_OOV_vectors_dict'
-    if exists(join(data_dir, oov_emb_filename + '.pkl')):
-        logger.info('Read OOV embeddings:')
-        oov_embs = load_pickle(filepath=data_dir, filename=oov_emb_filename)
     else:
-        logger.info('Create OOV embeddings using Mittens:')
-        high_oov_tokens_list = list(high_oov_freqs.keys())
-        c_corpus = corpus[0] + corpus[1]
-        oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens_list, c_corpus)
-        oov_embs = train_mittens(oov_mat_coo, high_oov_tokens_list, glove_embs, max_iter=mittens_iter)
-        save_pickle(oov_embs, filepath=data_dir, filename=oov_emb_filename, overwrite=True)
+        ## Create token graph:
+        logger.info(f'Using GNN model and creating token graph:')
+        g_ob = Token_Dataset_nx(corpus_toks, C_vocab, S_vocab, T_vocab, dataset_name=labelled_source_name)
+        g_ob.add_edge_weights()
+        G = g_ob.G
+        num_tokens = g_ob.num_tokens
 
-    ## Get adjacency matrix and node embeddings in same order:
-    logger.info('Accessing token adjacency matrix')
-    ## Note: Saving sparse tensor usually gets corrupted.
-    # adj_filename = join(data_dir, labelled_source_name + "_adj.pt")
-    # if exists(adj_filename):
-    #     adj = load(adj_filename)
-    #     # adj = sp_coo2torch_coo(adj)
-    # else:
-    #     adj = adjacency_matrix(G, nodelist=node_list, weight='weight')
-    #     adj = sp_coo2torch_coo(adj)
-    #     save(adj, adj_filename)
-    adj = adjacency_matrix(G, nodelist=node_list, weight='weight')
-    adj = sp_coo2torch_coo(adj)
+        node_list = list(G.nodes)
+        logger.info(f"Number of nodes {len(node_list)} and edges {len(G.edges)} in token graph")
 
-    logger.info('Accessing token graph node embeddings:')
-    emb_filename = join(data_dir, labelled_source_name + "_emb.pt")
-    if exists(emb_filename):
-        X = load(emb_filename)
-    else:
-        logger.info('Get node embeddings from token graph:')
-        X = g_ob.get_node_embeddings(oov_embs, glove_embs, C_vocab['idx2str_map'])
-        # X = sp_coo2torch_coo(X)
-        save(X, emb_filename)
+        ## Create new embeddings for OOV tokens:
+        oov_emb_filename = labelled_source_name + '_OOV_vectors_dict'
+        if exists(join(data_dir, oov_emb_filename + '.pkl')):
+            logger.info('Read OOV embeddings:')
+            oov_embs = load_pickle(filepath=data_dir, filename=oov_emb_filename)
+        else:
+            logger.info('Create OOV embeddings using Mittens:')
+            high_oov_tokens_list = list(high_oov_freqs.keys())
+            c_corpus = corpus[0] + corpus[1]
+            oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens_list, c_corpus)
+            oov_embs = train_mittens(oov_mat_coo, high_oov_tokens_list, glove_embs, max_iter=mittens_iter)
+            save_pickle(oov_embs, filepath=data_dir, filename=oov_emb_filename, overwrite=True)
 
-    # logger.info('Applying GCN Forward old')
-    # X_hat = GCN_forward_old(adj, X, forward=gcn_hops)
-    # logger.info('Applying GCN Forward')
-    # X_hat = GCN_forward(adj, X, forward=gcn_hops)
+        ## Get adjacency matrix and node embeddings in same order:
+        logger.info('Accessing token adjacency matrix')
+        ## Note: Saving sparse tensor usually gets corrupted.
+        # adj_filename = join(data_dir, labelled_source_name + "_adj.pt")
+        # if exists(adj_filename):
+        #     adj = load(adj_filename)
+        #     # adj = sp_coo2torch_coo(adj)
+        # else:
+        #     adj = adjacency_matrix(G, nodelist=node_list, weight='weight')
+        #     adj = sp_coo2torch_coo(adj)
+        #     save(adj, adj_filename)
+        adj = adjacency_matrix(G, nodelist=node_list, weight='weight')
+        adj = sp_coo2torch_coo(adj)
 
-    ## Apply Label Propagation to get label vectors for unlabelled nodes:
-    logger.info('Getting propagated label vectors:')
-    label_proba_filename = labelled_source_name + "_lpa_vecs.pt"
-    if exists(label_proba_filename):
-        lpa_vecs = torch.load(label_proba_filename)
-    else:
-        all_node_labels, labelled_masks = fetch_all_nodes(
-            node_list, labelled_token2vec_map, C_vocab['idx2str_map'],
-            default_fill=[0., 0., 0., 0.])
-        lpa_vecs = label_propagation(adj, all_node_labels, labelled_masks)
-        torch.save(lpa_vecs, label_proba_filename)
+        logger.info('Accessing token graph node embeddings:')
+        emb_filename = join(data_dir, labelled_source_name + "_emb.pt")
+        if exists(emb_filename):
+            X = load(emb_filename)
+        else:
+            logger.info('Get node embeddings from token graph:')
+            X = g_ob.get_node_embeddings(oov_embs, glove_embs, C_vocab['idx2str_map'])
+            # X = sp_coo2torch_coo(X)
+            save(X, emb_filename)
 
-    logger.info('Recalculate edge weights using LPA vectors:')
-    g_ob.normalize_edge_weights(lpa_vecs.numpy())
+        # logger.info('Applying GCN Forward old')
+        # X_hat = GCN_forward_old(adj, X, forward=gcn_hops)
+        # logger.info('Applying GCN Forward')
+        # X_hat = GCN_forward(adj, X, forward=gcn_hops)
 
-    adj = adjacency_matrix(g_ob.G, nodelist=node_list, weight='weight')
-    adj = sp_coo2torch_coo(adj)
+        ## Apply Label Propagation to get label vectors for unlabelled nodes:
+        if use_lpa:
+            logger.info('Getting propagated label vectors:')
+            label_proba_filename = join(data_dir, labelled_source_name + "_lpa_vecs.pt")
+            if exists(label_proba_filename):
+                lpa_vecs = torch.load(label_proba_filename)
+            else:
+                all_node_labels, labelled_masks = fetch_all_nodes(
+                    node_list, labelled_token2vec_map, C_vocab['idx2str_map'],
+                    # default_fill=[0.])
+                    default_fill=[0., 0., 0., 0.])
+                lpa_vecs = label_propagation(adj, all_node_labels, labelled_masks)
+                torch.save(lpa_vecs, label_proba_filename)
 
-    ## Normalize Adjacency matrix:
-    logger.info('Normalize token graph:')
-    adj = g_ob.normalize_adj(adj)
+            logger.info('Recalculate edge weights using LPA vectors:')
+            g_ob.normalize_edge_weights(lpa_vecs)
 
-    # ## Create label to propagated vector map:
-    # logger.info('Create label to propagated vector map')
-    # node_txt2label_vec = {}
-    # for node_id in node_list:
-    #     node_txt2label_vec[C_vocab['idx2str_map'][node_id]] =\
-    #         lpa_vecs[node_id].tolist()
-    # DataFrame.from_dict(node_txt2label_vec, orient='index').to_csv(labelled_source_name + 'node_txt2label_vec.csv')
+            adj = adjacency_matrix(g_ob.G, nodelist=node_list, weight='weight')
+            adj = sp_coo2torch_coo(adj)
 
-    logger.info('Classifying combined graphs')
-    train_epochs_output_dict, test_output = graph_multilabel_classification(
-        adj, X, train_dataloader, val_dataloader, test_dataloader, num_tokens=num_tokens,
-        in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
-        num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
+        ## Normalize Adjacency matrix:
+        logger.info('Normalize token graph:')
+        adj = g_ob.normalize_adj(adj)
+
+        # ## Create label to propagated vector map:
+        # logger.info('Create label to propagated vector map')
+        # node_txt2label_vec = {}
+        # for node_id in node_list:
+        #     node_txt2label_vec[C_vocab['idx2str_map'][node_id]] =\
+        #         lpa_vecs[node_id].tolist()
+        # DataFrame.from_dict(node_txt2label_vec, orient='index').to_csv(labelled_source_name + 'node_txt2label_vec.csv')
+
+        logger.info('Using GNN model')
+        train_epochs_output_dict, test_output = GAT_GCN_trainer(
+            adj, X, train_dataloader, val_dataloader, test_dataloader, num_tokens=num_tokens,
+            in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
+            num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
 
     # ## Propagating label vectors using GCN forward instead of LPA:
     # X_labels_hat = GCN_forward(adj, all_node_labels, forward=gcn_hops)
@@ -789,7 +803,7 @@ if __name__ == "__main__":
 
     # train, test = split_target(test_df, test_size=0.3,
     #                            train_size=.6, stratified=False)
-    lrs = [1e-3, 1e-4, 1e-5]
+    lrs = [1e-3, 1e-4]
     for lr in lrs:
         s2i_dict = main(lr=lr)
 
