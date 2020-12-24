@@ -19,6 +19,7 @@ __license__     : "This source code is licensed under the MIT-style license
 
 import statistics
 import networkx as nx
+import seaborn as sns
 from os.path import join
 from matplotlib import pyplot as plt
 from sklearn.manifold import TSNE
@@ -26,6 +27,55 @@ from sklearn.manifold import TSNE
 from Logger.logger import logger
 
 plt.rcParams.update({'font.size': 15})
+sns.set(rc={'figure.figsize': (11.7, 8.27)})
+sns.color_palette("viridis", as_cmap=True)
+
+
+def plot_heatmap(data, vmin=-1., vmax=1., save_name='heatmap.pdf'):
+    """ Plots a heatmap.
+
+    :param data: DataFrame or ndarray.
+    :param vmin:
+    :param vmax:
+    :param save_name:
+    """
+    ax = sns.heatmap(data, vmin=vmin, vmax=vmax, annot=False, fmt="f",
+                     linewidths=.5, cbar=True)
+    plt.savefig(save_name)
+    plt.show()
+
+
+def plot_vecs_color(tokens2vec, axis_range=None, save_name='tsne_vecs.pdf',
+                    title='TSNE visualization of top 100 tokens in 2D'):
+    """ Plots TSNE representations of tokens and their embeddings.
+
+    :param X:
+    :param tokens:
+    :param limit_view:
+    """
+    tsne = TSNE(n_components=2, random_state=0)
+
+    X = np.stack(list(tokens2vec.values()))
+    tokens = list(tokens2vec.keys())
+
+    X_2d = tsne.fit_transform(X)
+    colors = axis_range(X_2d.shape[0])
+    print(len(colors), colors)
+
+    plt.figure(figsize=(15, 15))
+    if tokens is not None:
+        for i, token in enumerate(tokens):
+            plt.annotate(token, xy=(X_2d[i, 0], X_2d[i, 1]), zorder=1)
+    plt.scatter(X_2d[:, 0], X_2d[:, 1], c=colors, s=60, alpha=.5)
+    if axis_range is not None:
+        plt.xlim(-axis_range, axis_range)
+        plt.ylim(-axis_range, axis_range)
+    plt.tight_layout()
+    plt.title(title)
+    # plt.xlabel('x-axis')
+    # plt.ylabel('y-axis')
+    plt.savefig(save_name)
+    plt.show()
 
 
 def plot_graph(g):

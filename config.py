@@ -33,9 +33,6 @@ seed = 0
 global configuration
 configuration = {
     "data":         {
-        # 'num_classes': 4,
-        # 'class_names': ('0', '1', '2', '3'),
-
         # 'name':       'fire16_smerp17',
         # 'train':      'fire16_train',
         # 'val':        'fire16_val',
@@ -46,8 +43,55 @@ configuration = {
         # },
         # "target":     {
         #     'labelled':   'smerp17_labeled',
+        #     'unlabelled': 'smerp17_unlabeled'},
+
+        # 'name':       'fire16_smerp17_source',
+        # 'train':      'fire16_train',
+        # 'val':        'fire16_val',
+        # 'test':       'smerp17_test',
+        # "source":     {
+        #     'labelled':   'fire16_labeled',
+        #     'unlabelled': 'fire16_unlabeled'
+        # },
+        # "target":     {
+        #     'labelled':   'smerp17_labeled',
+        #     'unlabelled': 'fire16_unlabeled'},
+
+        # 'name':       'smerp17_fire16',
+        # 'train':      'smerp17_train',
+        # 'val':        'smerp17_train',
+        # 'test':       'fire16_test',
+        # "source":     {
+        #     'labelled':   'smerp17_labeled',
         #     'unlabelled': 'smerp17_unlabeled'
-        #     },
+        # },
+        # "target":     {
+        #     'labelled':   'fire16_labeled',
+        #     'unlabelled': 'fire16_unlabeled'},
+
+        'name':       'smerp17_fire16_small',
+        'train':      'smerp17_train_75',
+        'val':        'smerp17_val',
+        'test':       'fire16_test',
+        "source":     {
+            'labelled':   'smerp17_labeled',
+            'unlabelled': 'smerp17_unlabeled'
+        },
+        "target":     {
+            'labelled':   'fire16_labeled',
+            'unlabelled': 'fire16_unlabeled'},
+
+        # 'name':       'smerp17_fire16_target',
+        # 'train':      'smerp17_train',
+        # 'val':        'smerp17_val',
+        # 'test':       'fire16_test',
+        # "source":     {
+        #     'labelled':   'smerp17_labeled',
+        #     'unlabelled': 'fire16_unlabeled'
+        # },
+        # "target":     {
+        #     'labelled':   'smerp17_labeled',
+        #     'unlabelled': 'fire16_unlabeled'},
 
         # 'name':       'fire16_fire16',
         # 'train':      'fire16_train',
@@ -59,21 +103,7 @@ configuration = {
         # },
         # "target":     {
         #     'labelled':   'fire16_labeled',
-        #     'unlabelled': 'fire16_unlabeled'
-        #     },
-
-        # 'name':       'smerp17_fire16',
-        # 'train':      'smerp17_train',
-        # 'val':        'smerp17_val',
-        # 'test':       'fire16_test',
-        # "source":     {
-        #     'labelled':   'fire16_labeled',
-        #     'unlabelled': 'fire16_unlabeled'
-        # },
-        # "target":     {
-        #     'labelled':   'smerp17_labeled',
-        #     'unlabelled': 'smerp17_unlabeled'
-        #     },
+        #     'unlabelled': 'fire16_unlabeled'},
 
         # 'name':       'smerp17_smerp17',
         # 'train':      'smerp17_train',
@@ -85,12 +115,38 @@ configuration = {
         # },
         # "target":     {
         #     'labelled':   'smerp17_labeled',
-        #     'unlabelled': 'smerp17_unlabeled'
-        #     },
+        #     'unlabelled': 'smerp17_unlabeled'},
 
-        'num_classes': 1,
-        'class_names': ('0'),
+        'num_classes': 4,
+        'class_names': ('0', '1', '2', '3'),
 
+        # 'num_classes': 1,
+        # 'class_names': ('0'),
+
+        # 'name':        'nepal_queensland_source',
+        # 'train':       '2015_Nepal_Earthquake_train',
+        # 'val':         '2015_Nepal_Earthquake_dev',
+        # 'test':        '2013_Queensland_Floods_test',
+        # "source":      {
+        #     'labelled':   '2015_Nepal_Earthquake_train',
+        #     'unlabelled': 'fire16_unlabeled'
+        # },
+        # "target":      {
+        #     'labelled':   '2013_Queensland_Floods_test',
+        #     'unlabelled': 'fire16_unlabeled'},
+
+        # 'name':        'nepal_queensland_target',
+        # 'train':       '2015_Nepal_Earthquake_train',
+        # 'val':         '2015_Nepal_Earthquake_dev',
+        # 'test':        '2013_Queensland_Floods_test',
+        # "source":      {
+        #     'labelled':   '2015_Nepal_Earthquake_train',
+        #     'unlabelled': 'queensland_unlabeled'
+        # },
+        # "target":      {
+        #     'labelled':   '2013_Queensland_Floods_test',
+        #     'unlabelled': 'queensland_unlabeled'},
+        #
         # 'name':        'nepal_queensland',
         # 'train':       '2015_Nepal_Earthquake_train',
         # 'val':         '2015_Nepal_Earthquake_dev',
@@ -103,18 +159,6 @@ configuration = {
         #     'labelled':   '2013_Queensland_Floods_test',
         #     'unlabelled': 'queensland_unlabeled'},
 
-        'name':        'nepal_nepal',
-        'train':       '2015_Nepal_Earthquake_train',
-        'val':         '2015_Nepal_Earthquake_dev',
-        'test':        '2015_Nepal_Earthquake_test',
-        "source":      {
-            'labelled':   '2015_Nepal_Earthquake_train',
-            'unlabelled': 'fire16_unlabeled'
-        },
-        "target":      {
-            'labelled':   '2015_Nepal_Earthquake_train',
-            'unlabelled': 'fire16_unlabeled'},
-
         # 'name':       'queensland_nepal',
         # 'train':      '2013_Queensland_Floods_train',
         # 'val':        '2013_Queensland_Floods_dev',
@@ -125,6 +169,42 @@ configuration = {
         # },
         # "target":     {
         #     'labelled':   '2015_Nepal_Earthquake_test',
+        #     'unlabelled': 'fire16_unlabeled'},
+
+        # 'name':       'queensland_nepal_source',
+        # 'train':      '2013_Queensland_Floods_train',
+        # 'val':        '2013_Queensland_Floods_dev',
+        # 'test':       '2015_Nepal_Earthquake_test',
+        # "source":     {
+        #     'labelled':   '2013_Queensland_Floods_train',
+        #     'unlabelled': 'queensland_unlabeled'
+        # },
+        # "target":     {
+        #     'labelled':   '2015_Nepal_Earthquake_test',
+        #     'unlabelled': 'queensland_unlabeled'},
+
+        # 'name':       'queensland_nepal_target',
+        # 'train':      '2013_Queensland_Floods_train',
+        # 'val':        '2013_Queensland_Floods_dev',
+        # 'test':       '2015_Nepal_Earthquake_test',
+        # "source":     {
+        #     'labelled':   '2013_Queensland_Floods_train',
+        #     'unlabelled': 'fire16_unlabeled'
+        # },
+        # "target":     {
+        #     'labelled':   '2015_Nepal_Earthquake_test',
+        #     'unlabelled': 'fire16_unlabeled'},
+
+        # 'name':        'nepal_nepal',
+        # 'train':       '2015_Nepal_Earthquake_train',
+        # 'val':         '2015_Nepal_Earthquake_dev',
+        # 'test':        '2015_Nepal_Earthquake_test',
+        # "source":      {
+        #     'labelled':   '2015_Nepal_Earthquake_train',
+        #     'unlabelled': 'fire16_unlabeled'
+        # },
+        # "target":      {
+        #     'labelled':   '2015_Nepal_Earthquake_train',
         #     'unlabelled': 'fire16_unlabeled'},
 
         # 'name':       'queensland_queensland',
@@ -173,53 +253,53 @@ configuration = {
         }
     },
 
-    "transformer":  {
-        "model_type":                  "distilbert",
-        "model_name":                  "distilbert-base-uncased-distilled-squad",
-        "num_folds":                   5,
-        "max_seq_len":                 128,
-        'gradient_accumulation_steps': 1,
-        "max_vec_len":                 5000,
-        "dropout":                     0.1,
-        "dropout_external":            0.0,
-        "clipnorm":                    1.0,
-        "data_slice":                  5120,
-        "use_cuda":                    {
-            "Windows": False,
-            "OSX":     False,
-            "Linux":   {
-                "sam":            False,
-                "cs14mtech11017": True,
-                "cs16resch01001": True,
-                "cs14resch11001": True
-            },
-        },
-        "normalize_inputs":            False,
-        "kernel_size":                 1,
-        "stride":                      1,
-        "padding":                     1,
-        "context":                     10,
-        "classify_count":              0,
-        "fce":                         True,
-        "optimizer":                   {
-            "optimizer_type":          "AdamW",
-            "learning_rate_scheduler": "linear_warmup",
-            "lr":                      3e-4,
-            "lr_decay":                0.,
-            "weight_decay":            0.,
-            "max_grad_norm":           1.0,
-            "adam_epsilon":            1e-8,
-            'warmup_ratio':            0.06,
-            'warmup_steps':            0.,
-            "momentum":                0.9,
-            "dampening":               0.9,
-            "alpha":                   0.99,
-            "rho":                     0.9,
-            "centered":                False
-        },
-        "view_grads":                  False,
-        "view_train_precision":        True
-    },
+    # "transformer":  {
+    #     "model_type":                  "distilbert",
+    #     "model_name":                  "distilbert-base-uncased-distilled-squad",
+    #     "num_folds":                   5,
+    #     "max_seq_len":                 128,
+    #     'gradient_accumulation_steps': 1,
+    #     "max_vec_len":                 5000,
+    #     "dropout":                     0.1,
+    #     "dropout_external":            0.0,
+    #     "clipnorm":                    1.0,
+    #     "data_slice":                  5120,
+    #     "use_cuda":                    {
+    #         "Windows": False,
+    #         "OSX":     False,
+    #         "Linux":   {
+    #             "sam":            False,
+    #             "cs14mtech11017": True,
+    #             "cs16resch01001": True,
+    #             "cs14resch11001": True
+    #         },
+    #     },
+    #     "normalize_inputs":            False,
+    #     "kernel_size":                 1,
+    #     "stride":                      1,
+    #     "padding":                     1,
+    #     "context":                     10,
+    #     "classify_count":              0,
+    #     "fce":                         True,
+    #     "optimizer":                   {
+    #         "optimizer_type":          "AdamW",
+    #         "learning_rate_scheduler": "linear_warmup",
+    #         "lr":                      3e-4,
+    #         "lr_decay":                0.,
+    #         "weight_decay":            0.,
+    #         "max_grad_norm":           1.0,
+    #         "adam_epsilon":            1e-8,
+    #         'warmup_ratio':            0.06,
+    #         'warmup_steps':            0.,
+    #         "momentum":                0.9,
+    #         "dampening":               0.9,
+    #         "alpha":                   0.99,
+    #         "rho":                     0.9,
+    #         "centered":                False
+    #     },
+    #     "view_grads":                  False,
+    #     "view_train_precision":        True
+    # },
 
     "model":        {
         "num_folds":            5,
@@ -282,7 +362,7 @@ configuration = {
     },
 
     "training":     {
-        "num_epoch":        15,
+        "num_epoch":        20,
         "num_train_epoch":  50,
         "train_batch_size": 64,
         "eval_batch_size":  256,

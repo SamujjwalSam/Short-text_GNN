@@ -146,9 +146,11 @@ def normalizeToken(token):
         pass
 
     if token.startswith("@"):
-        return "@USER " + token[1:]
+        return "@ " + token[1:]
+    elif token.startswith("##"):
+        return "# " + token[2:]
     elif token.startswith("#"):
-        return "#HASH " + token[1:]
+        return "# " + token[1:]
     elif token_lower.startswith("http") or token_lower.startswith("www"):
         return "HTTPURL"
     elif len(token) == 1:

@@ -18,7 +18,7 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import timeit
-from torch import nn, stack, utils, sigmoid, mean, cat, device, cuda
+from torch import nn, stack, utils, sigmoid, mean, cat, device, cuda, save
 from os import environ
 from json import dumps
 from collections import OrderedDict
@@ -30,7 +30,7 @@ from Metrics.metrics import calculate_performance_sk as calculate_performance,\
     calculate_performance_bin_sk
 from Utils.utils import logit2label, count_parameters
 from Logger.logger import logger
-from config import configuration as cfg, platform as plat, username as user, dataset_dir
+from config import configuration as cfg, platform as plat, username as user
 
 device = device('cuda' if cuda.is_available() else 'cpu')
 if cuda.is_available():
@@ -66,6 +66,10 @@ def train_graph_classifier(model, G, X,
                 X = X.to(device)
             start_time = timeit.default_timer()
             prediction = model(graph_batch, emb, local_ids, node_counts, global_ids, G, X)
+            # if epoch == 30:
+            #     from evaluations import get_freq_disjoint_token_vecs, plot
+            #     glove_vecs = get_freq_disjoint_token_vecs(S_vocab, T_vocab, X)
+            #     plot(glove_vecs)
             if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
                 prediction = prediction.to(device)
             if prediction.dim() == 1:
@@ -120,7 +124,8 @@ def train_graph_classifier(model, G, X,
 
 def eval_graph_classifier(model: GAT_GCN_Classifier, G, X, loss_func,
                           data_loader: utils.data.dataloader.DataLoader,
-                          n_classes=cfg['data']['num_classes']):
+                          n_classes=cfg['data']['num_classes'],
+                          save_gcn_embs=False):
     model.eval()
     preds = []
     trues = []
@@ -137,8 +142,10 @@ def eval_graph_classifier(model: GAT_GCN_Classifier, G, X, loss_func,
             # global_ids = global_ids.to(device)
             G = G.to(device)
             X = X.to(device)
+        if save_gcn_embs:
+            save(X, 'X_glove.pt')
         start_time = timeit.default_timer()
-        prediction = model(graph_batch, emb, local_ids, node_counts, global_ids, G, X)
+        prediction = model(graph_batch, emb, local_ids, node_counts, global_ids, G, X, save_gcn_embs)
         test_time = timeit.default_timer() - start_time
         test_count = label.shape[0]
         logger.info(f"Test time per example: [{test_time / test_count} sec]")
@@ -257,7 +264,7 @@ def GAT_GCN_trainer(
 
     start_time = timeit.default_timer()
     losses, test_output = eval_graph_classifier(
-        model, G, X, loss_func=loss_func, data_loader=test_dataloader)
+        model, G, X, loss_func=loss_func, data_loader=test_dataloader, save_gcn_embs=True)
     test_time = timeit.default_timer() - start_time
     test_count = test_dataloader.dataset.__len__()
     logger.info(f"Total inference time for [{test_count}] examples: [{test_time} sec]"

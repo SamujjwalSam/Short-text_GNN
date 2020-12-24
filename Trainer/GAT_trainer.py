@@ -30,7 +30,7 @@ from Metrics.metrics import calculate_performance_sk as calculate_performance,\
     calculate_performance_bin_sk
 from Utils.utils import logit2label, count_parameters
 from Logger.logger import logger
-from config import configuration as cfg, platform as plat, username as user, dataset_dir
+from config import configuration as cfg, platform as plat, username as user
 
 device = device('cuda' if cuda.is_available() else 'cpu')
 if cuda.is_available():

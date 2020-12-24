@@ -19,7 +19,6 @@ __license__     : "This source code is licensed under the MIT-style license
 
 import torch
 import random
-import argparse
 import numpy as np
 from torch import cuda, save, load
 from torch.utils.data import DataLoader
@@ -66,7 +65,7 @@ def set_all_seeds(seed=0):
     torch.backends.cudnn.deterministic = True
 
 
-set_all_seeds(0)
+set_all_seeds(1)
 
 """
 In [1]: import torch
