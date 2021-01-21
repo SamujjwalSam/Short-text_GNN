@@ -153,6 +153,125 @@ def preprocess_and_find_oov(datasets: tuple, common_vocab: dict = None,
     return high_oov_freqs, low_glove_freqs, corpus, corpus_toks
 
 
+def preprocess_and_find_oov2(joint_vocab: dict = None,
+                             glove_embs: dict = None, labelled_vocab_set: set = None,
+                             special_tokens={'<unk>', '<pad>'}):
+    """ Process and prepare data by removing stopwords, finding oovs and
+     creating corpus.
+
+    :param special_tokens:
+    :param labelled_vocab_set: Tokens of labelled data with associate
+    label vecs
+    :param datasets:
+    :param joint_vocab: Vocab generated from all datasets
+    :param oov_min_freq: Count of min freq oov token which should be removed
+    :param glove_embs: Original glove embeddings in key:value format.
+    :param glove_embs: glove embeddings
+
+    :return:
+    """
+    if glove_embs is None:
+        glove_embs = glove2dict()
+
+    vocab_freq_set = set(joint_vocab['freqs'].keys())
+    vocab_s2i_set = set(joint_vocab['str2idx_map'].keys())
+    glove_set = set(glove_embs.keys())
+
+    ## Tokens without embeddings:
+    # oov = vocab_freq_set - glove_set
+    # oov_freqs = {}
+    # for token in oov:
+    #     oov_freqs[token] = vocab['freqs'][token]
+
+    ## Tokens with low freq in corpus, might be present in Glove:
+    low = vocab_freq_set - vocab_s2i_set
+    logger.info(f'Number of tokens with low freq in corpus (might be present '
+                f'in Glove): [{len(low)}]')
+    low_freqs = {}
+    for token in low:
+        low_freqs[token] = joint_vocab['freqs'][token]
+
+    ## Find OOV from labelled data:
+    labelled_oov = labelled_vocab_set - vocab_s2i_set
+    logger.info(f'Number of labelled OOV tokens (embedding needs to be'
+                f' generated): [{len(labelled_oov)}]')
+
+    ## Low freq tokens with embeddings; will be added back and used to create
+    ## <unk> emb:
+    low_glove = low.intersection(glove_set)
+    logger.info(f'Number of low freq tokens with embeddings (will be '
+                f'added back): [{len(low_glove)}]')
+
+    ## Add 'low freq with embeddings' tokens back to vocab:
+    low_glove_freqs = {}
+    start_idx = len(joint_vocab['str2idx_map'])
+    for token in low_glove:
+        joint_vocab['str2idx_map'][token] = start_idx
+        joint_vocab['idx2str_map'].append(token)
+        low_glove_freqs[token] = joint_vocab['freqs'][token]
+        start_idx += 1
+
+    ## Update vocab set after adding low freq tokens back:
+    vocab_s2i_set.update(low_glove)
+
+    ## Reinitialize low freq set after adding non-oov tokens back:
+    ## Low freq tokens without embeddings:
+    # low_oov = low - low_glove
+    low_oov = vocab_freq_set - vocab_s2i_set
+    logger.info(f'Number of low freq tokens without embeddings: '
+                f'[{len(low_oov)}]')
+    low_oov_freqs = {}
+    for token in low_oov:
+        low_oov_freqs[token] = joint_vocab['freqs'][token]
+
+    ## High freq but glove OOV except special tokens:
+    high_oov = vocab_s2i_set - glove_set - special_tokens
+
+    ## Add labelled oov tokens which does not have embedding:
+    high_oov.update(labelled_oov - low_glove)
+
+    logger.info(f'Number of high freq but OOV tokens: [{len(high_oov)}]')
+    high_oov_freqs = {}
+    for token in high_oov:
+        high_oov_freqs[token] = joint_vocab['freqs'][token]
+
+    return high_oov_freqs, low_glove_freqs, low_oov_freqs
+
+
+def create_clean_corpus(dataset, low_oov_freqs):
+    """ Ignores low freq OOV tokens and creates corpus without those tokens.
+
+    :param dataset: TorchText dataset
+    :param low_oov_freqs: set of tokens to be ignored.
+    :return:
+        corpus_strs: str per example (list of str)
+        corpus_toks: tokenized text per examples (list of list of str)
+        ignored_examples: list of example id and text for which no token was left after preprocessing.
+    """
+    corpus_strs = []
+    corpus_toks = []
+    ignored_examples = []
+    ## Creates list of tokens after removing low freq OOV tokens:
+    for j, example in enumerate(dataset.examples):
+        example_toks = []
+        for token in example.text:
+            ## Ignore low freq OOV tokens:
+            if token not in low_oov_freqs:
+                example_toks.append(token)
+
+        ## Ignore samples if no token left after cleaning:
+        if len(example_toks) > 0:
+            corpus_strs.append(' '.join(example_toks))
+            corpus_toks.append(example_toks)
+        else:
+            ignored_examples.append((j, example.text))
+
+    logger.warning(f'{len(ignored_examples)} examples are ignored as no token'
+                   f' was left after cleaning.')
+
+    return corpus_strs, corpus_toks, ignored_examples
+
+
 def process_data(data: list, glove_embs: dict = None,
                  # stopwords: list = stop_words.ENGLISH_STOP_WORDS,
                  remove_rare_oov: bool = False):
