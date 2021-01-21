@@ -52,6 +52,7 @@ def train_graph_classifier(model, G, X,
         epoch_loss = 0
         preds = []
         trues = []
+        start_time = timeit.default_timer()
         for iter, (graph_batch, local_ids, label, global_ids, node_counts) in enumerate(data_loader):
             ## Store emb in a separate file as self_loop removes emb info:
             emb = graph_batch.ndata['emb']
@@ -64,7 +65,6 @@ def train_graph_classifier(model, G, X,
                 # global_ids = global_ids.to(device)
                 G = G.to(device)
                 X = X.to(device)
-            start_time = timeit.default_timer()
             prediction = model(graph_batch, emb, local_ids, node_counts, global_ids, G, X)
             # if epoch == 30:
             #     from evaluations import get_freq_disjoint_token_vecs, plot
@@ -78,14 +78,13 @@ def train_graph_classifier(model, G, X,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            train_time = timeit.default_timer() - start_time
-            train_count = label.shape[0]
-            logger.info(f"Training time per example: [{train_time / train_count} sec]")
-            logger.info(f"Iteration {iter}, loss: {loss.detach().item()}")
+            # train_count = label.shape[0]
             epoch_loss += loss.detach().item()
             preds.append(prediction.detach())
             trues.append(label.detach())
         epoch_loss /= (iter + 1)
+        train_time = timeit.default_timer() - start_time
+        logger.info(f"Epoch {epoch}, time: {train_time//60} mins, loss: {epoch_loss}")
         val_losses, val_output = eval_graph_classifier(
             model, G, X, loss_func=loss_func, data_loader=eval_data_loader)
         logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
@@ -130,6 +129,7 @@ def eval_graph_classifier(model: GAT_GCN_Classifier, G, X, loss_func,
     preds = []
     trues = []
     losses = []
+    start_time = timeit.default_timer()
     for iter, (graph_batch, local_ids, label, global_ids, node_counts) in enumerate(data_loader):
         ## Store emb in a separate file as self_loop removes emb info:
         emb = graph_batch.ndata['emb']
@@ -144,11 +144,8 @@ def eval_graph_classifier(model: GAT_GCN_Classifier, G, X, loss_func,
             X = X.to(device)
         if save_gcn_embs:
             save(X, 'X_glove.pt')
-        start_time = timeit.default_timer()
         prediction = model(graph_batch, emb, local_ids, node_counts, global_ids, G, X, save_gcn_embs)
-        test_time = timeit.default_timer() - start_time
-        test_count = label.shape[0]
-        logger.info(f"Test time per example: [{test_time / test_count} sec]")
+        # test_count = label.shape[0]
         if prediction.dim() == 1:
             prediction = prediction.unsqueeze(1)
         if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
@@ -157,6 +154,8 @@ def eval_graph_classifier(model: GAT_GCN_Classifier, G, X, loss_func,
         preds.append(prediction.detach())
         trues.append(label.detach())
         losses.append(loss.detach())
+    test_time = timeit.default_timer() - start_time
+    logger.info(f"Total test time: [{test_time//60} mins]")
     losses = mean(stack(losses))
     preds = cat(preds)
 
@@ -245,17 +244,22 @@ def GAT_GCN_trainer(
         G, X, train_dataloader, val_dataloader, test_dataloader, num_tokens: int, in_feats: int = 100,
         hid_feats: int = 50, num_heads: int = 2, epochs=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
-        n_classes=cfg['data']['num_classes']):
+        n_classes=cfg['data']['num_classes'], state=None):
     # train_dataloader, test_dataloader = dataloaders
     model = GAT_GCN_Classifier(num_tokens, in_dim=in_feats, hidden_dim=hid_feats,
                                num_heads=num_heads, out_dim=hid_feats,
-                               num_classes=train_dataloader.dataset.num_labels)
+                               num_classes=train_dataloader.dataset.num_labels,
+                               state=state)
     logger.info(model)
     count_parameters(model)
     if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
         model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
+
+    ## Load optimizer state and params:
+    # if state is not None:
+    #     optimizer.load_state_dict(state['optimizer'])
 
     epoch_losses, train_epochs_output_dict = train_graph_classifier(
         model, G, X, train_dataloader, loss_func=loss_func,
