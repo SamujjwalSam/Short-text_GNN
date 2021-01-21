@@ -24,10 +24,9 @@ from os.path import join, exists
 from torch import from_numpy, Tensor, sparse, sqrt, diag
 from torch.utils.data import Dataset
 from torch.nn.functional import kl_div, softmax, mse_loss, l1_loss
-from networkx.readwrite.gpickle import write_gpickle, read_gpickle
 
 from Logger.logger import logger
-from Utils.utils import dot
+from Utils.utils import dot, save_graph, load_graph
 from config import dataset_dir
 
 
@@ -197,7 +196,7 @@ class Token_Dataset_nx(Dataset):
         # save graphs and labels
         if graph_path is None:
             graph_path = self.graph_path
-        write_gpickle(self.G, graph_path)
+        save_graph(G, graph_path=graph_path)
         logger.info(f'Saved graph at [{graph_path}]')
 
     def load_graph(self, graph_path):
@@ -206,7 +205,7 @@ class Token_Dataset_nx(Dataset):
 
         # load processed data from directory graph_path
         logger.info(f'Loading graph from [{graph_path}]')
-        self.G = read_gpickle(graph_path)
+        self.G = load_graph(graph_path)
         return self.G
 
     def get_token_adj(self):

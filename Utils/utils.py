@@ -391,6 +391,22 @@ def load_model(model, saved_model_name='tweet_bilstm', saved_model_dir=dataset_d
     return model
 
 
+from networkx.readwrite.gpickle import write_gpickle, read_gpickle
+
+
+def save_graph(G, graph_path='graph.pkl'):
+    # save graphs and labels
+    write_gpickle(G, graph_path)
+    logger.info(f'Saved graph at [{graph_path}]')
+
+
+def load_graph(graph_path='graph.pkl'):
+    # load processed data from directory graph_path
+    logger.info(f'Loading graph from [{graph_path}]')
+    G = read_gpickle(graph_path)
+    return G
+
+
 def main():
     """
     Main module to start code
