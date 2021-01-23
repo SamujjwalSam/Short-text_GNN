@@ -31,6 +31,7 @@ from json import dumps
 from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_propagation
 from Utils.utils import count_parameters, logit2label, freq_tokens_per_class, split_target, sp_coo2torch_coo
 from Layers.BiLSTM_Classifier import BiLSTM_Classifier
+from pretrain import get_saved_pretrain_artifacts, calculate_vocab_overlap
 from File_Handlers.csv_handler import read_csv, load_csvs
 from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 from File_Handlers.read_datasets import load_fire16, load_smerp17
@@ -40,8 +41,8 @@ from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
 from Data_Handlers.instance_handler_dgl import Instance_Dataset_DGL
 # from Layers.GCN_forward import GCN_forward_old
-from Trainer.GCN_GAT_trainer import GAT_GCN_trainer
-from Trainer.GAT_trainer import GAT_multilabel_classification
+from Trainer.glen_trainer import GLEN_trainer
+from Trainer.gat_trainer import GAT_multilabel_classification
 from Text_Encoder.finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
     train_mittens, preprocess_and_find_oov
 from Trainer.trainer import trainer, predict_with_label
@@ -419,10 +420,11 @@ def main(model_type='GNN', data_dir: str = dataset_dir, lr=cfg["model"]["optimiz
         # for node_id in node_list:
         #     node_txt2label_vec[C_vocab['idx2str_map'][node_id]] =\
         #         lpa_vecs[node_id].tolist()
-        # DataFrame.from_dict(node_txt2label_vec, orient='index').to_csv(labelled_source_name + 'node_txt2label_vec.csv')
+        # DataFrame.from_dict(node_txt2label_vec, orient='index').to_csv(labelled_source_name +
+        # 'node_txt2label_vec.csv')
 
-        logger.info('Using GNN model')
-        train_epochs_output_dict, test_output = GAT_GCN_trainer(
+        logger.critical('BEFORE ---------------------------------------------')
+        train_epochs_output_dict, test_output = GLEN_trainer(
             adj, X, train_dataloader, val_dataloader, test_dataloader, num_tokens=num_tokens,
             in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
             num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
@@ -802,7 +804,7 @@ if __name__ == "__main__":
 
     # train, test = split_target(test_df, test_size=0.3,
     #                            train_size=.6, stratified=False)
-    lrs = [1e-3, 1e-4]
+    lrs = [1e-4]
     for lr in lrs:
         s2i_dict = main(lr=lr)
 

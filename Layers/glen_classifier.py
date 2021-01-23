@@ -130,9 +130,9 @@ class BiLSTM_Classifier(torch.nn.Module):
         return logits
 
 
-class GAT_GCN_Classifier(torch.nn.Module):
+class GLEN_Classifier(torch.nn.Module):
     def __init__(self, num_token, in_dim, hidden_dim, num_heads, out_dim, num_classes, combine='concat', state=None):
-        super(GAT_GCN_Classifier, self).__init__()
+        super(GLEN_Classifier, self).__init__()
         self.combine = combine
         # self.token_gcn_dropedgelearn = GCN_DropEdgeLearn_Model(
         #     num_token=num_token, in_dim=in_dim, hidden_dim=hidden_dim, out_dim=out_dim,
@@ -256,6 +256,6 @@ class GAT_BiLSTM_Classifier(torch.nn.Module):
 
 
 if __name__ == "__main__":
-    test = GAT_GCN_Classifier(in_dim=5, hidden_dim=3, num_heads=2, out_dim=4, num_classes=2)
+    test = GLEN_Classifier(in_dim=5, hidden_dim=3, num_heads=2, out_dim=4, num_classes=2)
 
     test()

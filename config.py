@@ -57,9 +57,21 @@ configuration = {
         #     'labelled':   'smerp17_labeled',
         #     'unlabelled': 'fire16_unlabeled'},
 
-        # 'name':       'smerp17_fire16',
-        # 'train':      'smerp17_train',
-        # 'val':        'smerp17_train',
+        # 'name':        'smerp17_fire16',
+        # 'train':       'smerp17_train',
+        # 'val':         'smerp17_train',
+        # 'test':        'fire16_test',
+        # "source":      {
+        #     'labelled':   'smerp17_labeled',
+        #     'unlabelled': 'smerp17_unlabeled'
+        # },
+        # "target":      {
+        #     'labelled':   'fire16_labeled',
+        #     'unlabelled': 'fire16_unlabeled'},
+
+        # 'name':       'smerp17_fire16_small',
+        # 'train':      'smerp17_train_75',
+        # 'val':        'smerp17_val',
         # 'test':       'fire16_test',
         # "source":     {
         #     'labelled':   'smerp17_labeled',
@@ -68,18 +80,6 @@ configuration = {
         # "target":     {
         #     'labelled':   'fire16_labeled',
         #     'unlabelled': 'fire16_unlabeled'},
-
-        'name':       'smerp17_fire16_small',
-        'train':      'smerp17_train_75',
-        'val':        'smerp17_val',
-        'test':       'fire16_test',
-        "source":     {
-            'labelled':   'smerp17_labeled',
-            'unlabelled': 'smerp17_unlabeled'
-        },
-        "target":     {
-            'labelled':   'fire16_labeled',
-            'unlabelled': 'fire16_unlabeled'},
 
         # 'name':       'smerp17_fire16_target',
         # 'train':      'smerp17_train',
@@ -116,12 +116,12 @@ configuration = {
         # "target":     {
         #     'labelled':   'smerp17_labeled',
         #     'unlabelled': 'smerp17_unlabeled'},
+        #
+        # 'num_classes': 4,
+        # 'class_names': ('0', '1', '2', '3'),
 
-        'num_classes': 4,
-        'class_names': ('0', '1', '2', '3'),
-
-        # 'num_classes': 1,
-        # 'class_names': ('0'),
+        'num_classes': 1,
+        'class_names': ('0'),
 
         # 'name':        'nepal_queensland_source',
         # 'train':       '2015_Nepal_Earthquake_train',
@@ -195,17 +195,17 @@ configuration = {
         #     'labelled':   '2015_Nepal_Earthquake_test',
         #     'unlabelled': 'fire16_unlabeled'},
 
-        # 'name':        'nepal_nepal',
-        # 'train':       '2015_Nepal_Earthquake_train',
-        # 'val':         '2015_Nepal_Earthquake_dev',
-        # 'test':        '2015_Nepal_Earthquake_test',
-        # "source":      {
-        #     'labelled':   '2015_Nepal_Earthquake_train',
-        #     'unlabelled': 'fire16_unlabeled'
-        # },
-        # "target":      {
-        #     'labelled':   '2015_Nepal_Earthquake_train',
-        #     'unlabelled': 'fire16_unlabeled'},
+        'name':        'NEQ_NEQ',
+        'train':       '2015_Nepal_Earthquake_train',
+        'val':         '2015_Nepal_Earthquake_dev',
+        'test':        '2015_Nepal_Earthquake_test',
+        "source":      {
+            'labelled':   '2015_Nepal_Earthquake_train',
+            'unlabelled': 'fire16_unlabeled'
+        },
+        "target":      {
+            'labelled':   '2015_Nepal_Earthquake_train',
+            'unlabelled': 'fire16_unlabeled'},
 
         # 'name':       'queensland_queensland',
         # 'train':      '2013_Queensland_Floods_train',
@@ -222,6 +222,14 @@ configuration = {
         "val_split":   0.15,
         "test_split":  0.999,
         "show_stat":   False
+    },
+    'pretrain':     {
+        'epochs':      100,
+        'lr':          0.005,
+        'name':        'disaster_binary_pretrain',
+        'files':       ['2015_Nepal_Earthquake',
+                        '2012_Italy_Earthquake', '2013_Queensland_Floods', 'AF13', 'OT13', 'SH12'
+        ],
     },
 
     "paths":        {
@@ -353,7 +361,7 @@ configuration = {
     },
 
     "gnn_params":   {
-        "hid_dim":     100,
+        "hid_dim":     300,
         "num_heads":   2,
         "padding":     1,
         "stride":      1,
@@ -362,7 +370,7 @@ configuration = {
     },
 
     "training":     {
-        "num_epoch":        20,
+        "num_epoch":        25,
         "num_train_epoch":  50,
         "train_batch_size": 64,
         "eval_batch_size":  256,
