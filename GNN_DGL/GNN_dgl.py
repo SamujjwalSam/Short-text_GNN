@@ -213,7 +213,7 @@ def train_graph_classifier(model: GAT_Graph_Classifier,
         losses, test_output = test_graph_classifier(
             model, loss_func=loss_func, data_loader=eval_data_loader)
         logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, Eval loss {losses},"
-                    f" Macro F1 {test_output['result']['f1']['macro'].item()}")
+                    f" Weighted F1 {test_output['result']['f1']['weighted'].item()}")
         # logger.info(dumps(test_output['result'], indent=4))
         train_epoch_losses.append(epoch_loss)
         preds = torch.cat(preds)

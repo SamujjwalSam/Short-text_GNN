@@ -43,22 +43,22 @@ def calculate_performance_sk(true: (np.ndarray, torch.tensor), pred: (np.ndarray
     scores["precision"] = {}
     scores["precision"]["classes"] = precision_score(true, pred, average=None).tolist()
     scores["precision"]["weighted"] = precision_score(true, pred, average='weighted')
-    scores["precision"]["micro"] = precision_score(true, pred, average='micro')
     scores["precision"]["macro"] = precision_score(true, pred, average='macro')
+    scores["precision"]["micro"] = precision_score(true, pred, average='micro')
     scores["precision"]["samples"] = precision_score(true, pred, average='samples')
 
     scores["recall"] = {}
     scores["recall"]["classes"] = recall_score(true, pred, average=None).tolist()
     scores["recall"]["weighted"] = recall_score(true, pred, average='weighted')
-    scores["recall"]["micro"] = recall_score(true, pred, average='micro')
     scores["recall"]["macro"] = recall_score(true, pred, average='macro')
+    scores["recall"]["micro"] = recall_score(true, pred, average='micro')
     scores["recall"]["samples"] = recall_score(true, pred, average='samples')
 
     scores["f1"] = {}
     scores["f1"]["classes"] = f1_score(true, pred, average=None).tolist()
     scores["f1"]["weighted"] = f1_score(true, pred, average='weighted')
-    scores["f1"]["micro"] = f1_score(true, pred, average='micro')
     scores["f1"]["macro"] = f1_score(true, pred, average='macro')
+    scores["f1"]["micro"] = f1_score(true, pred, average='micro')
     scores["f1"]["samples"] = f1_score(true, pred, average='samples')
 
     if print_result:
@@ -82,22 +82,22 @@ def calculate_performance_bin_sk(true: (np.ndarray, torch.tensor), pred: (np.nda
     scores["precision"] = {}
     scores["precision"]["classes"] = precision_score(true, pred, average=None).tolist()
     scores["precision"]["weighted"] = precision_score(true, pred, average='weighted')
-    scores["precision"]["micro"] = precision_score(true, pred, average='micro')
     scores["precision"]["macro"] = precision_score(true, pred, average='macro')
+    scores["precision"]["micro"] = precision_score(true, pred, average='micro')
     # scores["precision"]["samples"] = precision_score(true, pred, average='samples')
 
     scores["recall"] = {}
     scores["recall"]["classes"] = recall_score(true, pred, average=None).tolist()
     scores["recall"]["weighted"] = recall_score(true, pred, average='weighted')
-    scores["recall"]["micro"] = recall_score(true, pred, average='micro')
     scores["recall"]["macro"] = recall_score(true, pred, average='macro')
+    scores["recall"]["micro"] = recall_score(true, pred, average='micro')
     # scores["recall"]["samples"] = recall_score(true, pred, average='samples')
 
     scores["f1"] = {}
     scores["f1"]["classes"] = f1_score(true, pred, average=None).tolist()
     scores["f1"]["weighted"] = f1_score(true, pred, average='weighted')
-    scores["f1"]["micro"] = f1_score(true, pred, average='micro')
     scores["f1"]["macro"] = f1_score(true, pred, average='macro')
+    scores["f1"]["micro"] = f1_score(true, pred, average='micro')
     # scores["f1"]["samples"] = f1_score(true, pred, average='samples')
 
     if print_result:
@@ -148,42 +148,42 @@ def calculate_performance_pl(true: torch.tensor, pred: torch.tensor,
 
     scores["precision"] = {}
     scores["precision"]["classes"] = precision(true, pred, class_reduction='none')
-    scores["precision"]["micro"] = precision(true, pred, class_reduction='micro')
-    scores["precision"]["macro"] = precision(true, pred, class_reduction='macro')
     scores["precision"]["weighted"] = precision(true, pred, class_reduction='weighted')
+    scores["precision"]["macro"] = precision(true, pred, class_reduction='macro')
+    scores["precision"]["micro"] = precision(true, pred, class_reduction='micro')
     # scores["precision"]["samples"] = precision(true, pred, reduction='samples')
 
     scores["recall"] = {}
     scores["recall"]["classes"] = recall(true, pred, class_reduction='none')
-    scores["recall"]["micro"] = recall(true, pred, class_reduction='micro')
-    scores["recall"]["macro"] = recall(true, pred, class_reduction='macro')
     scores["recall"]["weighted"] = recall(true, pred, class_reduction='weighted')
+    scores["recall"]["macro"] = recall(true, pred, class_reduction='macro')
+    scores["recall"]["micro"] = recall(true, pred, class_reduction='micro')
     # scores["recall"]["samples"] = recall(true, pred, reduction='samples')
 
     scores["f1"] = {}
     scores["f1"]["classes"] = f1_pl(true, pred, class_reduction='none')
-    scores["f1"]["micro"] = f1_pl(true, pred, class_reduction='micro')
-    scores["f1"]["macro"] = f1_pl(pred, true, class_reduction='macro')
     scores["f1"]["weighted"] = f1_pl(true, pred, class_reduction='weighted')
+    scores["f1"]["macro"] = f1_pl(pred, true, class_reduction='macro')
+    scores["f1"]["micro"] = f1_pl(true, pred, class_reduction='micro')
     # scores["f1"]["samples"] = f1_pl(true, pred, reduction='samples')
 
     if return_list:
         scores["accuracy"] = scores["accuracy"].tolist()
 
         scores["precision"]["classes"] = scores["precision"]["classes"].tolist()
-        scores["precision"]["micro"] = scores["precision"]["micro"].tolist()
-        scores["precision"]["macro"] = scores["precision"]["macro"].tolist()
         scores["precision"]["weighted"] = scores["precision"]["weighted"].tolist()
+        scores["precision"]["macro"] = scores["precision"]["macro"].tolist()
+        scores["precision"]["micro"] = scores["precision"]["micro"].tolist()
 
         scores["recall"]["classes"] = scores["recall"]["classes"].tolist()
-        scores["recall"]["micro"] = scores["recall"]["micro"].tolist()
-        scores["recall"]["macro"] = scores["recall"]["macro"].tolist()
         scores["recall"]["weighted"] = scores["recall"]["weighted"].tolist()
+        scores["recall"]["macro"] = scores["recall"]["macro"].tolist()
+        scores["recall"]["micro"] = scores["recall"]["micro"].tolist()
 
         scores["f1"]["classes"] = scores["f1"]["classes"].tolist()
-        scores["f1"]["micro"] = scores["f1"]["micro"].tolist()
-        scores["f1"]["macro"] = scores["f1"]["macro"].tolist()
         scores["f1"]["weighted"] = scores["f1"]["weighted"].tolist()
+        scores["f1"]["macro"] = scores["f1"]["macro"].tolist()
+        scores["f1"]["micro"] = scores["f1"]["micro"].tolist()
 
         if print_result:
             logger.info(dumps(scores, indent=4))

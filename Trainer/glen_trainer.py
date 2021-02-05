@@ -63,8 +63,8 @@ def train_graph_classifier(model, G, X,
                 # local_ids = local_ids.to(device)
                 # node_counts = node_counts.to(device)
                 # global_ids = global_ids.to(device)
-                G = G.to(device)
-                X = X.to(device)
+                # G = G.to(device)
+                # X = X.to(device)
             prediction = model(graph_batch, emb, local_ids, node_counts, global_ids, G, X)
             # if epoch == 30:
             #     from evaluations import get_freq_disjoint_token_vecs, plot
@@ -72,6 +72,7 @@ def train_graph_classifier(model, G, X,
             #     plot(glove_vecs)
             if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
                 prediction = prediction.to(device)
+                label = label.to(device)
             if prediction.dim() == 1:
                 prediction = prediction.unsqueeze(1)
             loss = loss_func(prediction, label)
@@ -80,8 +81,17 @@ def train_graph_classifier(model, G, X,
             optimizer.step()
             # train_count = label.shape[0]
             epoch_loss += loss.detach().item()
-            preds.append(prediction.detach())
-            trues.append(label.detach())
+            if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+                preds.append(prediction.detach().cpu())
+                trues.append(label.detach().cpu())
+                # losses.append(loss.detach().cpu())
+            else:
+                preds.append(prediction.detach())
+                trues.append(label.detach())
+                # losses.append(loss.detach())
+                # preds.append(prediction.detach())
+                # trues.append(label.detach())
+
         epoch_loss /= (iter + 1)
         train_time = timeit.default_timer() - start_time
         logger.info(f"Epoch {epoch}, time: {train_time / 60} mins, loss: {epoch_loss}")
@@ -92,11 +102,11 @@ def train_graph_classifier(model, G, X,
             model, G, X, loss_func=loss_func, data_loader=test_data_loader)
         logger.info(f'test_output: \n{dumps(test_output["result"], indent=4)}')
         logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
-                    f"{val_losses}, test loss {test_losses}, Val Macro F1 "
-                    f"{val_output['result']['f1']['macro'].item()} Test Macro F1"
-                    f" {test_output['result']['f1']['macro'].item()}")
+                    f"{val_losses}, test loss {test_losses}, Val Weighted F1 "
+                    f"{val_output['result']['f1']['weighted'].item()} Test Weighted F1"
+                    f" {test_output['result']['f1']['weighted'].item()}")
         # logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
-        #             f"{val_losses}, Val Macro F1 {val_output['result']['f1']['macro'].item()}")
+        #             f"{val_losses}, Val Weighted F1 {val_output['result']['f1']['weighted'].item()}")
         train_epoch_losses.append(epoch_loss)
         preds = cat(preds)
 
@@ -150,10 +160,16 @@ def eval_graph_classifier(model: GLEN_Classifier, G, X, loss_func,
             prediction = prediction.unsqueeze(1)
         if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
             prediction = prediction.to(device)
+            label = label.to(device)
         loss = loss_func(prediction, label)
-        preds.append(prediction.detach())
-        trues.append(label.detach())
-        losses.append(loss.detach())
+        if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+            preds.append(prediction.detach().cpu())
+            trues.append(label.detach().cpu())
+            losses.append(loss.detach().cpu())
+        else:
+            preds.append(prediction.detach())
+            trues.append(label.detach())
+            losses.append(loss.detach())
     test_time = timeit.default_timer() - start_time
     logger.info(f"Total test time: [{test_time / 60} mins]")
     losses = mean(stack(losses))
@@ -163,7 +179,7 @@ def eval_graph_classifier(model: GLEN_Classifier, G, X, loss_func,
     preds = sigmoid(preds)
 
     ## Converting probabilities to class labels:
-    preds = logit2label(preds.detach(), cls_thresh=0.5)
+    preds = logit2label(preds.detach().cpu(), cls_thresh=0.5)
     trues = cat(trues)
     if n_classes == 1:
         result_dict = calculate_performance_bin_sk(trues, preds)
@@ -254,6 +270,8 @@ def GLEN_trainer(
     count_parameters(model)
     if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
         model.to(device)
+        G = G.to(device)
+        X = X.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
 

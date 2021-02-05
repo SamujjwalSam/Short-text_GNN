@@ -320,7 +320,7 @@ configuration = {
             "OSX":     False,
             "Linux":   {
                 "sam":            False,
-                "cs14mtech11017": False,
+                "cs14mtech11017": True,
                 "cs16resch01001": True,
                 "cs14resch11001": True
             },

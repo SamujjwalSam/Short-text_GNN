@@ -17,7 +17,9 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
+import umap
 import statistics
+import numpy as np
 import networkx as nx
 import seaborn as sns
 from os.path import join
@@ -29,6 +31,19 @@ from Logger.logger import logger
 plt.rcParams.update({'font.size': 15})
 sns.set(rc={'figure.figsize': (11.7, 8.27)})
 sns.color_palette("viridis", as_cmap=True)
+
+
+def plot_umap(data, save_name='umap_vecs.pdf'):
+    reducer = umap.UMAP()
+    embedding = reducer.fit_transform(data)
+    plt.scatter(
+        embedding[:, 0],
+        embedding[:, 1],
+        c=[sns.color_palette()[x] for x in data])
+    plt.gca().set_aspect('equal', 'datalim')
+    plt.title('UMAP projection:', fontsize=24)
+    plt.savefig(save_name)
+    plt.show()
 
 
 def plot_heatmap(data, vmin=-1., vmax=1., save_name='heatmap.pdf'):
@@ -46,9 +61,13 @@ def plot_heatmap(data, vmin=-1., vmax=1., save_name='heatmap.pdf'):
 
 
 def plot_vecs_color(tokens2vec, axis_range=None, save_name='tsne_vecs.pdf',
-                    title='TSNE visualization of top 100 tokens in 2D'):
+                    title='TSNE visualization of top 10 tokens in 2D'):
     """ Plots TSNE representations of tokens and their embeddings.
 
+    :param tokens2vec:
+    :param axis_range:
+    :param save_name:
+    :param title:
     :param X:
     :param tokens:
     :param limit_view:
@@ -59,14 +78,15 @@ def plot_vecs_color(tokens2vec, axis_range=None, save_name='tsne_vecs.pdf',
     tokens = list(tokens2vec.keys())
 
     X_2d = tsne.fit_transform(X)
-    colors = axis_range(X_2d.shape[0])
-    print(len(colors), colors)
+    # colors = axis_range(X_2d.shape[0])
+    # print(len(colors), colors)
 
     plt.figure(figsize=(15, 15))
     if tokens is not None:
         for i, token in enumerate(tokens):
             plt.annotate(token, xy=(X_2d[i, 0], X_2d[i, 1]), zorder=1)
-    plt.scatter(X_2d[:, 0], X_2d[:, 1], c=colors, s=60, alpha=.5)
+    plt.scatter(X_2d[:, 0], X_2d[:, 1], s=60, alpha=.5, # c=colors
+                )
     if axis_range is not None:
         plt.xlim(-axis_range, axis_range)
         plt.ylim(-axis_range, axis_range)

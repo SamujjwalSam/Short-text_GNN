@@ -207,7 +207,7 @@ def trainer(model, train_iterator, val_iterator, N_EPOCHS=5, optimizer=None,
         record_val_losses.append(val_loss)
 
         # logger.info(f"Epoch {epoch}, Train loss {train_loss}, Eval loss {val_loss},"
-        #             f" Macro F1 {test_output['result']['f1']['macro'].item()}")
+        #             f" Weighted F1 {test_output['result']['f1']['weighted'].item()}")
         # val_preds_trues_all[epoch] = val_preds_trues
 
         # save the best model

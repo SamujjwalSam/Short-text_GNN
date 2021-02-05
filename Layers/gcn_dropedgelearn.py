@@ -68,12 +68,12 @@ class GCN(torch.nn.Module):
         self.gc2 = GraphConvolutionLayer(nhid, nclass)
         self.dropout = dropout
 
-    def forward(self, x, adj):
-        x = F.relu(self.gc1(x, adj))
-        x = F.dropout(x, self.dropout, training=self.training)
-        x = self.gc2(x, adj)
+    def forward(self, A, X):
+        X = F.relu(self.gc1(X, A))
+        X = F.dropout(X, self.dropout, training=self.training)
+        X = self.gc2(X, A)
         # return F.log_softmax(x, dim=1)
-        return x
+        return X
 
 
 class GCN_DropEdgeLearn_Layer(torch.nn.Module):
