@@ -224,8 +224,9 @@ configuration = {
         "show_stat":   False
     },
     'pretrain':     {
-        'epochs':      100,
-        'lr':          0.005,
+        'epochs':      50,
+        'min_freq':    3,
+        'lr':          0.05,
         'name':        'disaster_binary_pretrain',
         'files':       ['2015_Nepal_Earthquake',
                         '2012_Italy_Earthquake', '2013_Queensland_Floods', 'AF13', 'OT13', 'SH12'

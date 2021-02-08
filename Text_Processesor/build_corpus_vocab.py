@@ -62,6 +62,7 @@ def get_dataset_fields(
 
     ## Create vocabulary and mappings:
     if init_vocab:
+        logger.info(f'min_freq: {min_freq}')
         create_vocab(dataset, TEXT, LABEL, embedding_file=embedding_file,
                      embedding_dir=embedding_dir, min_freq=min_freq)
     if return_iter:

@@ -312,7 +312,7 @@ def freq_tokens_per_class(df: pd.core.frame.DataFrame, normalize: bool = True):
     """ Returns a dict of most freq tokens per class.
 
     :param df: Labelled DataFrame ['text', label_1, label_2, ...]
-    :param normalize: If values devided by total number of samples of that class
+    :param normalize: If values divided by total number of samples of that class
     :return:
     """
     token_cls_freq = {}

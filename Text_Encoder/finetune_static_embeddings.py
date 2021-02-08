@@ -238,11 +238,11 @@ def preprocess_and_find_oov2(joint_vocab: dict = None,
     return high_oov_freqs, low_glove_freqs, low_oov_freqs
 
 
-def create_clean_corpus(dataset, low_oov_freqs):
+def create_clean_corpus(dataset, low_oov_ignored):
     """ Ignores low freq OOV tokens and creates corpus without those tokens.
 
     :param dataset: TorchText dataset
-    :param low_oov_freqs: set of tokens to be ignored.
+    :param low_oov_ignored: set of tokens to be ignored.
     :return:
         corpus_strs: str per example (list of str)
         corpus_toks: tokenized text per examples (list of list of str)
@@ -256,7 +256,7 @@ def create_clean_corpus(dataset, low_oov_freqs):
         example_toks = []
         for token in example.text:
             ## Ignore low freq OOV tokens:
-            if token not in low_oov_freqs:
+            if token not in low_oov_ignored:
                 example_toks.append(token)
 
         ## Ignore samples if no token left after cleaning:

@@ -23,7 +23,7 @@ from dgl import DGLGraph
 from dgl.nn.pytorch.conv import GATConv, GraphConv
 
 from Layers.gcn_dropedgelearn import GCN_DropEdgeLearn_Model, GCN
-from Layers.wscp_pretrain import WSCP_Pretrain, WSCP_Layer, contrastive_loss
+from Layers.pretrain_gcn import Pretrain_GCN, GCN_Layer, contrastive_loss
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -138,7 +138,7 @@ class GLEN_Classifier(torch.nn.Module):
         #     num_token=num_token, in_dim=in_dim, hidden_dim=hidden_dim, out_dim=out_dim,
         #     dropout=0.2, adj_dropout=0.0)
         # self.token_gcn = GCN(nfeat=in_dim, nhid=hidden_dim, nclass=out_dim, dropout=0.2)
-        self.token_gcn = WSCP_Pretrain(in_dim=in_dim, hidden_dim=hidden_dim, out_dim=out_dim)
+        self.token_gcn = Pretrain_GCN(in_dim=in_dim, hidden_dim=hidden_dim, out_dim=out_dim)
 
         ## Load model state and parameters for the GCN part only:
         if state is not None:
@@ -162,8 +162,8 @@ class GLEN_Classifier(torch.nn.Module):
 
     def forward(self, instance_batch: DGLGraph, instance_batch_embs: torch.Tensor,
                 instance_batch_local_token_ids: list, node_counts: list,
-                instance_batch_global_token_ids: list, token_graph: torch.Tensor,
-                token_embs: torch.Tensor, save_gcn_embs=False) -> torch.Tensor:
+                instance_batch_global_token_ids: list, A: torch.Tensor,
+                X: torch.Tensor, save_gcn_embs=False) -> torch.Tensor:
         """ Combines embeddings of tokens from token and instance graph by concatenating.
 
         Take embeddings from token graph for tokens present in the instance graph batch.
@@ -175,18 +175,18 @@ class GLEN_Classifier(torch.nn.Module):
         :param instance_batch_global_token_ids: Ordered set of token ids present in the current instance batch
         :param instance_batch_embs: Embeddings from instance GAT
         :param instance_batch: Instance graph batch
-        :param token_embs: Embeddings from token GCN
-        :param token_graph: token graph
+        :param X: Embeddings from token GCN
+        :param A: token graph
         """
         ## Fetch embeddings from instance graphs:
         instance_batch_embs = self.instance_gat_dgl(instance_batch, instance_batch_embs)
 
         ## Fetch embeddings from token graph
         # token_embs = self.token_gcn_dropedgelearn(token_graph, token_embs)
-        token_embs = self.token_gcn(A=token_graph, X=token_embs)
+        X = self.token_gcn(A=A, X=X)
 
         if save_gcn_embs:
-            torch.save(token_embs, 'X_gcn.pt')
+            torch.save(X, 'X_gcn.pt')
             # torch.save(X, 'X_glove.pt')
 
         ## Fetch embeddings from token graph of tokens present in instance batch only:
@@ -203,11 +203,11 @@ class GLEN_Classifier(torch.nn.Module):
 
             ## Combine both embeddings:
             if self.combine == 'concat':
-                combined_emb = torch.cat([token_embs[token_global_ids],
+                combined_emb = torch.cat([X[token_global_ids],
                                           instance_batch_embs[start_idx:end_idx][instance_local_ids]], dim=1)
             elif self.combine == 'avg':
                 combined_emb = torch.mean(torch.stack(
-                    [token_embs[token_global_ids], instance_batch_embs[start_idx:end_idx][instance_local_ids]]), dim=0)
+                    [X[token_global_ids], instance_batch_embs[start_idx:end_idx][instance_local_ids]]), dim=0)
             else:
                 raise NotImplementedError(f'combine supports either concat or avg.'
                                           f' [{self.combine}] provided.')
