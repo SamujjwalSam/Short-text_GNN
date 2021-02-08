@@ -155,10 +155,12 @@ def preprocess_and_find_oov(datasets: tuple, common_vocab: dict = None,
 
 def preprocess_and_find_oov2(joint_vocab: dict = None,
                              glove_embs: dict = None, labelled_vocab_set: set = None,
-                             special_tokens={'<unk>', '<pad>'}):
+                             special_tokens={'<unk>', '<pad>'},
+                             add_glove_tokens_back=True):
     """ Process and prepare data by removing stopwords, finding oovs and
      creating corpus.
 
+    :param add_glove_tokens_back: Adds low freq tokens which are present in glove
     :param special_tokens:
     :param labelled_vocab_set: Tokens of labelled data with associate
     label vecs
@@ -202,17 +204,18 @@ def preprocess_and_find_oov2(joint_vocab: dict = None,
     logger.info(f'Number of low freq tokens with embeddings (will be '
                 f'added back): [{len(low_glove)}]')
 
-    ## Add 'low freq with embeddings' tokens back to vocab:
     low_glove_freqs = {}
-    start_idx = len(joint_vocab['str2idx_map'])
-    for token in low_glove:
-        joint_vocab['str2idx_map'][token] = start_idx
-        joint_vocab['idx2str_map'].append(token)
-        low_glove_freqs[token] = joint_vocab['freqs'][token]
-        start_idx += 1
+    if add_glove_tokens_back:
+        ## Add 'low freq with embeddings' tokens back to vocab:
+        start_idx = len(joint_vocab['str2idx_map'])
+        for token in low_glove:
+            joint_vocab['str2idx_map'][token] = start_idx
+            joint_vocab['idx2str_map'].append(token)
+            low_glove_freqs[token] = joint_vocab['freqs'][token]
+            start_idx += 1
 
-    ## Update vocab set after adding low freq tokens back:
-    vocab_s2i_set.update(low_glove)
+        ## Update vocab set after adding low freq tokens back:
+        vocab_s2i_set.update(low_glove)
 
     ## Reinitialize low freq set after adding non-oov tokens back:
     ## Low freq tokens without embeddings:

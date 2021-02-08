@@ -135,10 +135,14 @@ class Token_Dataset_nx(Dataset):
         :return:
         """
         ## TODO: set alpha = 1 if occurrence in either source or target is 0.
-
+        highest_cooccur = 0
         for n1, n2, edge_data in self.G.edges(data=True):
             n1_data = self.G.nodes[n1]
             n2_data = self.G.nodes[n2]
+            if edge_data['s_pair'] > highest_cooccur:
+                highest_cooccur = edge_data['s_pair']
+                # token_pair = (n1, n2)
+                logger.info(f'Maximum cooccur freq: {highest_cooccur} for {n1_data["node_txt"]} and {n2_data["node_txt"]}.')
             c1 = (edge_data['s_pair'] / (n1_data['s_co'] + n2_data['s_co'] + 1))
             c2 = (edge_data['t_pair'] / (n1_data['t_co'] + n2_data['t_co'] + 1))
             wt = ((1 - alpha) * c1) + (alpha * c2)
