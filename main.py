@@ -52,7 +52,7 @@ from config import configuration as cfg, platform as plat, username as user, dat
 from Logger.logger import logger
 
 ## Enable multi GPU cuda environment:
-# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if cuda.is_available():
     environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 
@@ -340,7 +340,8 @@ def main(model_type='GNN', data_dir: str = dataset_dir, lr=cfg["model"]["optimiz
     else:
         ## Create token graph:
         logger.info(f'Using GNN model and creating token graph:')
-        g_ob = Token_Dataset_nx(corpus_toks, C_vocab, S_vocab, T_vocab, dataset_name=labelled_source_name)
+        g_ob = Token_Dataset_nx(corpus_toks, C_vocab, labelled_source_name,
+                                S_vocab, T_vocab)
         g_ob.add_edge_weights()
         G = g_ob.G
         num_tokens = g_ob.num_tokens
@@ -429,18 +430,75 @@ def main(model_type='GNN', data_dir: str = dataset_dir, lr=cfg["model"]["optimiz
             in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
             num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
 
+        # train_epochs_output_dict, test_output = GCNR_trainer(
+        #     adj, X, train_dataloader, val_dataloader, test_dataloader,
+        #     in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
+        #     epochs=cfg['training']['num_epoch'], lr=lr, state=None)
+
+        logger.critical('PRETRAIN ###########################################')
+
+        pretrain_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
+        data_filename = cfg['data']['name']
+        emb_filename = join(pretrain_dir, data_filename + "_pretrained_emb.pt")
+        save_path = join(pretrain_dir, cfg['data']['name'] + '_model.pt')
+        if exists(join(pretrain_dir, data_filename + '_joint_vocab.csv'))\
+                and exists(emb_filename) and exists(save_path):
+            # joint_vocab = read_json(join(pretrain_dir, data_filename + '_joint_vocab'))
+            logger.info('Accessing token graph node embeddings:')
+            X = load(emb_filename)
+            state = torch.load(save_path)
+        else:
+            state, joint_vocab, pretrain_embs = get_pretrain_artifacts(
+                epochs=cfg['pretrain']['epochs'])
+            calculate_vocab_overlap(C_vocab, joint_vocab)
+            # save_json(joint_vocab, labelled_source_path + '_joint_vocab', overwrite=True)
+            logger.info('Get node embeddings from token graph:')
+            X = g_ob.get_node_embeddings(oov_embs, glove_embs, C_vocab['idx2str_map'], pretrain_embs=pretrain_embs)
+            # X = sp_coo2torch_coo(X)
+            save(X, emb_filename)
+
+            ## Plot pretrained embeddings:
+            # C = set(glove_embs.keys()).intersection(set(pretrain_embs.keys()))
+            # logger.debug(f'Common vocab size: {len(C)}')
+            # words = ['nepal', 'italy', 'building', 'damage', 'kathmandu', 'water',
+            #          'wifi', 'need', 'available', 'earthquake']
+            # X_glove = {word: glove_embs[word] for word in words}
+            # X_gcn = {word: pretrain_embs[word].detach().cpu().numpy() for word in words}
+            # from Plotter.plot_functions import plot_vecs_color
+            #
+            # plot_vecs_color(tokens2vec=X_gcn, save_name='gcn_pretrained.pdf')
+            # plot_vecs_color(tokens2vec=X_glove, save_name='glove_pretrained.pdf')
+            # logger.debug(f'Word list: {words}')
+
+        logger.critical('AFTER None **********************************************')
+        # train_epochs_output_dict, test_output = GCNR_trainer(
+        #     adj, X, train_dataloader, val_dataloader, test_dataloader,
+        #     in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
+        #     epochs=cfg['training']['num_epoch'], lr=lr, state=None)
+
+        train_epochs_output_dict, test_output = GLEN_trainer(
+            adj, X, train_dataloader, val_dataloader, test_dataloader, num_tokens=num_tokens,
+            in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
+            num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr, state=None)
+
+        # logger.critical('AFTER +STATE **********************************************')
+        # train_epochs_output_dict, test_output = GLEN_trainer(
+        #     adj, X, train_dataloader, val_dataloader, test_dataloader, num_tokens=num_tokens,
+        #     in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
+        #     num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr, state=state)
+
     # ## Propagating label vectors using GCN forward instead of LPA:
     # X_labels_hat = GCN_forward(adj, all_node_labels, forward=gcn_hops)
     # torch.save(X_labels_hat, 'X_labels_hat_05.pt')
 
-    return C_vocab['str2idx_map']  # , X_hat
+    return C_vocab['str2idx_map'] # , X_hat
 
 
-def prepare_datasets(train_df=None, test_df=None, stoi=None, vectors=None,
-                     dim=cfg['embeddings']['emb_dim'], split_test=False,
-                     get_iter=False, data_dir=dataset_dir,
-                     train_filename=cfg['data']['train'],
-                     test_filename=cfg['data']['test']):
+def prepare_datasets(
+        train_df=None, test_df=None, stoi=None, vectors=None,
+        dim=cfg['embeddings']['emb_dim'], split_test=False, get_iter=False,
+        data_dir=dataset_dir, train_filename=cfg['data']['train'],
+        test_filename=cfg['data']['test']):
     """ Creates train and test dataset from df and returns data loader.
 
     :param get_iter: If iterator over the text samples should be returned
@@ -520,12 +578,11 @@ def prepare_datasets(train_df=None, test_df=None, stoi=None, vectors=None,
     return train_dataset, test_dataset, train_vocab, test_vocab
 
 
-def prepare_splitted_datasets(stoi=None, vectors=None, split_test=False, get_iter=False,
-                              dim=cfg['embeddings']['emb_dim'],
-                              data_dir=dataset_dir,
-                              train_dataname=cfg["data"]["train"],
-                              val_dataname=cfg["data"]["val"],
-                              test_dataname=cfg["data"]["test"]):
+def prepare_splitted_datasets(
+        stoi=None, vectors=None, split_test=False, get_iter=False,
+        dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+        train_dataname=cfg["data"]["train"], val_dataname=cfg["data"]["val"],
+        test_dataname=cfg["data"]["test"]):
     """ Creates train and test dataset from df and returns data loader.
 
     :param val_dataname:
@@ -804,7 +861,7 @@ if __name__ == "__main__":
 
     # train, test = split_target(test_df, test_size=0.3,
     #                            train_size=.6, stratified=False)
-    lrs = [1e-4]
+    lrs = [1e-3]
     for lr in lrs:
         s2i_dict = main(lr=lr)
 
