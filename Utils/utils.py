@@ -407,6 +407,38 @@ def load_graph(graph_path='graph.pkl'):
     return G
 
 
+# def print_diff_norm(x_hat: Tensor,  x_old: Tensor = None):
+#     """ Prints the norm of difference of two vectors.
+#
+#     :param x_old:
+#     :param x_hat:
+#     """
+#     if x_old is not None:
+#         assert x_old.shape == x_hat.shape, 'Dim of both inputs should be same.'
+#         for a, b in zip(x_old, x_hat):
+#             logger.debug(norm(b - a))
+#
+#     return x_hat
+
+
+def print_norms(model, params_old=None, grads_old=None):
+    """ Print Weight and Gradient shapes and norm. """
+    # logger.debug(list(model.named_modules()))
+    params = {}
+    grads = {}
+    for name, param in model.named_parameters():
+        params[name] = param.data.detach().cpu().numpy()
+        grads[name] = param.grad.detach().cpu().numpy()
+
+        logger.debug(f'name: {name}, data_norm: {np.linalg.norm(params[name])}, '
+                     f'grad_norm: {np.linalg.norm(grads[name])}')
+        if params_old is not None:
+            logger.debug(f'data_diff_norm: {np.linalg.norm(params_old[name] - params[name])}, '
+                         f'grad_diff_norm: {np.linalg.norm(grads_old[name] - grads[name])}')
+
+    return params, grads
+
+
 def main():
     """
     Main module to start code

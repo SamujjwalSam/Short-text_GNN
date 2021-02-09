@@ -40,9 +40,7 @@ def get_dataset_fields(
     tokenizer = partial(normalizeTweet, return_tokens=True)
 
     (TEXT, LABEL), labelled_fields, unlabelled_fields = prepare_fields(
-        text_headers=text_headers, tokenizer=tokenizer, n_classes=cfg['data']['num_classes']  ## TODO:
-        # for binary dataset
-    )
+        text_headers=text_headers, tokenizer=tokenizer, n_classes=cfg['data']['num_classes'])
 
     ## Create dataset from saved csv file:
     if labelled_data:

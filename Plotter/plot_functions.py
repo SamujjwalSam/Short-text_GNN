@@ -72,7 +72,7 @@ def plot_vecs_color(tokens2vec, axis_range=None, save_name='tsne_vecs.pdf',
     :param tokens:
     :param limit_view:
     """
-    tsne = TSNE(n_components=2, random_state=0)
+    tsne = TSNE(n_components=2)
 
     X = np.stack(list(tokens2vec.values()))
     tokens = list(tokens2vec.keys())

@@ -52,28 +52,13 @@ class Instance_GAT_dgl(torch.nn.Module):
         return emb
 
 
-# class Token_Graph_GCN(torch.nn.Module):
-#     def __init__(self, in_dim, hidden_dim, out_dim):
-#         super(Token_Graph_GCN, self).__init__()
-#         self.conv1 = GraphConv(in_dim, hidden_dim)
-#         self.conv2 = GraphConv(hidden_dim, out_dim)
-#
-#     def forward(self, g, emb):
-#         if emb is None:
-#             emb = g.ndata['emb']
-#         emb = self.conv1(g, emb)
-#         emb = torch.relu(emb)
-#         emb = self.conv2(g, emb)
-#         return emb
-
-
 class BiLSTM_Classifier(torch.nn.Module):
     """ BiLSTM for classification. """
 
     # define all the layers used in model
     def __init__(self, embedding_dim, output_dim, hidden_dim=100,
                  n_layers=2, bidirectional=True, dropout=0.2, num_linear=1):
-        super().__init__()
+        super(BiLSTM_Classifier, self).__init__()
         self.lstm = torch.nn.LSTM(embedding_dim, hidden_dim, num_layers=n_layers,
                                   bidirectional=bidirectional, dropout=dropout,
                                   batch_first=True)

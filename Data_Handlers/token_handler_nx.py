@@ -33,31 +33,34 @@ from config import dataset_dir
 class Token_Dataset_nx(Dataset):
     """ Token graph dataset in NX. """
 
-    def __init__(self, corpus_toks, C_vocab, S_vocab, T_vocab, dataset_name,
-                 data_dir: str = dataset_dir, graph_path=None):
-        # assert dataset_name.lower() in ['fire16', 'smerp17'], f'Dataset {dataset_name} not supported.'
-        # if dataset_name.startswith('fire16'):
-        #     lab_dataname = 'fire16_labelled'
-        #     unlab_dataname = 'fire16_unlabelled'
+    def __init__(self, corpus_toks, C_vocab, dataset_name, S_vocab=None, T_vocab=None,
+                 data_dir: str = dataset_dir, graph_path=None, G=None):
         super(Token_Dataset_nx, self).__init__()
         self.data_dir = data_dir
         self.dataset_name = dataset_name
-        if graph_path is None:
-            self.graph_path = join(self.data_dir, dataset_name + '_token_nx.bin')
-        else:
-            self.graph_path = graph_path
+        if G is None:
+            if graph_path is None:
+                self.graph_path = join(self.data_dir, dataset_name + '_token_nx.bin')
+            else:
+                self.graph_path = graph_path
 
-        if exists(self.graph_path):
-            self.G = self.load_graph(self.graph_path)
+            if exists(self.graph_path):
+                self.G = self.load_graph(self.graph_path)
+            else:
+                if S_vocab is not None and T_vocab is not None:
+                    self.G = self.create_token_graph(corpus_toks, C_vocab, S_vocab, T_vocab)
+                else:
+                    self.G = self.create_token_graph_pretrain(corpus_toks, C_vocab)
+                self.save_graph(self.graph_path)
         else:
-            self.G = self.create_token_graph(corpus_toks, C_vocab, S_vocab, T_vocab)
-            ## Calculate edge weights from cooccurrence stats:
-            # self.G = self.add_edge_weights()
-            self.save_graph(self.graph_path)
+            self.G = G
 
         self.node_list = list(self.G.nodes)
         self.num_tokens = len(self.node_list)
         self.X = None
+
+    def add_G(self, G):
+        self.G = G
 
     @staticmethod
     def normalize_adj(A: Tensor, eps: float = 1E-9) -> Tensor:
@@ -131,6 +134,7 @@ class Token_Dataset_nx(Dataset):
 
         NOTE: Removes occurrence and other attributes.
 
+        :param clear_data:
         :param alpha: Decides weight between source and target occurrences.
         :return:
         """
@@ -142,7 +146,8 @@ class Token_Dataset_nx(Dataset):
             if edge_data['s_pair'] > highest_cooccur:
                 highest_cooccur = edge_data['s_pair']
                 # token_pair = (n1, n2)
-                logger.info(f'Maximum cooccur freq: {highest_cooccur} for {n1_data["node_txt"]} and {n2_data["node_txt"]}.')
+                logger.info(f'Maximum cooccur freq: {highest_cooccur} for '
+                            f'{n1_data["node_txt"]} and {n2_data["node_txt"]}.')
             c1 = (edge_data['s_pair'] / (n1_data['s_co'] + n2_data['s_co'] + 1))
             c2 = (edge_data['t_pair'] / (n1_data['t_co'] + n2_data['t_co'] + 1))
             wt = ((1 - alpha) * c1) + (alpha * c2)
@@ -157,11 +162,41 @@ class Token_Dataset_nx(Dataset):
 
         return self.G
 
+    def add_edge_weights_pretrain(self, clear_data: bool = False) -> nx.classes.graph.Graph:
+        """ Calculate edge weight from occurrence values in source and target.
+
+        NOTE: Removes occurrence and other attributes.
+
+        :param clear_data:
+        :param alpha: Decides weight between source and target occurrences.
+        :return:
+        """
+        for n1, n2, edge_data in self.G.edges(data=True):
+            if 'weight' in edge_data:
+                continue
+            n1_data = self.G.nodes[n1]
+            n2_data = self.G.nodes[n2]
+            # wt_old = (edge_data['freq'] / (n1_data['co'] + n2_data['co']))
+            wt = ((edge_data['freq'] + 1) / (n1_data['co'] + n2_data['co'] + len(self.G.nodes)))
+            if clear_data:
+                edge_data.clear()
+
+            self.G[n1][n2]['weight'] = wt
+
+        if clear_data:
+            for n in self.G.nodes:
+                self.G.nodes[n].clear()
+
+        self.G.weights_added = True
+
+        return self.G
+
     def normalize_edge_weights(self, label_vectors: Tensor, eps=1e-9):
         """ Recalculate edge weight using LPA label vector similarity.
 
         NOTE: should be called after add_edge_weights().
 
+        :param eps:
         :param label_vectors: Propagated class probability vectors per token.
         :return:
         """
@@ -173,11 +208,11 @@ class Token_Dataset_nx(Dataset):
             n1_label_vec = label_vectors[n1] + eps
             n2_label_vec = label_vectors[n2] + eps
             # label_cosine = cosine_similarity(n1_label_vec, n2_label_vec).numpy()
-            label_l1 = l1_loss(n1_label_vec, n2_label_vec).numpy()
+            # label_l1 = l1_loss(n1_label_vec, n2_label_vec).numpy()
             label_mse = mse_loss(n1_label_vec, n2_label_vec).numpy()
-            label_kl = -kl_div(softmax(n1_label_vec, dim=0),
-                               softmax(n2_label_vec, dim=0),
-                               reduction='batchmean').item()
+            # label_kl = -kl_div(softmax(n1_label_vec, dim=0),
+            #                    softmax(n2_label_vec, dim=0),
+            #                    reduction='batchmean').item()
 
             self.G[n1][n2]['weight'] = edge_data['weight'] + label_mse
 
@@ -206,7 +241,7 @@ class Token_Dataset_nx(Dataset):
         return ordered_node_embs
 
     def __getitem__(self, idx):
-        assert idx == 0, "This dataset has only one graph"
+        assert idx == 0, "This dataset has only token graph"
         return self.G
 
     def __len__(self):
@@ -234,45 +269,10 @@ class Token_Dataset_nx(Dataset):
         :param G: nx.Graph with edge weights.
         """
         A = nx.adjacency_matrix(self.G, nodelist=self.node_list, weight='weight')
+        return A
 
-    # def create_token_dgl(self, datasets, c_vocab, window_size: int = 2):
-    #     """ Creates a dgl with all unique tokens in the corpus.
-    #
-    #         Considers tokens from both source and target.
-    #         Use source vocab [s_vocab] for text to id mapping if exists, else use [t_vocab].
-    #
-    #     :param t_vocab:
-    #     :param s_vocab:
-    #     :param c_vocab:
-    #     :param window_size: Sliding window size
-    #     :param G:
-    #     :param datasets: TorchText dataset
-    #     :return:
-    #     """
-    #     us, vs = [], []
-    #
-    #     ## Add edges based on token co-occurrence within sliding window:
-    #     for i, dataset in enumerate(datasets):
-    #         for example in dataset:
-    #             u, v = get_sliding_edges(example.text, c_vocab['str2idx_map'], window_size=window_size)
-    #             us.extend(u)
-    #             vs.extend(v)
-    #
-    #     G = graph(data=(tensor(us), tensor(vs)))
-    #
-    #     ## Adding self-loops:
-    #     G = add_self_loop(G)
-    #
-    #     ## Add node (tokens) vectors to the graph:
-    #     if c_vocab['vectors'] is not None:
-    #         G.ndata['emb'] = stack(c_vocab['vectors'])
-    #
-    #     # TODO: Convert to Weighted token graph
-    #     G.edata['w'] = self.get_edge_weights()
-    #
-    #     return G
-
-    def create_token_graph(self, datasets, c_vocab, s_vocab, t_vocab, window_size: int = 2):
+    @staticmethod
+    def create_token_graph(datasets, c_vocab, s_vocab, t_vocab, window_size: int = 2):
         """ Creates a nx graph from tokenized source and target dataset.
 
          Use source vocab [s_vocab] for text to id mapping if exists, else use
@@ -332,6 +332,50 @@ class Token_Dataset_nx(Dataset):
                                             f" provided.")
 
                     j = j + 1
+
+        return G
+
+    @staticmethod
+    def create_token_graph_pretrain(dataset, c_vocab, window_size: int = 2):
+        """ Creates a nx graph from tokenized dataset for pretraining.
+
+        :param c_vocab: Combined vocab
+        :param window_size: Sliding window size
+        :param dataset: TorchText dataset
+        :return:
+        """
+        ## Create empty graph
+        G = nx.Graph()
+
+        ## Add token's id as node to the graph
+        for token_txt, token_id in c_vocab['str2idx_map'].items():
+            co = c_vocab['freqs'].get(token_txt, 0)
+            # t_co = t_vocab['freqs'].get(token_txt, 0)
+            G.add_node(token_id, node_txt=token_txt, co=co)
+
+        ## Add edges based on token co-occurrence within sliding window:
+        # for i, dataset in enumerate(datasets):
+        for txt_toks in dataset:
+            j = 0
+            txt_len = len(txt_toks)
+            slide = txt_len - window_size + 1
+            for k in range(slide):
+                txt_window = txt_toks[j:j + window_size]
+                ## Co-occurrence in tweet:
+                occurrences = find_cooccurrences(txt_window)
+
+                ## Add edges with attribute:
+                for token_pair, freq in occurrences.items():
+                    ## Get token ids from source if exists else from target
+                    token1_id = c_vocab['str2idx_map'][token_pair[0]]
+                    token2_id = c_vocab['str2idx_map'][token_pair[1]]
+                    if G.has_edge(token1_id, token2_id):
+                        ##  Add value to existing edge if exists:
+                        G[token1_id][token2_id]['freq'] += freq
+                    else:  ## Add new edge if not exists and make s_pair = 0
+                        G.add_edge(token1_id, token2_id, freq=freq)
+
+                j = j + 1
 
         return G
 
