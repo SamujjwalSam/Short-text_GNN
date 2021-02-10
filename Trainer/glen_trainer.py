@@ -37,13 +37,12 @@ if cuda.is_available():
     environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 
 
-def train_graph_classifier(model, G, X,
-                           data_loader: utils.data.dataloader.DataLoader,
-                           loss_func: nn.modules.loss.BCEWithLogitsLoss,
-                           optimizer, epochs: int = 5,
-                           eval_data_loader: utils.data.dataloader.DataLoader = None,
-                           test_data_loader: utils.data.dataloader.DataLoader = None,
-                           n_classes=cfg['data']['num_classes']):
+def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
+               loss_func: nn.modules.loss.BCEWithLogitsLoss,
+               optimizer, epochs: int = 5,
+               eval_dataloader: utils.data.dataloader.DataLoader = None,
+               test_dataloader: utils.data.dataloader.DataLoader = None,
+               n_classes=cfg['data']['num_classes']):
     logger.info("Started training...")
     train_epoch_losses = []
     train_epoch_dict = OrderedDict()
@@ -53,18 +52,13 @@ def train_graph_classifier(model, G, X,
         preds = []
         trues = []
         start_time = timeit.default_timer()
-        for iter, (graph_batch, local_ids, label, global_ids, node_counts) in enumerate(data_loader):
+        for iter, (graph_batch, local_ids, label, global_ids, node_counts) in enumerate(dataloader):
             ## Store emb in a separate file as self_loop removes emb info:
             emb = graph_batch.ndata['emb']
             # graph_batch = dgl.add_self_loop(graph_batch)
             if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
                 graph_batch = graph_batch.to(device)
                 emb = emb.to(device)
-                # local_ids = local_ids.to(device)
-                # node_counts = node_counts.to(device)
-                # global_ids = global_ids.to(device)
-                # G = G.to(device)
-                # X = X.to(device)
             prediction = model(graph_batch, emb, local_ids, node_counts, global_ids, G, X)
             # if epoch == 30:
             #     from evaluations import get_freq_disjoint_token_vecs, plot
@@ -95,11 +89,9 @@ def train_graph_classifier(model, G, X,
         epoch_loss /= (iter + 1)
         train_time = timeit.default_timer() - start_time
         logger.info(f"Epoch {epoch}, time: {train_time / 60} mins, loss: {epoch_loss}")
-        val_losses, val_output = eval_graph_classifier(
-            model, G, X, loss_func=loss_func, data_loader=eval_data_loader)
+        val_losses, val_output = eval_glen(model, G, X, loss_func=loss_func, dataloader=eval_dataloader)
         logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
-        test_losses, test_output = eval_graph_classifier(
-            model, G, X, loss_func=loss_func, data_loader=test_data_loader)
+        test_losses, test_output = eval_glen(model, G, X, loss_func=loss_func, dataloader=test_dataloader)
         logger.info(f'test_output: \n{dumps(test_output["result"], indent=4)}')
         logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
                     f"{val_losses}, test loss {test_losses}, Val Weighted F1 "
@@ -131,16 +123,15 @@ def train_graph_classifier(model, G, X,
     return train_epoch_losses, train_epoch_dict
 
 
-def eval_graph_classifier(model: GLEN_Classifier, G, X, loss_func,
-                          data_loader: utils.data.dataloader.DataLoader,
-                          n_classes=cfg['data']['num_classes'],
-                          save_gcn_embs=False):
+def eval_glen(model: GLEN_Classifier, G, X, loss_func,
+              dataloader: utils.data.dataloader.DataLoader,
+              n_classes=cfg['data']['num_classes'], save_gcn_embs=False):
     model.eval()
     preds = []
     trues = []
     losses = []
     start_time = timeit.default_timer()
-    for iter, (graph_batch, local_ids, label, global_ids, node_counts) in enumerate(data_loader):
+    for iter, (graph_batch, local_ids, label, global_ids, node_counts) in enumerate(dataloader):
         ## Store emb in a separate file as self_loop removes emb info:
         emb = graph_batch.ndata['emb']
         # graph_batch = dgl.add_self_loop(graph_batch)
@@ -195,75 +186,14 @@ def eval_graph_classifier(model: GLEN_Classifier, G, X, loss_func,
     return losses, test_output
 
 
-# def predict_with_label(model, iterator, criterion=None, metric=True):
-#     """ Predicts and calculates performance. Labels mandatory
-#
-#     Args:
-#         model:
-#         iterator:
-#         criterion:
-#
-#     Returns:
-#     :param metric:
-#
-#     """
-#     # initialize every epoch
-#     epoch_loss = 0
-#
-#     if criterion is None:
-#         criterion = torch.nn.BCEWithLogitsLoss()
-#
-#     preds_trues = {'preds': [], 'trues': [], 'ids': [], 'losses': [], 'results': []}
-#
-#     # deactivating dropout layers
-#     model.eval()
-#
-#     # deactivates autograd
-#     with torch.no_grad():
-#         for i, batch in enumerate(iterator):
-#             # retrieve text and no. of words
-#             text, text_lengths = batch.text
-#
-#             # convert to 1d tensor
-#             predictions = model(text, text_lengths).squeeze()
-#
-#             # compute loss and accuracy
-#             batch_labels = torchtext_batch2multilabel(batch)
-#             preds_trues['preds'].append(predictions)
-#             preds_trues['trues'].append(batch_labels)
-#             preds_trues['ids'].append(batch.ids)
-#             loss = criterion(predictions, batch_labels)
-#
-#             # keep track of loss and accuracy
-#             epoch_loss += loss.item()
-#             preds_trues['losses'].append(epoch_loss)
-#             # epoch_acc += acc.item()
-#             # epoch_acc += acc["accuracy"]["unnormalize"]
-#         if metric:
-#             ## Converting raw scores to probabilities using Sigmoid:
-#             preds = torch.sigmoid(predictions)
-#
-#             ## Converting probabilities to class labels:
-#             preds = logit2label(preds.detach(), cls_thresh=0.5)
-#             trues = torch.cat(preds_trues['trues'])
-#             result_dict = calculate_performance(trues, preds)
-#
-#         preds_trues['preds'] = torch.cat(preds_trues['preds'])
-#         preds_trues['trues'] = torch.cat(preds_trues['trues'])
-#         preds_trues['ids'] = torch.cat(preds_trues['ids'])
-#         preds_trues['losses'] = torch.cat(preds_trues['losses'])
-#
-#     return epoch_loss / len(iterator), preds_trues
-
-
 def GLEN_trainer(
-        G, X, train_dataloader, val_dataloader, test_dataloader, num_tokens: int, in_feats: int = 100,
+        G, X, train_dataloader, val_dataloader, test_dataloader, in_feats: int = 100,
         hid_feats: int = 50, num_heads: int = 2, epochs=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
         n_classes=cfg['data']['num_classes'], state=None):
     # train_dataloader, test_dataloader = dataloaders
     model = GLEN_Classifier(
-        num_tokens, in_dim=in_feats, hidden_dim=hid_feats, num_heads=num_heads,
+        in_dim=in_feats, hid_dim=hid_feats, num_heads=num_heads,
         out_dim=hid_feats, num_classes=train_dataloader.dataset.num_labels,
         state=state)
     logger.info(model)
@@ -279,14 +209,13 @@ def GLEN_trainer(
     # if state is not None:
     #     optimizer.load_state_dict(state['optimizer'])
 
-    epoch_losses, train_epochs_output_dict = train_graph_classifier(
-        model, G, X, train_dataloader, loss_func=loss_func,
-        optimizer=optimizer, epochs=epochs, eval_data_loader=val_dataloader,
-        test_data_loader=test_dataloader)
+    epoch_losses, train_epochs_output_dict = train_glen(
+        model, G, X, train_dataloader, loss_func=loss_func, optimizer=optimizer,
+        epochs=epochs, eval_dataloader=val_dataloader, test_dataloader=test_dataloader)
 
     start_time = timeit.default_timer()
-    losses, test_output = eval_graph_classifier(
-        model, G, X, loss_func=loss_func, data_loader=test_dataloader, save_gcn_embs=True)
+    losses, test_output = eval_glen(model, G, X, loss_func=loss_func,
+                                    dataloader=test_dataloader, save_gcn_embs=True)
     test_time = timeit.default_timer() - start_time
     test_count = test_dataloader.dataset.__len__()
     logger.info(f"Total inference time for [{test_count}] examples: [{test_time} sec]"

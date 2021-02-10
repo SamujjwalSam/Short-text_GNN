@@ -25,7 +25,7 @@ from collections import OrderedDict
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from Layers.glen_classifier import GLEN_Classifier, GAT_BiLSTM_Classifier
+from Layers.gat_classifiers import GAT_BiLSTM_Classifier
 from Metrics.metrics import calculate_performance_sk as calculate_performance,\
     calculate_performance_bin_sk
 from Utils.utils import logit2label, count_parameters
@@ -37,11 +37,11 @@ if cuda.is_available():
     environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 
 
-def GAT_trainer(
-        model, data_loader: utils.data.dataloader.DataLoader,
+def train_GAT_BiLSTM(
+        model: GAT_BiLSTM_Classifier, dataloader: utils.data.dataloader.DataLoader,
         loss_func: nn.modules.loss.BCEWithLogitsLoss, optimizer, epochs: int = 5,
-        eval_data_loader: utils.data.dataloader.DataLoader = None,
-        test_data_loader: utils.data.dataloader.DataLoader = None,
+        eval_dataloader: utils.data.dataloader.DataLoader = None,
+        test_dataloader: utils.data.dataloader.DataLoader = None,
         n_classes=cfg['data']['num_classes']):
     logger.info("Started training...")
     train_epoch_losses = []
@@ -51,7 +51,7 @@ def GAT_trainer(
         epoch_loss = 0
         preds = []
         trues = []
-        for iter, (graph_batch, local_ids, label, _, node_counts) in enumerate(data_loader):
+        for iter, (graph_batch, local_ids, label, _, node_counts) in enumerate(dataloader):
             ## Store emb in a separate file as self_loop removes emb info:
             emb = graph_batch.ndata['emb']
             # graph_batch = dgl.add_self_loop(graph_batch)
@@ -79,9 +79,9 @@ def GAT_trainer(
             preds.append(prediction.detach())
             trues.append(label.detach())
         epoch_loss /= (iter + 1)
-        val_losses, val_output = GAT_tester(model, loss_func, eval_data_loader)
+        val_losses, val_output = eval_GAT_BiLSTM(model, loss_func, eval_dataloader)
         logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
-        test_losses, test_output = GAT_tester(model, loss_func, test_data_loader)
+        test_losses, test_output = eval_GAT_BiLSTM(model, loss_func, test_dataloader)
         logger.info(f'test_output: \n{dumps(test_output["result"], indent=4)}')
         logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
                     f"{val_losses}, test loss {test_losses}, Val Weighted F1 "
@@ -113,14 +113,14 @@ def GAT_trainer(
     return train_epoch_losses, train_epoch_dict
 
 
-def GAT_tester(model: GLEN_Classifier, loss_func,
-               data_loader: utils.data.dataloader.DataLoader,
-               n_classes=cfg['data']['num_classes']):
+def eval_GAT_BiLSTM(
+        model: GAT_BiLSTM_Classifier, loss_func, dataloader: utils.data.dataloader.DataLoader,
+        n_classes=cfg['data']['num_classes']):
     model.eval()
     preds = []
     trues = []
     losses = []
-    for iter, (graph_batch, local_ids, label, _, node_counts) in enumerate(data_loader):
+    for iter, (graph_batch, local_ids, label, _, node_counts) in enumerate(dataloader):
         ## Store emb in a separate file as self_loop removes emb info:
         emb = graph_batch.ndata['emb']
         # graph_batch = dgl.add_self_loop(graph_batch)
@@ -166,74 +166,13 @@ def GAT_tester(model: GLEN_Classifier, loss_func,
     return losses, test_output
 
 
-# def predict_with_label(model, iterator, criterion=None, metric=True):
-#     """ Predicts and calculates performance. Labels mandatory
-#
-#     Args:
-#         model:
-#         iterator:
-#         criterion:
-#
-#     Returns:
-#     :param metric:
-#
-#     """
-#     # initialize every epoch
-#     epoch_loss = 0
-#
-#     if criterion is None:
-#         criterion = torch.nn.BCEWithLogitsLoss()
-#
-#     preds_trues = {'preds': [], 'trues': [], 'ids': [], 'losses': [], 'results': []}
-#
-#     # deactivating dropout layers
-#     model.eval()
-#
-#     # deactivates autograd
-#     with torch.no_grad():
-#         for i, batch in enumerate(iterator):
-#             # retrieve text and no. of words
-#             text, text_lengths = batch.text
-#
-#             # convert to 1d tensor
-#             predictions = model(text, text_lengths).squeeze()
-#
-#             # compute loss and accuracy
-#             batch_labels = torchtext_batch2multilabel(batch)
-#             preds_trues['preds'].append(predictions)
-#             preds_trues['trues'].append(batch_labels)
-#             preds_trues['ids'].append(batch.ids)
-#             loss = criterion(predictions, batch_labels)
-#
-#             # keep track of loss and accuracy
-#             epoch_loss += loss.item()
-#             preds_trues['losses'].append(epoch_loss)
-#             # epoch_acc += acc.item()
-#             # epoch_acc += acc["accuracy"]["unnormalize"]
-#         if metric:
-#             ## Converting raw scores to probabilities using Sigmoid:
-#             preds = torch.sigmoid(predictions)
-#
-#             ## Converting probabilities to class labels:
-#             preds = logit2label(preds.detach(), cls_thresh=0.5)
-#             trues = torch.cat(preds_trues['trues'])
-#             result_dict = calculate_performance(trues, preds)
-#
-#         preds_trues['preds'] = torch.cat(preds_trues['preds'])
-#         preds_trues['trues'] = torch.cat(preds_trues['trues'])
-#         preds_trues['ids'] = torch.cat(preds_trues['ids'])
-#         preds_trues['losses'] = torch.cat(preds_trues['losses'])
-#
-#     return epoch_loss / len(iterator), preds_trues
-
-
-def GAT_multilabel_classification(
+def GAT_BiLSTM_trainer(
         train_dataloader, val_dataloader, test_dataloader, in_dim: int = 100,
         hid_dim: int = 50, num_heads: int = 2, epochs=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"]):
     model = GAT_BiLSTM_Classifier(
-        in_dim=in_dim, hidden_dim=hid_dim, num_heads=num_heads, out_dim=100,
-        num_classes=train_dataloader.dataset.num_labels)
+        in_dim=in_dim, hid_dim=hid_dim, num_heads=num_heads,
+        out_dim=train_dataloader.dataset.num_labels)
 
     logger.info(model)
     count_parameters(model)
@@ -242,12 +181,12 @@ def GAT_multilabel_classification(
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
-    epoch_losses, train_epochs_output_dict = GAT_trainer(
+    epoch_losses, train_epochs_output_dict = train_GAT_BiLSTM(
         model, train_dataloader, loss_func=loss_func, optimizer=optimizer,
-        epochs=epochs, eval_data_loader=val_dataloader, test_data_loader=test_dataloader)
+        epochs=epochs, eval_dataloader=val_dataloader, test_dataloader=test_dataloader)
 
     start_time = timeit.default_timer()
-    losses, test_output = GAT_tester(model, loss_func=loss_func, data_loader=test_dataloader)
+    losses, test_output = eval_GAT_BiLSTM(model, loss_func=loss_func, dataloader=test_dataloader)
     test_time = timeit.default_timer() - start_time
 
     test_count = test_dataloader.dataset.__len__()
@@ -267,7 +206,7 @@ def main():
         Read Only
     :return:
     """
-    graph_multilabel_classification(in_dim=1, hid_dim=4, num_heads=2)
+    GAT_BiLSTM_trainer(in_dim=1, hid_dim=4, num_heads=2)
 
 
 if __name__ == "__main__":

@@ -30,8 +30,9 @@ from json import dumps
 
 from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_propagation
 from Utils.utils import count_parameters, logit2label, freq_tokens_per_class, split_target, sp_coo2torch_coo
-from Layers.BiLSTM_Classifier import BiLSTM_Classifier
-from pretrain import get_saved_pretrain_artifacts, calculate_vocab_overlap
+from Layers.bilstm_classifiers import BiLSTM_Classifier
+from Pretrain.pretrain import get_pretrain_artifacts, calculate_vocab_overlap
+# from Pretrain import pretrain
 from File_Handlers.csv_handler import read_csv, load_csvs
 from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 from File_Handlers.read_datasets import load_fire16, load_smerp17
@@ -40,9 +41,8 @@ from Data_Handlers.torchtext_handler import dataset2bucket_iter
 from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
 from Data_Handlers.instance_handler_dgl import Instance_Dataset_DGL
-# from Layers.GCN_forward import GCN_forward_old
 from Trainer.glen_trainer import GLEN_trainer
-from Trainer.gat_trainer import GAT_multilabel_classification
+from Trainer.gat_trainer import GAT_BiLSTM_trainer
 from Text_Encoder.finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
     train_mittens, preprocess_and_find_oov
 from Trainer.trainer import trainer, predict_with_label
@@ -332,7 +332,7 @@ def main(model_type='GNN', data_dir: str = dataset_dir, lr=cfg["model"]["optimiz
     logger.info(f'Classifying graphs using {model_type} model.')
     if model_type == 'GAT':
         logger.info('Using GAT model')
-        train_epochs_output_dict, test_output = GAT_multilabel_classification(
+        train_epochs_output_dict, test_output = GAT_BiLSTM_trainer(
             train_dataloader, val_dataloader, test_dataloader,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
             num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
@@ -426,11 +426,11 @@ def main(model_type='GNN', data_dir: str = dataset_dir, lr=cfg["model"]["optimiz
 
         logger.critical('BEFORE ---------------------------------------------')
         train_epochs_output_dict, test_output = GLEN_trainer(
-            adj, X, train_dataloader, val_dataloader, test_dataloader, num_tokens=num_tokens,
+            adj, X, train_dataloader, val_dataloader, test_dataloader,
             in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
             num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
 
-        # train_epochs_output_dict, test_output = GCNR_trainer(
+        # train_epochs_output_dict, test_output = GAT_BiLSTM_trainer(
         #     adj, X, train_dataloader, val_dataloader, test_dataloader,
         #     in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
         #     epochs=cfg['training']['num_epoch'], lr=lr, state=None)
@@ -471,13 +471,13 @@ def main(model_type='GNN', data_dir: str = dataset_dir, lr=cfg["model"]["optimiz
             # logger.debug(f'Word list: {words}')
 
         logger.critical('AFTER None **********************************************')
-        # train_epochs_output_dict, test_output = GCNR_trainer(
+        # train_epochs_output_dict, test_output = GAT_BiLSTM_trainer(
         #     adj, X, train_dataloader, val_dataloader, test_dataloader,
         #     in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
         #     epochs=cfg['training']['num_epoch'], lr=lr, state=None)
 
         train_epochs_output_dict, test_output = GLEN_trainer(
-            adj, X, train_dataloader, val_dataloader, test_dataloader, num_tokens=num_tokens,
+            adj, X, train_dataloader, val_dataloader, test_dataloader,
             in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
             num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr, state=None)
 
@@ -864,104 +864,4 @@ if __name__ == "__main__":
     lrs = [1e-3]
     for lr in lrs:
         s2i_dict = main(lr=lr)
-
-    exit(0)
-
-    glove_target = classify(
-        train_df=train_df, test_df=test_df, epoch=2, num_layers=2,
-        num_hidden_nodes=50, dropout=.3, lr=3e-4)
-    logger.info(glove_target)
-    gcn_target = classify(
-        train_df=train_df, test_df=test_df, stoi=s2i_dict,
-        vectors=X_hat, epoch=2, num_hidden_nodes=50,
-        num_layers=2, dropout=.3, lr=3e-4)
-    logger.info(gcn_target)
-
-    epochs = [10, 25]
-    layer_sizes = [1, 4]
-    gcn_forward = [6, 2]
-    hid_dims = [50]
-    dropouts = [0.5]
-    lrs = [1e-5, 1e-6]
-
-    final_result = []
-
-    train_portions = [0.2, 0.5, 1.0]
-    for train_portion in train_portions:
-        train, test = split_target(test_df, test_size=0.3,
-                                   train_size=train_portion, stratified=False)
-        for c in gcn_forward:
-            s2i_dict, X_hat = main(gcn_hops=c, glove_embs=glove_embs)
-
-            for a in epochs:
-                for b in layer_sizes:
-                    for d in hid_dims:
-                        for e in dropouts:
-                            for f in lrs:
-                                logger.critical(f'Epoch: [{a}], LSTM #layers: '
-                                                f'[{b}], GCN forward: [{c}], '
-                                                f'Hidden'
-                                                f' dims: [{d}], Dropouts: ['
-                                                f'{e}], '
-                                                f'Learning Rate: [{f}], ')
-                                params = {
-                                    'Epoch':         a,
-                                    'LSTM #layers':  b,
-                                    'GCN forward':   c,
-                                    'Hidden dims':   d,
-                                    'Dropouts':      e,
-                                    'Learning Rate': f,
-                                    'train_portion': train_portion,
-                                }
-                                glove_target = classify(
-                                    train_df=train, test_df=test, epoch=a,
-                                    num_layers=b, num_hidden_nodes=d, dropout=e,
-                                    lr=f)
-
-                                glove_source = classify(
-                                    test_df=test, epoch=a, num_hidden_nodes=d,
-                                    num_layers=b, dropout=e, lr=f, )
-
-                                gcn_target = classify(
-                                    train_df=train, test_df=test, stoi=s2i_dict,
-                                    vectors=X_hat, epoch=a, num_hidden_nodes=d,
-                                    num_layers=b, dropout=e, lr=f, )
-
-                                gcn_source = classify(
-                                    test_df=test, stoi=s2i_dict, vectors=X_hat,
-                                    epoch=a, num_hidden_nodes=d, num_layers=b,
-                                    dropout=e, lr=f, )
-
-                                result_dict = {
-                                    'params':       params,
-                                    'glove_target': glove_target,
-                                    'glove_source': glove_source,
-                                    'gcn_target':   gcn_target,
-                                    'gcn_source':   gcn_source,
-                                }
-                                final_result.append(result_dict)
-
-                                logger.info("Result: {}".format(result_dict))
-
-    logger.info("ALL Results: {}".format(final_result))
-
-    # present_result(final_result)
-
-    # main(mittens_iter=200, gcn_hops=1, epoch=20, num_layers=1,
-    #      num_hidden_nodes=100, dropout=0.2, lr=1e-4)
-    # main(mittens_iter=200, gcn_hops=1, epoch=20, num_layers=1,
-    #      num_hidden_nodes=100, dropout=0.2, lr=1e-5)
-    #
-    # main(mittens_iter=500, gcn_hops=1, epoch=20, num_layers=2,
-    #      num_hidden_nodes=100, dropout=0.3, lr=1e-4)
-    # main(mittens_iter=500, gcn_hops=3, epoch=20, num_layers=3,
-    #      num_hidden_nodes=120, dropout=0.4, lr=1e-5)
-    # main(mittens_iter=500, gcn_hops=5, epoch=10, num_layers=3,
-    #      num_hidden_nodes=50, dropout=0.5, lr=1e-6)
-    #
-    # main(mittens_iter=1000, gcn_hops=3, epoch=10, num_layers=1,
-    #      num_hidden_nodes=100, dropout=0.2, lr=1e-4)
-    # main(mittens_iter=1000, gcn_hops=3, epoch=10, num_layers=2,
-    #      num_hidden_nodes=100, dropout=0.2, lr=1e-5)
-
     logger.info("Execution complete.")

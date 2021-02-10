@@ -20,89 +20,24 @@ __license__     : "This source code is licensed under the MIT-style license
 import torch
 # import torch.nn.functional as F
 from dgl import DGLGraph
-# from dgl.nn.pytorch.conv import GATConv, GraphConv
 
-# from Layers.gcn_dropedgelearn import GCN_DropEdgeLearn_Model, GCN
-# from Layers.wscp_pretrain import WSCP_Pretrain, WSCP_Layer, contrastive_loss
-# from Layers.pretrain_gcn import Pretrain_GCN, GCN_Layer, contrastive_loss
-from Pretrain.Layers.pretrain_models import Pretrain_GCN
+from Layers.gcn_classifiers import GCN
 from Layers.gat_classifiers import Instance_GAT_dgl
 from Layers.bilstm_classifiers import BiLSTM_Classifier
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-# class BiLSTM_Classifier(torch.nn.Module):
-#     """ BiLSTM for classification. """
-#
-#     # define all the layers used in model
-#     def __init__(self, in_dim, out_dim, hid_dim=100, n_layers=2,
-#                  bidirectional=True, dropout=0.2, num_linear=1):
-#         super(BiLSTM_Classifier, self).__init__()
-#         self.lstm = torch.nn.LSTM(in_dim, hid_dim, num_layers=n_layers,
-#                                   bidirectional=bidirectional, dropout=dropout,
-#                                   batch_first=True)
-#
-#         ## Intermediate Linear FC layers, default=0
-#         self.linear_layers = []
-#         for _ in range(num_linear - 1):
-#             if bidirectional:
-#                 self.linear_layers.append(torch.nn.Linear(hid_dim * 2,
-#                                                           hid_dim * 2))
-#             else:
-#                 self.linear_layers.append(torch.nn.Linear(hid_dim, hid_dim))
-#
-#         self.linear_layers = torch.nn.ModuleList(self.linear_layers)
-#
-#         # Final dense layer
-#         if bidirectional:
-#             self.fc = torch.nn.Linear(hid_dim * 2, out_dim)
-#         else:
-#             self.fc = torch.nn.Linear(hid_dim, out_dim)
-#
-#         # activation function
-#         ## NOTE: Sigmoid not required as BCEWithLogitsLoss calculates sigmoid
-#         # self.act = torch.nn.Sigmoid()
-#
-#     def forward(self, text, text_lengths=None):
-#         """ Takes ids of input text, pads them and predict using BiLSTM.
-#
-#         Args:
-#             text: batch size, seq_len, input dim
-#             text_lengths:
-#
-#         Returns:
-#
-#         """
-#         packed_output, (hidden, cell) = self.lstm(text)
-#         # hidden = [batch size, num num_lstm_layers * num directions, hid dim]
-#         # cell = [batch size, num num_lstm_layers * num directions, hid dim]
-#
-#         # concat the final forward and backward hidden state
-#         hidden = torch.cat((hidden[-2, :, :], hidden[-1, :, :]), dim=1)
-#
-#         for layer in self.linear_layers:
-#             hidden = layer(hidden)
-#
-#         # hidden = [batch size, hid dim * num directions]
-#         logits = self.fc(hidden)
-#
-#         # Final activation function
-#         ## NOTE: Sigmoid not required as BCEWithLogitsLoss calculates sigmoid
-#         # logits = self.act(logits)
-#
-#         return logits
-
-
 class GLEN_Classifier(torch.nn.Module):
-    def __init__(self, num_token, in_dim, hid_dim, num_heads, out_dim, num_classes, combine='concat', state=None):
+    def __init__(self, in_dim, hid_dim, num_heads, out_dim, num_classes,
+                 combine='concat', state=None):
         super(GLEN_Classifier, self).__init__()
         self.combine = combine
         # self.token_gcn_dropedgelearn = GCN_DropEdgeLearn_Model(
         #     num_token=num_token, in_dim=in_dim, hid_dim=hid_dim, out_dim=out_dim,
         #     dropout=0.2, adj_dropout=0.0)
-        # self.token_gcn = GCN(nfeat=in_dim, nhid=hid_dim, nclass=out_dim, dropout=0.2)
-        self.token_gcn = Pretrain_GCN(in_dim=in_dim, hid_dim=hid_dim, out_dim=out_dim)
+        # self.token_gcn = GCN(in_dim=in_dim, hid_dim=hid_dim, out_dim=out_dim, dropout=0.2)
+        self.token_gcn = GCN(in_dim=in_dim, hid_dim=hid_dim, out_dim=out_dim)
 
         ## Load model state and parameters for the GCN part only:
         if state is not None:
@@ -119,10 +54,6 @@ class GLEN_Classifier(torch.nn.Module):
             raise NotImplementedError(f'combine supports either concat or avg.'
                                       f' [{combine}] provided.')
         self.bilstm_classifier = BiLSTM_Classifier(final_dim, num_classes)
-
-    # def train(self, mode: bool = True):
-    #     self.token_gcn_dropedgelearn.train()
-    #     self.instance_gat_dgl.train()
 
     def forward(self, instance_batch: DGLGraph, instance_batch_embs: torch.Tensor,
                 instance_batch_local_token_ids: list, node_counts: list,
