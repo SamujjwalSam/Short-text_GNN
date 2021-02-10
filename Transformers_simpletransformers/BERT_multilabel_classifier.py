@@ -146,9 +146,9 @@ def BERT_classifier(train_df: pd.core.frame.DataFrame,
 
     This will give you:
     
-        all_embedding_outputs: Numpy array of shape (batch_size, sequence_length, hidden_dim)
+        all_embedding_outputs: Numpy array of shape (batch_size, sequence_length, hid_dim)
         
-        all_layer_hidden_states: Numpy array of shape (num_hidden_layers, batch_size, sequence_length, hidden_dim)
+        all_layer_hidden_states: Numpy array of shape (num_hidden_layers, batch_size, sequence_length, hid_dim)
     """
     model_args.output_hidden_states = True
 

@@ -63,7 +63,7 @@ class GAT_Node_Classifier(torch.nn.Module):
     def __init__(self, in_dim: int, hidden_dim: int, out_dim: int, num_heads: int) -> None:
         super(GAT_Node_Classifier, self).__init__()
         self.layer1 = GATConv(in_dim, hidden_dim, num_heads)
-        # Be aware that the input dimension is hidden_dim*num_heads since
+        # Be aware that the input dimension is hid_dim*num_heads since
         # multiple head outputs are concatenated together. Also, only
         # one attention head in the output layer.
         self.layer2 = GATConv(hidden_dim * num_heads, out_dim, 1)

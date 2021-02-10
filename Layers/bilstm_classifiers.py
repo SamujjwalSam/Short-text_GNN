@@ -20,15 +20,13 @@ import torch
 import torch.nn as nn
 
 
-class BiLSTM_Classifier(nn.Module):
-    """ BiLSTM for classification.
-
-    """
+class BiLSTM_Emb_Classifier(nn.Module):
+    """ BiLSTM with Embedding layer for classification """
 
     # define all the layers used in model
     def __init__(self, vocab_size: int, hidden_dim: int, output_dim: int, embedding_dim: int = 100,
                  n_layers: int = 2, bidirectional: bool = True, dropout: float = 0.2, num_linear: int = 1) -> None:
-        super().__init__()  # Constructor
+        super(BiLSTM_Emb_Classifier, self).__init__()
 
         # embedding layer
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
@@ -78,6 +76,67 @@ class BiLSTM_Classifier(nn.Module):
 
         # packed_output1, (hidden1, cell) = self.lstm(packed_embedded)
         packed_output, (hidden, cell) = self.lstm(embedded)
+        # hidden = [batch size, num num_lstm_layers * num directions, hid dim]
+        # cell = [batch size, num num_lstm_layers * num directions, hid dim]
+
+        # concat the final forward and backward hidden state
+        hidden = torch.cat((hidden[-2, :, :], hidden[-1, :, :]), dim=1)
+
+        for layer in self.linear_layers:
+            hidden = layer(hidden)
+
+        # hidden = [batch size, hid dim * num directions]
+        logits = self.fc(hidden)
+
+        # Final activation function
+        ## NOTE: Sigmoid not required as BCEWithLogitsLoss calculates sigmoid
+        # logits = self.act(logits)
+
+        return logits
+
+
+class BiLSTM_Classifier(torch.nn.Module):
+    """ BiLSTM for classification (without Embedding layer) """
+
+    # define all the layers used in model
+    def __init__(self, in_dim, out_dim, hid_dim=100, n_layers=2,
+                 bidirectional=True, dropout=0.2, num_linear=1):
+        super(BiLSTM_Classifier, self).__init__()
+        self.lstm = torch.nn.LSTM(in_dim, hid_dim, num_layers=n_layers,
+                                  bidirectional=bidirectional, dropout=dropout,
+                                  batch_first=True)
+
+        ## Intermediate Linear FC layers, default=0
+        self.linear_layers = []
+        for _ in range(num_linear - 1):
+            if bidirectional:
+                self.linear_layers.append(torch.nn.Linear(hid_dim * 2, hid_dim * 2))
+            else:
+                self.linear_layers.append(torch.nn.Linear(hid_dim, hid_dim))
+
+        self.linear_layers = torch.nn.ModuleList(self.linear_layers)
+
+        # Final dense layer
+        if bidirectional:
+            self.fc = torch.nn.Linear(hid_dim * 2, out_dim)
+        else:
+            self.fc = torch.nn.Linear(hid_dim, out_dim)
+
+        # activation function
+        ## NOTE: Sigmoid not required as BCEWithLogitsLoss calculates sigmoid
+        # self.act = torch.nn.Sigmoid()
+
+    def forward(self, text, text_lengths=None):
+        """ Takes ids of input text, pads them and predict using BiLSTM.
+
+        Args:
+            text: batch size, seq_len, input dim
+            text_lengths:
+
+        Returns:
+
+        """
+        packed_output, (hidden, cell) = self.lstm(text)
         # hidden = [batch size, num num_lstm_layers * num directions, hid dim]
         # cell = [batch size, num num_lstm_layers * num directions, hid dim]
 
