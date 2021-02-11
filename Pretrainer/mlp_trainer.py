@@ -23,7 +23,8 @@ import torch.optim as optim
 from torch import utils, cuda, save, device, stack
 from torch.utils.data import DataLoader
 
-from Layers.pretrain_models import Pretrain_MLP, supervised_contrastive_loss
+from Layers.pretrain_losses import supervised_contrastive_loss
+from Layers.mlp_classifier import MLP_Model
 from Utils.utils import count_parameters
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user
@@ -107,7 +108,7 @@ def eval_mlp(model, X):
 
 def mlp_trainer(X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
                 epochs=cfg['training']['num_epoch'], lr=cfg["pretrain"]["lr"]):
-    model = Pretrain_MLP(in_dim=in_dim, hid_dim=hid_dim, out_dim=in_dim, num_layer=2)
+    model = MLP_Model(in_dim=in_dim, hid_dim=hid_dim, out_dim=in_dim, num_layer=2)
 
     logger.info(model)
     count_parameters(model)
