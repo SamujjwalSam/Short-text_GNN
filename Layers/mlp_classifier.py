@@ -19,6 +19,9 @@ __license__     : "This source code is licensed under the MIT-style license
 
 import torch
 # import torch.nn.functional as F
+from abc import ABC
+
+from Layers.bilstm_classifiers import BiLSTM_Classifier
 
 
 class MLP_Model(torch.nn.Module):
@@ -65,3 +68,40 @@ class MLP_Model(torch.nn.Module):
         # hidden = [batch size, hid dim]
         X = self.mlpn(X)
         return X
+
+
+class MLP_BiLSTM_Classifier(torch.nn.Module, ABC):
+    """ MLP + BiLSTM classifier """
+
+    def __init__(self, in_dim, hid_dim, out_dim, num_classes, state=None):
+        super(MLP_BiLSTM_Classifier, self).__init__()
+        self.mlp = MLP_Model(in_dim=in_dim, hid_dim=hid_dim, out_dim=out_dim, dropout=0.2)
+
+        ## Load model state and parameters for the GCN part only:
+        if state is not None:
+            self.mlp.load_state_dict(state['state_dict'])
+
+        self.bilstm_classifier = BiLSTM_Classifier(out_dim, num_classes)
+
+    def forward(self, X: torch.Tensor, token_global_ids: torch.Tensor,
+                save_gcn_embs=False) -> torch.Tensor:
+        """ Combines embeddings of tokens using a BiLSTM + Linear Classifier
+
+        :param token_global_ids:
+        :param save_gcn_embs:
+        :param X: Embeddings from token GCN
+        :param A: token graph
+        """
+        ## Fetch embeddings from token graph
+        X = self.mlp(X=X)
+
+        if save_gcn_embs:
+            torch.save(X, 'X_gcn.pt')
+
+        ## Fetch embeddings from token graph:
+        preds = []
+        for node_ids in token_global_ids:
+            pred = self.bilstm_classifier(X[node_ids].unsqueeze(0))
+            preds.append(pred)
+
+        return torch.stack(preds).squeeze()

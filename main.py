@@ -340,6 +340,20 @@ def main(model_type='GNN', data_dir: str = dataset_dir, lr=cfg["model"]["optimiz
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
             num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
 
+    elif model_type == 'MLP':
+        logger.info('Using GAT model')
+        train_epochs_output_dict, test_output = MLP_trainer(
+            train_dataloader, val_dataloader, test_dataloader,
+            in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
+            epochs=cfg['training']['num_epoch'], lr=lr)
+
+    elif model_type == 'LSTM':
+        logger.info('Using GAT model')
+        train_epochs_output_dict, test_output = LSTM_trainer(
+            train_dataloader, val_dataloader, test_dataloader,
+            in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
+            epochs=cfg['training']['num_epoch'], lr=lr)
+
     else:
         ## Create token graph:
         logger.info(f'Using GNN model and creating token graph:')
@@ -428,10 +442,18 @@ def main(model_type='GNN', data_dir: str = dataset_dir, lr=cfg["model"]["optimiz
         # 'node_txt2label_vec.csv')
 
         logger.critical('BEFORE ---------------------------------------------')
-        train_epochs_output_dict, test_output = GLEN_trainer(
-            adj, X, train_dataloader, val_dataloader, test_dataloader,
-            in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-            num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
+        if model_type == 'GCN':
+            logger.info('Using GAT model')
+            train_epochs_output_dict, test_output = GCN_LSTM_trainer(
+                adj, X, train_dataloader, val_dataloader, test_dataloader,
+                in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
+                epochs=cfg['training']['num_epoch'], lr=lr)
+
+        else:
+            train_epochs_output_dict, test_output = GLEN_trainer(
+                adj, X, train_dataloader, val_dataloader, test_dataloader,
+                in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
+                num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
 
         # train_epochs_output_dict, test_output = GAT_BiLSTM_trainer(
         #     adj, X, train_dataloader, val_dataloader, test_dataloader,
@@ -474,15 +496,18 @@ def main(model_type='GNN', data_dir: str = dataset_dir, lr=cfg["model"]["optimiz
             # logger.debug(f'Word list: {words}')
 
         logger.critical('AFTER None **********************************************')
-        # train_epochs_output_dict, test_output = GAT_BiLSTM_trainer(
-        #     adj, X, train_dataloader, val_dataloader, test_dataloader,
-        #     in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-        #     epochs=cfg['training']['num_epoch'], lr=lr, state=None)
+        if model_type == 'GCN':
+            logger.info('Using GAT model')
+            train_epochs_output_dict, test_output = GCN_LSTM_trainer(
+                adj, X, train_dataloader, val_dataloader, test_dataloader,
+                in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
+                epochs=cfg['training']['num_epoch'], lr=lr)
 
-        train_epochs_output_dict, test_output = GLEN_trainer(
-            adj, X, train_dataloader, val_dataloader, test_dataloader,
-            in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-            num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr, state=None)
+        else:
+            train_epochs_output_dict, test_output = GLEN_trainer(
+                adj, X, train_dataloader, val_dataloader, test_dataloader,
+                in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
+                num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
 
         # logger.critical('AFTER +STATE **********************************************')
         # train_epochs_output_dict, test_output = GLEN_trainer(
