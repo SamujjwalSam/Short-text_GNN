@@ -64,10 +64,10 @@ def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoad
     return train_epoch_losses
 
 
-def gcn_trainer(A, X, train_dataloader, in_feats: int = 300, hid_feats: int = 300,
+def gcn_trainer(A, X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
                 epochs=cfg['training']['num_epoch'], lr=cfg["pretrain"]["lr"]):
-    model = GCN(in_dim=in_feats, hid_dim=hid_feats, out_dim=hid_feats)
-    # model = Pretrain_MLP(in_dim=in_feats, hid_dim=hid_feats, out_dim=hid_feats)
+    model = GCN(in_dim=in_dim, hid_dim=hid_dim, out_dim=hid_dim)
+    # model = Pretrain_MLP(in_dim=in_dim, hid_dim=hid_dim, out_dim=hid_dim)
 
     logger.info(model)
     count_parameters(model)

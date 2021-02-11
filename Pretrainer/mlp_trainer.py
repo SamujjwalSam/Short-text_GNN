@@ -105,9 +105,9 @@ def eval_mlp(model, X):
     return stack(embs).squeeze().numpy()
 
 
-def mlp_trainer(X, train_dataloader, in_feats: int = 300, hid_feats: int = 300,
+def mlp_trainer(X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
                 epochs=cfg['training']['num_epoch'], lr=cfg["pretrain"]["lr"]):
-    model = Pretrain_MLP(in_dim=in_feats, hid_dim=hid_feats, out_dim=in_feats, num_layer=2)
+    model = Pretrain_MLP(in_dim=in_dim, hid_dim=hid_dim, out_dim=in_dim, num_layer=2)
 
     logger.info(model)
     count_parameters(model)

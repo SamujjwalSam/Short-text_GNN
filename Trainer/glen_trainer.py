@@ -187,14 +187,14 @@ def eval_glen(model: GLEN_Classifier, G, X, loss_func,
 
 
 def GLEN_trainer(
-        G, X, train_dataloader, val_dataloader, test_dataloader, in_feats: int = 100,
-        hid_feats: int = 50, num_heads: int = 2, epochs=cfg['training']['num_epoch'],
+        G, X, train_dataloader, val_dataloader, test_dataloader, in_dim: int = 100,
+        hid_dim: int = 50, num_heads: int = 2, epochs=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
         n_classes=cfg['data']['num_classes'], state=None):
     # train_dataloader, test_dataloader = dataloaders
     model = GLEN_Classifier(
-        in_dim=in_feats, hid_dim=hid_feats, num_heads=num_heads,
-        out_dim=hid_feats, num_classes=train_dataloader.dataset.num_labels,
+        in_dim=in_dim, hid_dim=hid_dim, num_heads=num_heads,
+        out_dim=hid_dim, num_classes=train_dataloader.dataset.num_labels,
         state=state)
     logger.info(model)
     count_parameters(model)

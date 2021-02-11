@@ -49,9 +49,9 @@ from config import configuration as cfg, platform as plat, username as user, dat
 #     r"""
 #     Parameters
 #     ----------
-#     in_feats : int
+#     in_dim : int
 #         Input feature size.
-#     out_feats : int
+#     out_dim : int
 #         Output feature size.
 #     bias : bool, optional
 #         If True, adds a learnable bias to the output. Default: ``True``.
@@ -68,18 +68,18 @@ from config import configuration as cfg, platform as plat, username as user, dat
 #     """
 #
 #     def __init__(self,
-#                  in_feats,
-#                  out_feats,
+#                  in_dim,
+#                  out_dim,
 #                  bias=True,
 #                  activation=None):
 #         super(GraphConv, self).__init__()
 #
-#         self._in_feats = in_feats
-#         self._out_feats = out_feats
-#         self.weight = nn.Parameter(th.Tensor(in_feats, out_feats))
+#         self._in_dim = in_dim
+#         self._out_dim = out_dim
+#         self.weight = nn.Parameter(th.Tensor(in_dim, out_dim))
 #
 #         if bias:
-#             self.bias = nn.Parameter(th.Tensor(out_feats))
+#             self.bias = nn.Parameter(th.Tensor(out_dim))
 #         else:
 #             self.register_parameter('bias', None)
 #
@@ -99,9 +99,9 @@ from config import configuration as cfg, platform as plat, username as user, dat
 #
 #         Notes
 #         -----
-#         * Input shape: :math:`(N, *, \text{in_feats})` where * means any number of additional
+#         * Input shape: :math:`(N, *, \text{in_dim})` where * means any number of additional
 #           dimensions, :math:`N` is the number of nodes.
-#         * Output shape: :math:`(N, *, \text{out_feats})` where all but the last dimension are
+#         * Output shape: :math:`(N, *, \text{out_dim})` where all but the last dimension are
 #           the same shape as the input.
 #
 #         Parameters
@@ -127,7 +127,7 @@ from config import configuration as cfg, platform as plat, username as user, dat
 #         with graph.local_scope():
 #             feat_src, feat_dst = expand_as_pair(feat, graph)
 #
-#             if self._in_feats > self._out_feats:
+#             if self._in_dim > self._out_dim:
 #                 # mult W first to reduce the feature size for aggregation.
 #                 feat_src = th.matmul(feat_src, self.weight)
 #                 graph.srcdata['h'] = feat_src
@@ -156,7 +156,7 @@ from config import configuration as cfg, platform as plat, username as user, dat
 #         """Set the extra representation of the module,
 #         which will come into effect when printing the model.
 #         """
-#         summary = 'in={_in_feats}, out={_out_feats}'
+#         summary = 'in={_in_dim}, out={_out_dim}'
 #         summary += ', normalization={_norm}'
 #         if '_activation' in self.__dict__:
 #             summary += ', activation={_activation}'
@@ -223,10 +223,10 @@ if __name__ == '__main__':
 
 
 class GCN_Node_Classifier(torch.nn.Module):
-    def __init__(self, in_dim, hidden_dim, out_dim):
+    def __init__(self, in_dim, hid_dim, out_dim):
         super(GCN_Node_Classifier, self).__init__()
-        self.conv1 = GraphConv(in_dim, hidden_dim)
-        self.conv2 = GraphConv(hidden_dim, out_dim)
+        self.conv1 = GraphConv(in_dim, hid_dim)
+        self.conv2 = GraphConv(hid_dim, out_dim)
 
     def forward(self, g, emb):
         if emb is None:
@@ -245,13 +245,13 @@ class GAT_Node_Classifier(torch.nn.Module):
 
     """
 
-    def __init__(self, in_dim: int, hidden_dim: int, out_dim: int, num_heads: int) -> None:
+    def __init__(self, in_dim: int, hid_dim: int, out_dim: int, num_heads: int) -> None:
         super(GAT_Node_Classifier, self).__init__()
-        self.layer1 = GATConv(in_dim, hidden_dim, num_heads)
+        self.layer1 = GATConv(in_dim, hid_dim, num_heads)
         # Be aware that the input dimension is hid_dim*num_heads since
         # multiple head outputs are concatenated together. Also, only
         # one attention head in the output layer.
-        self.layer2 = GATConv(hidden_dim * num_heads, out_dim, 1)
+        self.layer2 = GATConv(hid_dim * num_heads, out_dim, 1)
 
     def forward(self, g: DGLGraph, emb: torch.Tensor) -> torch.Tensor:
         if emb is None:
@@ -300,12 +300,12 @@ def train_node_classifier(g: DGLGraph, features: torch.Tensor,
             epoch, loss.item(), np.mean(dur)))
 
 
-def node_binary_classification(hid_feats: int = 4, out_feats: int = 7,
+def node_binary_classification(hid_dim: int = 4, out_dim: int = 7,
                                num_heads: int = 2) -> None:
     """
 
-    :param hid_feats:
-    :param out_feats:
+    :param hid_dim:
+    :param out_dim:
     :param num_heads:
     :return:
     """
@@ -321,8 +321,8 @@ def node_binary_classification(hid_feats: int = 4, out_feats: int = 7,
 
     g, features, labels, mask = load_cora_data()
 
-    net = GAT_Node_Classifier(in_dim=features.size(1), hidden_dim=hid_feats,
-                              out_dim=out_feats, num_heads=num_heads)
+    net = GAT_Node_Classifier(in_dim=features.size(1), hid_dim=hid_dim,
+                              out_dim=out_dim, num_heads=num_heads)
     logger.info(net)
 
     loss_func = F.nll_loss
@@ -344,11 +344,11 @@ def batch_graphs(samples):
 
 
 class GAT_Graph_Classifier(torch.nn.Module):
-    def __init__(self, in_dim: int, hidden_dim: int, num_heads: int, out_dim: int) -> None:
+    def __init__(self, in_dim: int, hid_dim: int, num_heads: int, out_dim: int) -> None:
         super(GAT_Graph_Classifier, self).__init__()
-        self.conv1 = GATConv(in_dim, hidden_dim, num_heads)
-        self.conv2 = GATConv(hidden_dim * num_heads, hidden_dim, num_heads)
-        self.classify = torch.nn.Linear(hidden_dim * num_heads, out_dim)
+        self.conv1 = GATConv(in_dim, hid_dim, num_heads)
+        self.conv2 = GATConv(hid_dim * num_heads, hid_dim, num_heads)
+        self.classify = torch.nn.Linear(hid_dim * num_heads, out_dim)
 
     def forward(self, g: DGLGraph, emb: torch.Tensor = None) -> torch.Tensor:
         if emb is None:
@@ -457,9 +457,9 @@ def test_graph_classifier(model: GAT_Graph_Classifier, loss_func,
 
 
 def graph_multilabel_classification(
-        gdh, in_feats: int = 100, hid_feats: int = 50, num_heads: int = 2,
+        gdh, in_dim: int = 100, hid_dim: int = 50, num_heads: int = 2,
         epochs=cfg['training']['num_epoch']):
-    model = GAT_Graph_Classifier(in_feats, hid_feats, num_heads=num_heads,
+    model = GAT_Graph_Classifier(in_dim, hid_dim, num_heads=num_heads,
                                  out_dim=gdh.num_classes)
     logger.info(model)
 
@@ -478,7 +478,7 @@ def graph_multilabel_classification(
     return train_epochs_output_dict, test_output
 
 
-def graph_multiclass_classification(in_feats: int = 1, hid_feats: int = 4, num_heads: int = 2) -> None:
+def graph_multiclass_classification(in_dim: int = 1, hid_dim: int = 4, num_heads: int = 2) -> None:
     from dgl.data import MiniGCDataset
 
     # Create training and test sets.
@@ -490,7 +490,7 @@ def graph_multiclass_classification(in_feats: int = 1, hid_feats: int = 4, num_h
                             collate_fn=batch_graphs)
 
     # Create model
-    model = GAT_Graph_Classifier(in_feats, hid_feats, num_heads=num_heads,
+    model = GAT_Graph_Classifier(in_dim, hid_dim, num_heads=num_heads,
                                  out_dim=trainset.num_classes)
     logger.info(model)
 
@@ -511,10 +511,10 @@ def main():
     :return:
     """
     ## Binary Node Classification:
-    node_binary_classification(hid_feats=4, out_feats=7, num_heads=2)
+    node_binary_classification(hid_dim=4, out_dim=7, num_heads=2)
 
     ## Multi-Class Graph Classification:
-    graph_multiclass_classification(in_feats=1, hid_feats=4, num_heads=2)
+    graph_multiclass_classification(in_dim=1, hid_dim=4, num_heads=2)
 
 
 if __name__ == "__main__":

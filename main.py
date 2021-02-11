@@ -43,6 +43,9 @@ from Data_Handlers.token_handler_nx import Token_Dataset_nx
 from Data_Handlers.instance_handler_dgl import Instance_Dataset_DGL
 from Trainer.glen_trainer import GLEN_trainer
 from Trainer.gat_trainer import GAT_BiLSTM_trainer
+from Trainer.gcn_lstm_trainer import GCN_LSTM_trainer
+from Trainer.lstm_trainer import LSTM_trainer
+from Trainer.mlp_trainer import MLP_trainer
 from Text_Encoder.finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
     train_mittens, preprocess_and_find_oov
 from Trainer.trainer import trainer, predict_with_label
@@ -427,12 +430,12 @@ def main(model_type='GNN', data_dir: str = dataset_dir, lr=cfg["model"]["optimiz
         logger.critical('BEFORE ---------------------------------------------')
         train_epochs_output_dict, test_output = GLEN_trainer(
             adj, X, train_dataloader, val_dataloader, test_dataloader,
-            in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
+            in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
             num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
 
         # train_epochs_output_dict, test_output = GAT_BiLSTM_trainer(
         #     adj, X, train_dataloader, val_dataloader, test_dataloader,
-        #     in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
+        #     in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
         #     epochs=cfg['training']['num_epoch'], lr=lr, state=None)
 
         logger.critical('PRETRAIN ###########################################')
@@ -473,18 +476,18 @@ def main(model_type='GNN', data_dir: str = dataset_dir, lr=cfg["model"]["optimiz
         logger.critical('AFTER None **********************************************')
         # train_epochs_output_dict, test_output = GAT_BiLSTM_trainer(
         #     adj, X, train_dataloader, val_dataloader, test_dataloader,
-        #     in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
+        #     in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
         #     epochs=cfg['training']['num_epoch'], lr=lr, state=None)
 
         train_epochs_output_dict, test_output = GLEN_trainer(
             adj, X, train_dataloader, val_dataloader, test_dataloader,
-            in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
+            in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
             num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr, state=None)
 
         # logger.critical('AFTER +STATE **********************************************')
         # train_epochs_output_dict, test_output = GLEN_trainer(
         #     adj, X, train_dataloader, val_dataloader, test_dataloader, num_tokens=num_tokens,
-        #     in_feats=cfg['embeddings']['emb_dim'], hid_feats=cfg['gnn_params']['hid_dim'],
+        #     in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
         #     num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr, state=state)
 
     # ## Propagating label vectors using GCN forward instead of LPA:

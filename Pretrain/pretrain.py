@@ -28,7 +28,6 @@ from sklearn.preprocessing import MultiLabelBinarizer
 
 from Pretrainer.mlp_trainer import mlp_trainer
 from Pretrainer.gcn_trainer import gcn_trainer
-from Trainer.gcn_lstm_trainer import GCN_LSTM_trainer
 from Utils.utils import load_graph, sp_coo2torch_coo
 from File_Handlers.csv_handler import read_csv
 from File_Handlers.json_handler import save_json, read_json
@@ -37,7 +36,7 @@ from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
 from Text_Encoder.finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
     train_mittens, preprocess_and_find_oov2, create_clean_corpus
-from config import configuration as cfg, platform as plat, username as user
+from config import configuration as cfg, platform as plat, username as user, pretrain_dir
 from Logger.logger import logger
 
 ## Enable multi GPU cuda environment:
@@ -60,7 +59,7 @@ set_all_seeds(1)
 
 # data_filenames = cfg['pretrain']['files']
 data_filenames = cfg['data']['files']
-pretrain_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['pretrain']['name'])
+# pretrain_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['pretrain']['name'])
 # data_filename = cfg['data']['name']
 data_filename = cfg['data']['name']
 joint_path = join(pretrain_dir, data_filename + "_multihot.csv")
@@ -80,9 +79,9 @@ def read_dataset(dataname, data_dir=pretrain_dir):
     # df_neg = df.iloc[:cls_counts[0]]
 
     pos_path = join(data_dir, dataname + "_pos.csv")
-    df_pos.to_csv(pos_path)
+    # df_pos.to_csv(pos_path)
     neg_path = join(data_dir, dataname + "_neg.csv")
-    df_neg.to_csv(neg_path)
+    # df_neg.to_csv(neg_path)
 
     labels = [[x] for x in df.labels.to_list()]
     labels_hot = mlb.fit_transform(labels)
@@ -98,13 +97,10 @@ def read_dataset(dataname, data_dir=pretrain_dir):
 mlb = MultiLabelBinarizer()
 
 
-import pandas as pd
-
-if exists(joint_path) and exists(pos_path) and exists(neg_path):
-    df_all = read_csv('', joint_path[:-4])
-    df_all_pos = read_csv('', pos_path[:-4])
-    df_all_neg = read_csv('', neg_path[:-4])
-else:
+def read_input_files(joint_path=join(pretrain_dir, data_filename + "_multihot.csv"),
+                     pos_path=join(pretrain_dir, data_filename + "_pos.csv"),
+                     neg_path=join(pretrain_dir, data_filename + "_neg.csv")):
+    import pandas as pd
     ## Read multiple data files:
     df_all = pd.DataFrame()
     df_all_pos = pd.DataFrame()
@@ -139,15 +135,8 @@ def get_pretrain_dataset(C, G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab):
         N_pos_wt_dict = {}
         N_pos_txt = []
         for n in G_pos.G.neighbors(pos_vocab['str2idx_map'][token]):
-            # logger.debug((token, pos_vocab['str2idx_map'][token], list(G_pos.G.neighbors(pos_vocab['str2idx_map'][
-            # token])), n, len(pos_vocab['str2idx_map'])))
             n_txt = pos_vocab['idx2str_map'][n]
             n_id = joint_vocab['str2idx_map'][n_txt]
-            # if G.G.has_edge(joint_vocab['str2idx_map'][token],
-            #                 joint_vocab['str2idx_map'][n_txt]):
-            #     ##  Use joint graph edge weight if exists:
-            #     wt = G.G[joint_vocab['str2idx_map'][token]][joint_vocab['str2idx_map'][n_txt]]
-            # else:
 
             ## ## Use pos_G weight:
             wt = G_pos.G[pos_vocab['str2idx_map'][token]][pos_vocab['str2idx_map'][n_txt]]
@@ -161,11 +150,6 @@ def get_pretrain_dataset(C, G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab):
         for n in G_neg.G.neighbors(neg_vocab['str2idx_map'][token]):
             n_txt = neg_vocab['idx2str_map'][n]
             n_id = joint_vocab['str2idx_map'][n_txt]
-            # if G.G.has_edge(joint_vocab['str2idx_map'][token],
-            #                 joint_vocab['str2idx_map'][n_txt]):
-            #     ##  Use joint graph edge weight if exists:
-            #     wt = G.G[joint_vocab['str2idx_map'][token]][joint_vocab['str2idx_map'][n_txt]]
-            # else:
 
             ## Use neg_G weight:
             wt = G_neg.G[neg_vocab['str2idx_map'][token]][neg_vocab['str2idx_map'][n_txt]]
@@ -212,7 +196,8 @@ def get_pretrain_dataset(C, G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab):
     return dataset, ignored_tokens
 
 
-def get_vocab_data(path, name='_joint', glove_embs=None, min_freq=cfg['pretrain']['min_freq']):
+def get_vocab_data(path=join(pretrain_dir, data_filename + "_multihot.csv"),
+                   name='_joint', glove_embs=None, min_freq=cfg['pretrain']['min_freq']):
     if exists(join(pretrain_dir, data_filename + name + '_corpus_toks.json'))\
             and exists(join(pretrain_dir, data_filename + name + '_vocab.json')):
         vocab = read_json(join(pretrain_dir, data_filename + name + '_vocab'))
@@ -222,6 +207,8 @@ def get_vocab_data(path, name='_joint', glove_embs=None, min_freq=cfg['pretrain'
         corpus_strs = read_json(join(pretrain_dir, data_filename + name + '_corpus_strs'),
                                 convert_ordereddict=False)
     else:
+        ## TODO: Read pretraining data files:
+        read_input_files()
         dataset, (fields, LABEL) = get_dataset_fields(
             csv_dir='', csv_file=path, min_freq=min_freq)
 
@@ -402,14 +389,14 @@ def prepare_pretraining(oov_emb_filename=data_filename + '_OOV_vectors_dict',
 
     logger.info('Pre-Training GCN')
     train_epochs_losses, state, save_path, X = gcn_trainer(
-        adj, X, pretrain_dataloader, in_feats=cfg['embeddings']['emb_dim'],
-        hid_feats=cfg['gnn_params']['hid_dim'], epochs=cfg['pretrain']['epochs'],
+        adj, X, pretrain_dataloader, in_dim=cfg['embeddings']['emb_dim'],
+        hid_dim=cfg['gnn_params']['hid_dim'], epochs=cfg['pretrain']['epochs'],
         lr=cfg["pretrain"]["lr"])
 
     logger.info('Pre-Training MLP')
     train_epochs_losses, state, save_path, X = mlp_trainer(
-        X, pretrain_dataloader, in_feats=cfg['embeddings']['emb_dim'],
-        hid_feats=cfg['gnn_params']['hid_dim'], epochs=cfg['pretrain']['epochs'],
+        X, pretrain_dataloader, in_dim=cfg['embeddings']['emb_dim'],
+        hid_dim=cfg['gnn_params']['hid_dim'], epochs=cfg['pretrain']['epochs'],
         lr=cfg["pretrain"]["lr"])
 
     # Create token to GCN emb mapping:

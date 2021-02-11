@@ -24,7 +24,7 @@ class BiLSTM_Emb_Classifier(nn.Module):
     """ BiLSTM with Embedding layer for classification """
 
     # define all the layers used in model
-    def __init__(self, vocab_size: int, hidden_dim: int, output_dim: int, embedding_dim: int = 100,
+    def __init__(self, vocab_size: int, hid_dim: int, output_dim: int, embedding_dim: int = 100,
                  n_layers: int = 2, bidirectional: bool = True, dropout: float = 0.2, num_linear: int = 1) -> None:
         super(BiLSTM_Emb_Classifier, self).__init__()
 
@@ -32,24 +32,24 @@ class BiLSTM_Emb_Classifier(nn.Module):
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
 
         # lstm layer
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim, num_layers=n_layers,
+        self.lstm = nn.LSTM(embedding_dim, hid_dim, num_layers=n_layers,
                             bidirectional=bidirectional, dropout=dropout,
                             batch_first=True)
 
         self.linear_layers = []
         for _ in range(num_linear - 1):
             if bidirectional:
-                self.linear_layers.append(nn.Linear(hidden_dim * 2, hidden_dim * 2))
+                self.linear_layers.append(nn.Linear(hid_dim * 2, hid_dim * 2))
             else:
-                self.linear_layers.append(nn.Linear(hidden_dim, hidden_dim))
+                self.linear_layers.append(nn.Linear(hid_dim, hid_dim))
 
         self.linear_layers = nn.ModuleList(self.linear_layers)
 
         # Final dense layer
         if bidirectional:
-            self.fc = nn.Linear(hidden_dim * 2, output_dim)
+            self.fc = nn.Linear(hid_dim * 2, output_dim)
         else:
-            self.fc = nn.Linear(hidden_dim, output_dim)
+            self.fc = nn.Linear(hid_dim, output_dim)
 
         # activation function
         ## NOTE: Sigmoid not required as BCEWithLogitsLoss calculates sigmoid

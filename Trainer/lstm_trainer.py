@@ -166,12 +166,12 @@ def eval_lstm_classifier(model: BiLSTM_Classifier, loss_func,
 
 
 def LSTM_trainer(
-        train_dataloader, val_dataloader, test_dataloader, in_feats: int = 100,
-        hid_feats: int = 50, epochs=cfg['training']['num_epoch'],
+        train_dataloader, val_dataloader, test_dataloader, in_dim: int = 100,
+        hid_dim: int = 50, epochs=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"]):
     # train_dataloader, test_dataloader = dataloaders
     model = BiLSTM_Classifier(
-        in_dim=in_feats, out_dim=train_dataloader.dataset.num_labels, hid_dim=hid_feats)
+        in_dim=in_dim, out_dim=train_dataloader.dataset.num_labels, hid_dim=hid_dim)
     logger.info(model)
     count_parameters(model)
     if cfg['model']['use_cuda'][plat][user] and cuda.is_available():

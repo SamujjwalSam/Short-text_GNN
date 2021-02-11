@@ -186,12 +186,12 @@ def eval_GCN_LSTM(model: GCN_BiLSTM_Classifier, A, X, loss_func,
 
 
 def GCN_LSTM_trainer(
-        A, X, train_dataloader, val_dataloader, test_dataloader, in_feats: int = 100,
-        hid_feats: int = 50, epochs=cfg['training']['num_epoch'],
+        A, X, train_dataloader, val_dataloader, test_dataloader, in_dim: int = 100,
+        hid_dim: int = 50, epochs=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"], state=None):
     # train_dataloader, test_dataloader = dataloaders
     model = GCN_BiLSTM_Classifier(
-        in_dim=in_feats, hid_dim=hid_feats, out_dim=hid_feats,
+        in_dim=in_dim, hid_dim=hid_dim, out_dim=hid_dim,
         num_classes=train_dataloader.dataset.num_labels, state=state)
     logger.info(model)
     count_parameters(model)
