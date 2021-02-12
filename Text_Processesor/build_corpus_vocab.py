@@ -22,6 +22,7 @@ from functools import partial
 # from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import CountVectorizer
 
+# from Data_Handlers.create_datasets import create_unlabeled_datasets
 from Data_Handlers.torchtext_handler import prepare_fields, create_vocab,\
     create_tabular_dataset, dataset2iter, split_dataset
 from Text_Processesor.tweet_normalizer import normalizeTweet
@@ -32,10 +33,9 @@ from Logger.logger import logger
 def get_dataset_fields(
         csv_dir: str, csv_file: str, return_iter: bool = False,
         min_freq: int = 2, text_headers: list = ['text'], batch_size: int = 1,
-        init_vocab: bool = True, labelled_data: bool = False,
-        target_train_portion=None,
+        init_vocab: bool = True, labelled_data: bool = False, target_train_portion=None,
         embedding_dir: [None, str] = cfg["paths"]["embedding_dir"][plat][user],
-        embedding_file: [None, str] = cfg["embeddings"]["embedding_file"],):
+        embedding_file: [None, str] = cfg["embeddings"]["embedding_file"]):
     ## Create tokenizer:
     tokenizer = partial(normalizeTweet, return_tokens=True)
 

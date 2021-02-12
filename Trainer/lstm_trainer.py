@@ -25,7 +25,7 @@ from collections import OrderedDict
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from Layers.bilstm_classifiers import BiLSTM_Classifier
+from Layers.bilstm_classifiers import BiLSTM_Classifier, BiLSTM_Emb_Classifier
 from Metrics.metrics import calculate_performance_sk as calculate_performance,\
     calculate_performance_bin_sk
 from Utils.utils import logit2label, count_parameters
@@ -52,8 +52,10 @@ def train_lstm_classifier(
         preds = []
         trues = []
         start_time = timeit.default_timer()
-        for iter, (global_ids, label) in enumerate(dataloader):
-            prediction = model(global_ids)
+        for iter, batch in enumerate(dataloader):
+            text, text_lengths = batch.text
+            label = batch.__getattribute__('0').unsqueeze(1)
+            prediction = model(text, text_lengths).squeeze()
             if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
                 prediction = prediction.to(device)
                 label = label.to(device)
@@ -123,8 +125,10 @@ def eval_lstm_classifier(model: BiLSTM_Classifier, loss_func,
     trues = []
     losses = []
     start_time = timeit.default_timer()
-    for iter, (global_ids, label) in enumerate(dataloader):
-        prediction = model(global_ids)
+    for iter, batch in enumerate(dataloader):
+        text, text_lengths = batch.text
+        label = batch.__getattribute__('0').unsqueeze(1)
+        prediction = model(text, text_lengths)
         # test_count = label.shape[0]
         if prediction.dim() == 1:
             prediction = prediction.unsqueeze(1)
@@ -166,14 +170,19 @@ def eval_lstm_classifier(model: BiLSTM_Classifier, loss_func,
 
 
 def LSTM_trainer(
-        train_dataloader, val_dataloader, test_dataloader, in_dim: int = 100,
+        train_dataloader, val_dataloader, test_dataloader, vectors, in_dim: int = 100,
         hid_dim: int = 50, epochs=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"]):
     # train_dataloader, test_dataloader = dataloaders
-    model = BiLSTM_Classifier(
-        in_dim=in_dim, out_dim=train_dataloader.dataset.num_labels, hid_dim=hid_dim)
+    model = BiLSTM_Emb_Classifier(
+        vocab_size=vectors.shape[0], in_dim=in_dim, hid_dim=hid_dim, out_dim=cfg["data"]["num_classes"])
+        # in_dim=in_dim, out_dim=cfg["data"]["num_classes"], hid_dim=hid_dim)
     logger.info(model)
     count_parameters(model)
+
+    logger.info('Initialize the pretrained embedding')
+    model.embedding.weight.data.copy_(vectors)
+
     if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
         model.to(device)
 

@@ -17,7 +17,7 @@ def load_fire16(data_dir=dataset_dir, filename='fire16_labeled', data_set='train
     else:
         data_df = read_labelled_json(data_dir=data_dir, filename=filename, data_set=data_set)
 
-        ## Match label space between two datasets:
+        logger.info('Match label space between two datasets:')
         data_df = labels_mapper(data_df)
 
         # delete all rows where sum == 0

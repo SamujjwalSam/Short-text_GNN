@@ -43,6 +43,12 @@ def prepare_fields(text_headers: list = None, label_headers=None, tokenizer='spa
         include_lengths:
 
     Returns:
+    :param include_lengths:
+    :param batch_first:
+    :param tokenizer:
+    :param label_headers:
+    :param text_headers:
+    :param n_classes:
 
     """
     ## Define field types:
@@ -57,6 +63,8 @@ def prepare_fields(text_headers: list = None, label_headers=None, tokenizer='spa
                             use_vocab=False, sequential=False)
     IDS = data.LabelField(batch_first=batch_first, use_vocab=False,
                           sequential=False)
+    # IDS = data.Field(batch_first=batch_first, use_vocab=False,
+    #                  sequential=False)
 
     # labelled_fields = [("id", None)]
     labelled_fields = [("ids", IDS)]
@@ -81,11 +89,8 @@ def prepare_fields(text_headers: list = None, label_headers=None, tokenizer='spa
 def create_dataset(examples, fields=None):
     """ Creates a TorchText Dataset from examples (list) and fields (dict).
 
-    Args:
-        fields:
-        skip_header:
-
-    Returns:
+    :param fields:
+    :param examples:
 
     """
     if fields is None:
@@ -112,9 +117,9 @@ def create_tabular_dataset(csv_file: str, data_dir: str, fields=None,
     if fields is None:
         _, fields, unlabelled_fields = prepare_fields()
 
-    dataset = data.TabularDataset(path=join(data_dir, csv_file),
-                                  format='csv', fields=fields,
-                                  skip_header=skip_header)
+    dataset = data.TabularDataset(
+        path=join(data_dir, csv_file), format='csv', fields=fields,
+        skip_header=skip_header)
 
     logger.debug(vars(dataset.examples[0]))
     return dataset

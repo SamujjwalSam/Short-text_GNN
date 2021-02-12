@@ -24,15 +24,15 @@ class BiLSTM_Emb_Classifier(nn.Module):
     """ BiLSTM with Embedding layer for classification """
 
     # define all the layers used in model
-    def __init__(self, vocab_size: int, hid_dim: int, output_dim: int, embedding_dim: int = 100,
+    def __init__(self, vocab_size: int, hid_dim: int, out_dim: int, in_dim: int = 100,
                  n_layers: int = 2, bidirectional: bool = True, dropout: float = 0.2, num_linear: int = 1) -> None:
         super(BiLSTM_Emb_Classifier, self).__init__()
 
         # embedding layer
-        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        self.embedding = nn.Embedding(vocab_size, in_dim)
 
         # lstm layer
-        self.lstm = nn.LSTM(embedding_dim, hid_dim, num_layers=n_layers,
+        self.lstm = nn.LSTM(in_dim, hid_dim, num_layers=n_layers,
                             bidirectional=bidirectional, dropout=dropout,
                             batch_first=True)
 
@@ -47,9 +47,9 @@ class BiLSTM_Emb_Classifier(nn.Module):
 
         # Final dense layer
         if bidirectional:
-            self.fc = nn.Linear(hid_dim * 2, output_dim)
+            self.fc = nn.Linear(hid_dim * 2, out_dim)
         else:
-            self.fc = nn.Linear(hid_dim, output_dim)
+            self.fc = nn.Linear(hid_dim, out_dim)
 
         # activation function
         ## NOTE: Sigmoid not required as BCEWithLogitsLoss calculates sigmoid
@@ -75,6 +75,8 @@ class BiLSTM_Emb_Classifier(nn.Module):
         #                                                     batch_first=True)
 
         # packed_output1, (hidden1, cell) = self.lstm(packed_embedded)
+        embedded = nn.utils.rnn.pack_padded_sequence(embedded, text_lengths, batch_first=True)
+        # output, output_lengths = nn.utils.rnn.pad_packed_sequence(packed_output)
         packed_output, (hidden, cell) = self.lstm(embedded)
         # hidden = [batch size, num num_lstm_layers * num directions, hid dim]
         # cell = [batch size, num num_lstm_layers * num directions, hid dim]
