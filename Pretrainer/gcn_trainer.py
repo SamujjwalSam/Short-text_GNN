@@ -26,14 +26,14 @@ from torch.utils.data import DataLoader
 
 from Layers.pretrain_losses import supervised_contrastive_loss
 from Layers.gcn_classifiers import GCN
-from Utils.utils import count_parameters
+from Utils.utils import count_parameters, save_pretrained_embs
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user, dataset_dir
 
 device = device('cuda' if cuda.is_available() else 'cpu')
 
 
-def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoader, epochs: int = 5):
+def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoader, epochs: int = 5, node_list=None, idx2str=None, save_epochs=cfg['pretrain']['save_epochs']):
     logger.info("Started GCN training...")
     train_epoch_losses = []
     for epoch in range(epochs):
@@ -61,11 +61,13 @@ def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoad
         logger.info(f'Epoch {epoch}, Time: {epoch_train_time / 60} mins, Loss: {epoch_loss}')
         train_epoch_losses.append(epoch_loss)
 
+        save_pretrained_embs(X_hat, node_list, idx2str, epoch)
+
     return train_epoch_losses
 
 
 def gcn_trainer(A, X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
-                epochs=cfg['training']['num_epoch'], lr=cfg["pretrain"]["lr"]):
+                epochs=cfg['training']['num_epoch'], lr=cfg["pretrain"]["lr"], node_list=None, idx2str=None):
     model = GCN(in_dim=in_dim, hid_dim=hid_dim, out_dim=hid_dim)
     # model = MLP_Model(in_dim=in_dim, hid_dim=hid_dim, out_dim=hid_dim)
 
@@ -79,7 +81,7 @@ def gcn_trainer(A, X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     epoch_losses = train_gcn(
-        model, A, X, optimizer, train_dataloader, epochs=epochs)
+        model, A, X, optimizer, train_dataloader, epochs=epochs, node_list=node_list, idx2str=idx2str)
 
     # https://stackoverflow.com/a/49078976/2794244
     state = {
@@ -95,7 +97,7 @@ def gcn_trainer(A, X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
 
     model.eval()
     X_hat = model(A, X)
-    X_hat = X_hat.detach().cpu().numpy()
+    X_hat = X_hat.detach().cpu()
 
     return epoch_losses, state, save_path, X_hat
 

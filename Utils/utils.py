@@ -30,7 +30,7 @@ from skmultilearn.model_selection import IterativeStratification
 from skmultilearn.model_selection.measures import\
     get_combination_wise_output_matrix
 
-from config import configuration as cfg, dataset_dir
+from config import configuration as cfg, dataset_dir, pretrain_dir
 from File_Handlers.json_handler import read_labelled_json
 from Text_Processesor.tweet_normalizer import normalizeTweet
 from Logger.logger import logger
@@ -437,6 +437,20 @@ def print_norms(model, params_old=None, grads_old=None):
                          f'grad_diff_norm: {np.linalg.norm(grads_old[name] - grads[name])}')
 
     return params, grads
+
+
+def save_pretrained_embs(X: np.ndarray, node_list, idx2str, epoch):
+    logger.info(f'Saving token to pretrained emb mapping for epoch [{epoch}]')
+    # G_node_list = list(G.G.nodes)
+    token2GCN_embs = {}
+    for node_id in node_list:
+        token2GCN_embs[idx2str[node_id]] = X[node_id]
+
+    savepath = join(pretrain_dir, str(epoch) + 'token2pretrained.pt')
+    logger.info(f'Saving pretrained embs at [{savepath}]')
+    torch.save(token2GCN_embs, savepath)
+
+    return token2GCN_embs
 
 
 def main():

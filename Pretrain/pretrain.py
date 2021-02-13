@@ -19,6 +19,7 @@ __license__     : "This source code is licensed under the MIT-style license
 
 import random
 import numpy as np
+import pandas as pd
 from torch import cuda, save, load, device, manual_seed, backends
 from torch.utils.data import Dataset
 from networkx import adjacency_matrix
@@ -28,7 +29,7 @@ from sklearn.preprocessing import MultiLabelBinarizer
 
 from Pretrainer.mlp_trainer import mlp_trainer
 from Pretrainer.gcn_trainer import gcn_trainer
-from Utils.utils import load_graph, sp_coo2torch_coo
+from Utils.utils import load_graph, sp_coo2torch_coo, save_pretrained_embs
 from File_Handlers.csv_handler import read_csv
 from File_Handlers.json_handler import save_json, read_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
@@ -57,11 +58,11 @@ def set_all_seeds(seed=0):
 
 set_all_seeds(1)
 
-# data_filenames = cfg['pretrain']['files']
-data_filenames = cfg['data']['files']
+data_filenames = cfg['pretrain']['files']
+# data_filenames = cfg['data']['files']
 # pretrain_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['pretrain']['name'])
 # data_filename = cfg['data']['name']
-data_filename = cfg['data']['name']
+data_filename = cfg['pretrain']['name']
 joint_path = join(pretrain_dir, data_filename + "_multihot.csv")
 pos_path = join(pretrain_dir, data_filename + "_pos.csv")
 neg_path = join(pretrain_dir, data_filename + "_neg.csv")
@@ -100,7 +101,7 @@ mlb = MultiLabelBinarizer()
 def read_input_files(joint_path=join(pretrain_dir, data_filename + "_multihot.csv"),
                      pos_path=join(pretrain_dir, data_filename + "_pos.csv"),
                      neg_path=join(pretrain_dir, data_filename + "_neg.csv")):
-    import pandas as pd
+
     ## Read multiple data files:
     df_all = pd.DataFrame()
     df_all_pos = pd.DataFrame()
@@ -116,12 +117,12 @@ def read_input_files(joint_path=join(pretrain_dir, data_filename + "_multihot.cs
     df_all_neg.to_csv(neg_path)
 
 
-def calculate_vocab_overlap(finetune_vocab, joint_vocab):
+def calculate_vocab_overlap(task_tokens, pretrain_tokens):
     """ Calculate vocab overlap between pretrain and task:"""
-    joint_set = set(joint_vocab['str2idx_map'].keys())
-    finetune_vocab_set = set(finetune_vocab['str2idx_map'].keys())
-    overlap = joint_set.intersection(finetune_vocab_set)
-    finetune_vocab_percent = (len(overlap) / len(finetune_vocab_set)) * 100
+    # joint_set = set(joint_vocab['str2idx_map'].keys())
+    # task_tokens = set(finetune_vocab['str2idx_map'].keys())
+    overlap = pretrain_tokens.intersection(task_tokens)
+    finetune_vocab_percent = (len(overlap) / len(task_tokens)) * 100
     logger.info(f'Token overlap between pretrain and fine-tune vocab:{len(overlap)}')
     logger.info(f'Token overlap percent as fine-tune vocab:{finetune_vocab_percent}')
 
@@ -222,9 +223,8 @@ def get_vocab_data(path=join(pretrain_dir, data_filename + "_multihot.csv"),
             glove_embs = glove2dict()
 
         oov_high_freqs, glove_low_freqs, oov_low_freqs =\
-            preprocess_and_find_oov2(
-                vocab, glove_embs=glove_embs, labelled_vocab_set=set(
-                    vocab['str2idx_map'].keys()), add_glove_tokens_back=False)
+            preprocess_and_find_oov2(vocab, glove_embs=glove_embs, labelled_vocab_set=set(
+                vocab['str2idx_map'].keys()), add_glove_tokens_back=False)
 
         corpus_strs, corpus_toks, ignored_examples =\
             create_clean_corpus(dataset, low_oov_ignored=oov_low_freqs)
@@ -370,7 +370,7 @@ def get_graph_and_dataset(limit_dataset=None):
     return dataset, G, oov_embs, joint_vocab
 
 
-def prepare_pretraining(oov_emb_filename=data_filename + '_OOV_vectors_dict',
+def prepare_pretraining(model_type='MLP', oov_emb_filename=data_filename + '_OOV_vectors_dict',
                         graph_path=join(pretrain_dir, data_filename + '_token_nx.bin'),
                         vocab_path=join(pretrain_dir, data_filename + '_joint_vocab'),
                         dataset_path=join(pretrain_dir, data_filename + '_dataset')):
@@ -387,24 +387,23 @@ def prepare_pretraining(oov_emb_filename=data_filename + '_OOV_vectors_dict',
     adj, X = get_graph_inputs(G, oov_embs, joint_vocab, prepare_G=True)
     pretrain_dataloader = Pretrain_Dataset(dataset)
 
-    logger.info('Pre-Training GCN')
-    train_epochs_losses, state, save_path, X = gcn_trainer(
-        adj, X, pretrain_dataloader, in_dim=cfg['embeddings']['emb_dim'],
-        hid_dim=cfg['gnn_params']['hid_dim'], epochs=cfg['pretrain']['epochs'],
-        lr=cfg["pretrain"]["lr"])
+    logger.info(f'Pre-Training [{model_type}]')
+    node_list = list(G.G.nodes)
+    idx2str = joint_vocab['idx2str_map']
+    if model_type == 'MLP':
+        train_epochs_losses, state, save_path, X = mlp_trainer(
+            X, pretrain_dataloader, in_dim=cfg['embeddings']['emb_dim'],
+            hid_dim=cfg['gnn_params']['hid_dim'], epochs=cfg['pretrain']['epochs'],
+            lr=cfg["pretrain"]["lr"], node_list=node_list, idx2str=idx2str)
+    elif model_type == 'GCN':
+        train_epochs_losses, state, save_path, X = gcn_trainer(
+            adj, X, pretrain_dataloader, in_dim=cfg['embeddings']['emb_dim'],
+            hid_dim=cfg['gnn_params']['hid_dim'], epochs=cfg['pretrain']['epochs'],
+            lr=cfg["pretrain"]["lr"], node_list=node_list, idx2str=idx2str)
+    else:
+        raise NotImplementedError(f'[{model_type}] not found.')
 
-    logger.info('Pre-Training MLP')
-    train_epochs_losses, state, save_path, X = mlp_trainer(
-        X, pretrain_dataloader, in_dim=cfg['embeddings']['emb_dim'],
-        hid_dim=cfg['gnn_params']['hid_dim'], epochs=cfg['pretrain']['epochs'],
-        lr=cfg["pretrain"]["lr"])
-
-    # Create token to GCN emb mapping:
-    G_node_list = list(G.G.nodes)
-    token2GCN_embs = {}
-    for node_id in G_node_list:
-        token2GCN_embs[joint_vocab['idx2str_map'][node_id]] = X[node_id]
-    save(token2GCN_embs, join(pretrain_dir, str(cfg['pretrain']['epochs']) + 'token2GCN_embs.pt'))
+    token2GCN_embs = save_pretrained_embs(X, node_list, idx2str, cfg['pretrain']['epochs'])
 
     return train_epochs_losses, state, save_path, joint_vocab, token2GCN_embs
 
@@ -413,7 +412,7 @@ def get_pretrain_artifacts(epochs=cfg['pretrain']['epochs']):
     state_path = join(pretrain_dir, cfg['data']['name'] + '_model' + str(
         epochs) + '.pt')
     vocab_path = join(pretrain_dir, data_filename + '_joint_vocab')
-    token_embs_path = join(pretrain_dir, str(cfg['pretrain']['epochs']) + 'token2GCN_embs.pt')
+    token_embs_path = join(pretrain_dir, str(cfg['pretrain']['epochs']) + 'token2pretrained.pt')
     if exists(state_path) and exists(vocab_path + '.json') and exists(token_embs_path):
         logger.info(f'Loading Pretraining Artifacts from [{token_embs_path}] and [{vocab_path}]')
         state = load(state_path)

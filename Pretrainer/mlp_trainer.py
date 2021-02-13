@@ -25,7 +25,7 @@ from torch.utils.data import DataLoader
 
 from Layers.pretrain_losses import supervised_contrastive_loss
 from Layers.mlp_classifier import MLP_Model
-from Utils.utils import count_parameters
+from Utils.utils import count_parameters, save_pretrained_embs
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user
 
@@ -33,7 +33,24 @@ device = device('cuda' if cuda.is_available() else 'cpu')
 pretrain_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
 
 
-def train_mlp(model, X, optimizer, dataloader: utils.data.dataloader.DataLoader, epochs: int = 5):
+def eval_mlp(model, X):
+    model.eval()
+    X = model(X).detach().cpu()
+    # embs = []
+    # start_time = timeit.default_timer()
+    # for iter, x in enumerate(X):
+    #     x = model(x)
+    #     if x.dim() == 1:
+    #         x = x.unsqueeze(1).T
+    #     embs.append(x.detach().cpu())
+    # test_time = timeit.default_timer() - start_time
+    # logger.info(f"Total test time: [{test_time / 60:.4f} mins]")
+
+    # return stack(embs).squeeze().numpy()
+    return X
+
+
+def train_mlp(model, X, optimizer, dataloader: utils.data.dataloader.DataLoader, epochs: int = 5, node_list=None, idx2str=None, save_epochs=cfg['pretrain']['save_epochs']):
     logger.info(f"Started MLP training for {epochs} epochs.")
     train_epoch_losses = []
     train_epoch_embs = []
@@ -88,26 +105,15 @@ def train_mlp(model, X, optimizer, dataloader: utils.data.dataloader.DataLoader,
                     f'Epoch Loss: {epoch_loss:6.6f}, Loss/Example: {example_loss:2.8f}')
         train_epoch_losses.append(epoch_loss)
 
+        if epoch in save_epochs:
+            X_hat = eval_mlp(model, X)
+            save_pretrained_embs(X_hat, node_list, idx2str, epoch)
+
     return train_epoch_losses
 
 
-def eval_mlp(model, X):
-    model.eval()
-    embs = []
-    start_time = timeit.default_timer()
-    for iter, x in enumerate(X):
-        x = model(x)
-        if x.dim() == 1:
-            x = x.unsqueeze(1).T
-        embs.append(x.detach().cpu())
-    test_time = timeit.default_timer() - start_time
-    logger.info(f"Total test time: [{test_time / 60:.4f} mins]")
-
-    return stack(embs).squeeze().numpy()
-
-
 def mlp_trainer(X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
-                epochs=cfg['training']['num_epoch'], lr=cfg["pretrain"]["lr"]):
+                epochs=cfg['training']['num_epoch'], lr=cfg["pretrain"]["lr"],node_list=None, idx2str=None):
     model = MLP_Model(in_dim=in_dim, hid_dim=hid_dim, out_dim=in_dim, num_layer=2)
 
     logger.info(model)
@@ -120,7 +126,7 @@ def mlp_trainer(X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     epoch_losses = train_mlp(
-        model, X, optimizer, train_dataloader, epochs=epochs)
+        model, X, optimizer, train_dataloader, epochs=epochs, node_list=node_list, idx2str=idx2str)
 
     # https://stackoverflow.com/a/49078976/2794244
     state = {
