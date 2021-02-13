@@ -224,12 +224,18 @@ configuration = {
         "show_stat":   False
     },
     'pretrain':     {
-        'epochs':      50,
-        'min_freq':    3,
-        'lr':          0.05,
-        'name':        'disaster_binary_pretrain',
-        'files':       ['2015_Nepal_Earthquake',
-                        '2012_Italy_Earthquake', '2013_Queensland_Floods', 'AF13', 'OT13', 'SH12'
+        'epochs':   60,
+        'save_epochs': [5, 10, 15, 25, 40, 60],
+        'min_freq': 2,
+        'lr':       0.005,
+        'name':     'disaster_binary_pretrain',
+        'files':    [
+            'NEQ15',
+            'IEQ12',
+            'QFL13',
+            'AF13_train',
+            'OT13',
+            'SH12'
         ],
     },
 
@@ -311,6 +317,7 @@ configuration = {
     # },
 
     "model":        {
+        'mittens_iter':         10,
         "num_folds":            5,
         "max_sequence_length":  200,
         "dropout":              0.2,
@@ -334,7 +341,7 @@ configuration = {
         "classify_count":       0,
         "optimizer":            {
             "optimizer_type": "adam",
-            "lr":             0.0001,
+            "lr":             0.001,
             "lr_decay":       0,
             "weight_decay":   0,
             "momentum":       0.9,
@@ -357,7 +364,7 @@ configuration = {
         "num_layers":    2,
         "bias":          True,
         "batch_first":   True,
-        "bidirectional": True,
+        "bi":            True,
         "hid_size":      64,
     },
 
@@ -371,8 +378,7 @@ configuration = {
     },
 
     "training":     {
-        "num_epoch":        25,
-        "num_train_epoch":  50,
+        "num_epoch":        15,
         "train_batch_size": 64,
         "eval_batch_size":  256,
     },
@@ -467,6 +473,9 @@ global dataset_dir
 dataset_dir = join(configuration["paths"]['dataset_root'][platform][username],
                    configuration['data']['name'])
 
+global pretrain_dir
+pretrain_dir = join(configuration['paths']['dataset_root'][platform][username],
+                    configuration['pretrain']['name'])
 
 def main():
     """
