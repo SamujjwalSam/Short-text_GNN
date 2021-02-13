@@ -19,12 +19,14 @@ import csv
 import numpy as np
 # import pandas as pd
 import pickle
-from os.path import join
+from os.path import exists, join
 from collections import Counter
 from nltk.corpus import brown
 from mittens import Mittens
 from sklearn.feature_extraction.text import CountVectorizer
 
+from File_Handlers.json_handler import read_json, save_json
+from File_Handlers.pkl_handler import load_pickle, save_pickle
 from config import configuration as cfg, platform as plat, username as user, dataset_dir
 from Logger.logger import logger
 
@@ -153,10 +155,9 @@ def preprocess_and_find_oov(datasets: tuple, common_vocab: dict = None,
     return high_oov_freqs, low_glove_freqs, corpus, corpus_toks
 
 
-def preprocess_and_find_oov2(joint_vocab: dict = None,
-                             glove_embs: dict = None, labelled_vocab_set: set = None,
-                             special_tokens={'<unk>', '<pad>'},
-                             add_glove_tokens_back=True):
+def preprocess_and_find_oov2(
+        vocab: dict = None, glove_embs: dict = None, labelled_vocab_set: set = None,
+        special_tokens={'<unk>', '<pad>'}, add_glove_tokens_back=True):
     """ Process and prepare data by removing stopwords, finding oovs and
      creating corpus.
 
@@ -165,7 +166,7 @@ def preprocess_and_find_oov2(joint_vocab: dict = None,
     :param labelled_vocab_set: Tokens of labelled data with associate
     label vecs
     :param datasets:
-    :param joint_vocab: Vocab generated from all datasets
+    :param vocab: Vocab generated from all datasets
     :param oov_min_freq: Count of min freq oov token which should be removed
     :param glove_embs: Original glove embeddings in key:value format.
     :param glove_embs: glove embeddings
@@ -175,8 +176,8 @@ def preprocess_and_find_oov2(joint_vocab: dict = None,
     if glove_embs is None:
         glove_embs = glove2dict()
 
-    vocab_freq_set = set(joint_vocab['freqs'].keys())
-    vocab_s2i_set = set(joint_vocab['str2idx_map'].keys())
+    vocab_freq_set = set(vocab['freqs'].keys())
+    vocab_s2i_set = set(vocab['str2idx_map'].keys())
     glove_set = set(glove_embs.keys())
 
     ## Tokens without embeddings:
@@ -191,7 +192,7 @@ def preprocess_and_find_oov2(joint_vocab: dict = None,
                 f'in Glove): [{len(low)}]')
     low_freqs = {}
     for token in low:
-        low_freqs[token] = joint_vocab['freqs'][token]
+        low_freqs[token] = vocab['freqs'][token]
 
     ## Find OOV from labelled data:
     labelled_oov = labelled_vocab_set - vocab_s2i_set
@@ -207,11 +208,11 @@ def preprocess_and_find_oov2(joint_vocab: dict = None,
     low_glove_freqs = {}
     if add_glove_tokens_back:
         ## Add 'low freq with embeddings' tokens back to vocab:
-        start_idx = len(joint_vocab['str2idx_map'])
+        start_idx = len(vocab['str2idx_map'])
         for token in low_glove:
-            joint_vocab['str2idx_map'][token] = start_idx
-            joint_vocab['idx2str_map'].append(token)
-            low_glove_freqs[token] = joint_vocab['freqs'][token]
+            vocab['str2idx_map'][token] = start_idx
+            vocab['idx2str_map'].append(token)
+            low_glove_freqs[token] = vocab['freqs'][token]
             start_idx += 1
 
         ## Update vocab set after adding low freq tokens back:
@@ -225,7 +226,7 @@ def preprocess_and_find_oov2(joint_vocab: dict = None,
                 f'[{len(low_oov)}]')
     low_oov_freqs = {}
     for token in low_oov:
-        low_oov_freqs[token] = joint_vocab['freqs'][token]
+        low_oov_freqs[token] = vocab['freqs'][token]
 
     ## High freq but glove OOV except special tokens:
     high_oov = vocab_s2i_set - glove_set - special_tokens
@@ -236,7 +237,7 @@ def preprocess_and_find_oov2(joint_vocab: dict = None,
     logger.info(f'Number of high freq but OOV tokens: [{len(high_oov)}]')
     high_oov_freqs = {}
     for token in high_oov:
-        high_oov_freqs[token] = joint_vocab['freqs'][token]
+        high_oov_freqs[token] = vocab['freqs'][token]
 
     return high_oov_freqs, low_glove_freqs, low_oov_freqs
 
@@ -373,6 +374,54 @@ def train_mittens(coocc_ar, oov_vocabs, pre_glove, emb_dim=cfg['embeddings'][
     f.close()
 
     return newglove
+
+
+def get_oov_tokens(dataset, dataname, data_dir, vocab, glove_embs):
+    datapath = join(data_dir, dataname)
+    if exists(datapath + 'high_oov.json')\
+            and exists(datapath + 'corpus.json')\
+            and exists(datapath + 'corpus_toks.json'):
+        high_oov = read_json(datapath + 'high_oov')
+        low_glove = read_json(datapath+'low_glove')
+        low_oov = read_json(datapath+'low_oov')
+        corpus = read_json(datapath + 'corpus', convert_ordereddict=False)
+        corpus_toks = read_json(datapath + 'corpus_toks', convert_ordereddict=False)
+        # vocab = read_json(datapath + 'vocab', convert_ordereddict=False)
+    else:
+        ## Get all OOVs which does not have Glove embedding:
+        high_oov, low_glove, low_oov = preprocess_and_find_oov2(vocab, glove_embs=glove_embs,
+                                                                labelled_vocab_set=set(vocab['str2idx_map'].keys()))
+
+        corpus, corpus_toks, _ = create_clean_corpus(dataset, low_oov)
+
+        ## Save token sets: high_oov, low_glove, corpus, corpus_toks
+        save_json(high_oov, datapath + 'high_oov')
+        save_json(low_glove, datapath+'low_glove')
+        save_json(low_oov, datapath+'low_oov')
+        save_json(corpus, datapath + 'corpus')
+        save_json(corpus_toks, datapath + 'corpus_toks')
+        # save_json(vocab, datapath + 'vocab', overwrite=True)
+
+    return high_oov, low_glove, low_oov, corpus, corpus_toks
+
+
+def get_oov_vecs(high_oov_tokens, corpus, dataname, data_dir, glove_embs,
+                 mittens_iter=cfg['model']['mittens_iter']):
+    logger.info(f'Get embeddings for OOV tokens')
+    oov_filename = dataname + '_OOV_vectors_dict_' + str(mittens_iter)
+    if exists(join(data_dir, oov_filename + '.pkl')):
+        logger.info('Read OOV embeddings:')
+        oov_embs = load_pickle(filepath=data_dir, filename=oov_filename)
+    else:
+        logger.info('Create OOV embeddings using Mittens:')
+        # high_oov, low_glove, low_oov, corpus, corpus_toks = \
+        #     get_oov_tokens(dataset, dataname, data_dir, vocab, glove_embs)
+        # high_oov_tokens_list = list(high_oov.keys())
+        oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens, corpus)
+        oov_embs = train_mittens(oov_mat_coo, high_oov_tokens, glove_embs, max_iter=mittens_iter)
+        save_pickle(oov_embs, filepath=data_dir, filename=oov_filename, overwrite=True)
+
+    return oov_embs
 
 
 def main():
