@@ -38,7 +38,7 @@ from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
 from Data_Handlers.create_datasets import create_unlabeled_datasets, prepare_splitted_datasets
-from Text_Processesor.build_corpus_vocab import get_dataset_fields
+from Text_Processesor.build_corpus_vocab import get_dataset_fields, get_token_embedding
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
 from Data_Handlers.instance_handler_dgl import Instance_Dataset_DGL
 from Trainer.glen_trainer import GLEN_trainer
@@ -46,8 +46,8 @@ from Trainer.gat_trainer import GAT_BiLSTM_trainer
 from Trainer.gcn_lstm_trainer import GCN_LSTM_trainer
 from Trainer.lstm_trainer import LSTM_trainer
 from Trainer.mlp_trainer import MLP_trainer
-from Text_Encoder.finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
-    train_mittens, preprocess_and_find_oov
+from Text_Encoder.finetune_static_embeddings import glove2dict, get_oov_vecs,\
+    train_mittens, preprocess_and_find_oov2, create_clean_corpus, get_oov_tokens
 from Trainer.trainer import trainer, predict_with_label
 from Plotter.plot_functions import plot_training_loss
 from Metrics.metrics import calculate_performance_pl
@@ -118,12 +118,9 @@ if device.type == 'cuda':
 
 
 def main(model_type='LSTM', data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
-         mittens_iter: int = 300, glove_embs=None,
-         labelled_source_name: str = cfg['data']['train'],
-         labelled_val_name: str = cfg['data']['val'],
-         labelled_test_name: str = cfg['data']['test'], use_lpa=False):
+         glove_embs=None, labelled_source_name: str = cfg['data']['train'],
+         labelled_val_name: str = cfg['data']['val'], labelled_test_name: str = cfg['data']['test']):
     logger.critical(f'Current Learning Rate: [{lr}]')
-    labelled_source_path = join(data_dir, labelled_source_name)
     logger.info('Read labelled data and prepare')
     train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
@@ -131,16 +128,91 @@ def main(model_type='LSTM', data_dir: str = dataset_dir, lr=cfg["model"]["optimi
         train_dataname=labelled_source_name, val_dataname=labelled_val_name,
         test_dataname=labelled_test_name)
 
+    # train_vocab_mod = train_vocab.copy()
+    train_vocab_mod = {
+        'freqs':       train_vocab.vocab.freqs.copy(),
+        'str2idx_map': dict(train_vocab.vocab.stoi.copy()),
+        'idx2str_map': train_vocab.vocab.itos.copy(),
+    }
+
+    if glove_embs is None:
+        glove_embs = glove2dict()
+
+    logger.critical('BEFORE ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
+    classifier(model_type, train_dataloader, val_dataloader, test_dataloader, train_vocab,
+               train_dataset, val_dataset, test_dataset, labelled_source_name, glove_embs)
+
+    logger.critical('PRETRAIN ###########################################')
+    pretrain_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
+    data_filename = cfg['data']['name']
+    emb_filename = join(pretrain_dir, data_filename + "_pretrained_emb.pt")
+    token2idx_filename = join(pretrain_dir, data_filename + "_pretrained_stoi")
+    # save_path = join(pretrain_dir, cfg['data']['name'] + '_model.pt')
+    if exists(join(pretrain_dir, data_filename + '_pretrain_vocab.json'))\
+            and exists(emb_filename) and exists(token2idx_filename):
+            # and exists(save_path):
+        # pretrain_vocab = read_json(join(pretrain_dir, data_filename + '_pretrain_vocab'))
+        logger.info('Accessing token graph node embeddings:')
+        X = load(emb_filename)
+        token2idx_map = read_json(token2idx_filename)
+        # state = load(save_path)
+    else:
+        state, pretrain_vocab, pretrain_embs = get_pretrain_artifacts(
+            epochs=cfg['pretrain']['epochs'])
+        calculate_vocab_overlap(set(train_vocab_mod['str2idx_map'].keys()),
+                                set(pretrain_vocab['str2idx_map'].keys()))
+        # save_json(pretrain_vocab, labelled_source_path + '_pretrain_vocab', overwrite=True)
+        logger.info('Get token embeddings with pretrained vectors')
+        high_oov, low_glove, low_oov, corpus, corpus_toks = get_oov_tokens(
+            train_dataset, labelled_source_name, data_dir, train_vocab_mod, glove_embs)
+        oov_embs = get_oov_vecs(list(high_oov.keys()), corpus, labelled_source_name, data_dir, glove_embs)
+        # X, token2idx_map = get_token_embedding(train_vocab_mod['str2idx_map'], oov_embs, glove_embs, pretrain_embs)
+        X, token2idx_map = get_token_embedding(set(pretrain_embs.keys()).union(
+            set(oov_embs.keys())), oov_embs, glove_embs, pretrain_embs)
+        # X = g_ob.get_node_embeddings(oov_embs, glove_embs, train_vocab['idx2str_map'], pretrain_embs=pretrain_embs)
+        X = torch.from_numpy(X)
+        save(X, emb_filename)
+        # save(state, save_path)
+        save_json(token2idx_map, token2idx_filename, '')
+
+    # logger.info('Plot pretrained embeddings:')
+    # C = set(glove_embs.keys()).intersection(set(pretrain_embs.keys()))
+    # logger.debug(f'Common vocab size: {len(C)}')
+    # words = ['nepal', 'italy', 'building', 'damage', 'kathmandu', 'water',
+    #          'wifi', 'need', 'available', 'earthquake']
+    # X_glove = {word: glove_embs[word] for word in words}
+    # X_gcn = {word: pretrain_embs[word].detach().cpu().numpy() for word in words}
+    # from Plotter.plot_functions import plot_vecs_color
+    #
+    # plot_vecs_color(tokens2vec=X_gcn, save_name='gcn_pretrained.pdf')
+    # plot_vecs_color(tokens2vec=X_glove, save_name='glove_pretrained.pdf')
+    # logger.debug(f'Word list: {words}')
+
+    train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+    train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+        stoi=token2idx_map, vectors=X, get_iter=True,
+        dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+        train_dataname=labelled_source_name, val_dataname=labelled_val_name,
+        test_dataname=labelled_test_name)
+
+    logger.critical('AFTER **********************************************')
+
+    classifier(model_type, train_dataloader, val_dataloader, test_dataloader, train_vocab,
+               train_dataset, val_dataset, test_dataset, labelled_source_name, glove_embs)
+
+
+def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, train_vocab,
+               train_dataset, val_dataset, test_dataset, dataname,
+               glove_embs=None, mittens_iter=300, use_lpa=False):
     logger.info(f'Classifying examples using [{model_type}] model.')
+    datapath = join(data_dir, dataname)
     if model_type == 'MLP':
-        logger.info('Using GAT model')
         train_epochs_output_dict, test_output = MLP_trainer(
-            X, train_dataloader, val_dataloader, test_dataloader,
+            train_dataloader, val_dataloader, test_dataloader,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
             epochs=cfg['training']['num_epoch'], lr=lr)
 
     elif model_type == 'LSTM':
-        logger.info('Using LSTM model')
         train_epochs_output_dict, test_output = LSTM_trainer(
             train_dataloader, val_dataloader, test_dataloader, vectors=train_vocab.vocab.vectors,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
@@ -153,7 +225,6 @@ def main(model_type='LSTM', data_dir: str = dataset_dir, lr=cfg["model"]["optimi
             labelled_source_name=cfg['data']['train'], labelled_val_name=cfg['data']['val'],
             labelled_target_name=cfg['data']['test'])
 
-        logger.info('Using GAT model')
         train_epochs_output_dict, test_output = GAT_BiLSTM_trainer(
             train_dataloader, val_dataloader, test_dataloader,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
@@ -168,19 +239,19 @@ def main(model_type='LSTM', data_dir: str = dataset_dir, lr=cfg["model"]["optimi
         T_dataname = unlabelled_target_name + "_data.csv"
         if glove_embs is None:
             glove_embs = glove2dict()
-        if exists(labelled_source_path + 'S_vocab.json')\
-                and exists(labelled_source_path + 'T_vocab.json')\
-                and exists(labelled_source_path + 'labelled_token2vec_map.json'):
+        if exists(datapath + 'S_vocab.json')\
+                and exists(datapath + 'T_vocab.json')\
+                and exists(datapath + 'labelled_token2vec_map.json'):
             # ## Read labelled source data
             # s_lab_df = read_labelled_json(data_dir, labelled_source_name)
             # ## Match label space between two datasets:
             # if str(labelled_source_name).startswith('fire16'):
             #     s_lab_df = labels_mapper(s_lab_df)
 
-            C_vocab = read_json(labelled_source_path + 'C_vocab')
-            S_vocab = read_json(labelled_source_path + 'S_vocab')
-            T_vocab = read_json(labelled_source_path + 'T_vocab')
-            labelled_token2vec_map = read_json(labelled_source_path + 'labelled_token2vec_map')
+            C_vocab = read_json(datapath + 'C_vocab')
+            S_vocab = read_json(datapath + 'S_vocab')
+            T_vocab = read_json(datapath + 'T_vocab')
+            labelled_token2vec_map = read_json(datapath + 'labelled_token2vec_map')
 
             S_dataset, (S_fields, LABEL) = get_dataset_fields(
                 csv_dir=data_dir, csv_file=S_dataname)
@@ -190,57 +261,72 @@ def main(model_type='LSTM', data_dir: str = dataset_dir, lr=cfg["model"]["optimi
             C_vocab, C_dataset, S_vocab, S_dataset, S_fields, T_vocab,\
             T_dataset, T_fields, labelled_token2vec_map, s_lab_df =\
                 create_unlabeled_datasets(
-                    s_lab_df=None, data_dir=data_dir,
-                    labelled_source_name=labelled_source_name,
+                    s_lab_df=None, data_dir=data_dir, labelled_source_name=dataname,
                     unlabelled_source_name=unlabelled_source_name,
                     unlabelled_target_name=unlabelled_target_name)
             ## Save vocabs:
-            save_json(C_vocab, labelled_source_path + 'C_vocab')
-            save_json(S_vocab, labelled_source_path + 'S_vocab')
-            save_json(T_vocab, labelled_source_path + 'T_vocab')
-            save_json(labelled_token2vec_map, labelled_source_path + 'labelled_token2vec_map')
+            save_json(C_vocab, datapath + 'C_vocab')
+            save_json(S_vocab, datapath + 'S_vocab')
+            save_json(T_vocab, datapath + 'T_vocab')
+            save_json(labelled_token2vec_map, datapath + 'labelled_token2vec_map')
 
-        if exists(labelled_source_path + 'high_oov_freqs.json')\
-                and exists(labelled_source_path + 'corpus.json')\
-                and exists(labelled_source_path + 'corpus_toks.json'):
-            high_oov_freqs = read_json(labelled_source_path + 'high_oov_freqs')
-            # low_glove_freqs = read_json(labelled_source_name+'low_glove_freqs')
-            corpus = read_json(labelled_source_path + 'corpus', convert_ordereddict=False)
-            corpus_toks = read_json(labelled_source_path + 'corpus_toks', convert_ordereddict=False)
+        if exists(datapath + 'S_corpus.json')\
+                and exists(datapath + 'T_corpus.json')\
+                and exists(datapath + 'S_corpus_toks.json')\
+                and exists(datapath + 'T_corpus_toks.json'):
+            # S_high_oov = read_json(datapath + 'S_high_oov')
+            # T_high_oov = read_json(datapath + 'T_high_oov')
+            # low_glove = read_json(labelled_source_name+'low_glove')
+            S_corpus = read_json(datapath + 'S_corpus', convert_ordereddict=False)
+            T_corpus = read_json(datapath + 'T_corpus', convert_ordereddict=False)
+            S_corpus_toks = read_json(datapath + 'S_corpus_toks', convert_ordereddict=False)
+            T_corpus_toks = read_json(datapath + 'T_corpus_toks', convert_ordereddict=False)
         else:
             ## Get all OOVs which does not have Glove embedding:
-            high_oov_freqs, low_glove_freqs, corpus, corpus_toks =\
-                preprocess_and_find_oov(
-                    (S_dataset, T_dataset), C_vocab, glove_embs=glove_embs,
-                    labelled_vocab_set=set(labelled_token2vec_map.keys()))
+            # high_oov, low_glove, corpus, corpus_toks =\
+            S_high_oov, S_low_glove, S_low_oov = preprocess_and_find_oov2(C_vocab, glove_embs=glove_embs,
+                                                                          labelled_vocab_set=set(
+                                                                              labelled_token2vec_map.keys()))
+            S_corpus, S_corpus_toks, _ = create_clean_corpus(S_dataset, S_low_oov)
 
-            ## Save token sets: high_oov_freqs, low_glove_freqs, corpus, corpus_toks
-            save_json(high_oov_freqs, labelled_source_path + 'high_oov_freqs')
-            # save_json(low_glove_freqs, labelled_source_name+'low_glove_freqs', overwrite=True)
-            save_json(corpus, labelled_source_path + 'corpus')
-            save_json(corpus_toks, labelled_source_path + 'corpus_toks')
-            save_json(C_vocab, labelled_source_path + 'C_vocab', overwrite=True)
+            T_high_oov, T_low_glove, T_low_oov =\
+                preprocess_and_find_oov2(C_vocab, glove_embs=glove_embs,
+                                         labelled_vocab_set=set(labelled_token2vec_map.keys()))
+            T_corpus, T_corpus_toks, _ = create_clean_corpus(T_dataset, T_low_oov)
 
-        g_ob = Token_Dataset_nx(corpus_toks, C_vocab, labelled_source_name,
-                                S_vocab, T_vocab)
-        g_ob.add_edge_weights()
-        G = g_ob.G
+            ## Save token sets: high_oov, low_glove, corpus, corpus_toks
+            save_json(S_high_oov, datapath + 'S_high_oov')
+            save_json(T_high_oov, datapath + 'T_high_oov')
+            # save_json(low_glove, labelled_source_name+'low_glove', overwrite=True)
+            save_json(S_corpus, datapath + 'S_corpus')
+            save_json(T_corpus, datapath + 'T_corpus')
+            save_json(S_corpus_toks, datapath + 'S_corpus_toks')
+            save_json(T_corpus_toks, datapath + 'T_corpus_toks')
+            save_json(C_vocab, datapath + 'C_vocab', overwrite=True)
 
-        node_list = list(G.nodes)
-        logger.info(f"Number of nodes {len(node_list)} and edges {len(G.edges)} in token graph")
+        # high_oov, low_glove, low_oov, corpus, corpus_toks = get_oov_tokens(
+        #     (S_dataset, T_dataset), dataname, data_dir, C_vocab, glove_embs)
 
         logger.info(f'Create new embeddings for OOV tokens')
-        oov_emb_filename = labelled_source_name + '_OOV_vectors_dict'
+        oov_emb_filename = dataname + '_OOV_vectors_dict'
         if exists(join(data_dir, oov_emb_filename + '.pkl')):
             logger.info('Read OOV embeddings:')
             oov_embs = load_pickle(filepath=data_dir, filename=oov_emb_filename)
         else:
             logger.info('Create OOV embeddings using Mittens:')
-            high_oov_tokens_list = list(high_oov_freqs.keys())
-            c_corpus = corpus[0] + corpus[1]
-            oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens_list, c_corpus)
-            oov_embs = train_mittens(oov_mat_coo, high_oov_tokens_list, glove_embs, max_iter=mittens_iter)
-            save_pickle(oov_embs, filepath=data_dir, filename=oov_emb_filename, overwrite=True)
+            high_oov = S_high_oov + T_high_oov
+            high_oov_tokens_list = list(high_oov.keys())
+            c_corpus = S_corpus + T_corpus
+            # oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens_list, c_corpus)
+            # oov_embs = train_mittens(oov_mat_coo, high_oov_tokens_list, glove_embs, max_iter=mittens_iter)
+            # save_pickle(oov_embs, filepath=data_dir, filename=oov_emb_filename, overwrite=True)
+            oov_embs = get_oov_vecs(high_oov_tokens_list, c_corpus, dataname, data_dir, glove_embs)
+
+        g_ob = Token_Dataset_nx((S_corpus_toks, T_corpus_toks), C_vocab, dataname, S_vocab, T_vocab)
+        g_ob.add_edge_weights()
+        G = g_ob.G
+        node_list = list(G.nodes)
+        logger.info(f"Number of nodes {len(node_list)} and edges {len(G.edges)} in token graph")
 
         logger.info(f'Get adjacency matrix and node embeddings in same order:')
         ## Note: Saving sparse tensor usually gets corrupted.
@@ -256,7 +342,7 @@ def main(model_type='LSTM', data_dir: str = dataset_dir, lr=cfg["model"]["optimi
         adj = sp_coo2torch_coo(adj)
 
         logger.info('Accessing token graph node embeddings:')
-        emb_filename = join(data_dir, labelled_source_name + "_emb.pt")
+        emb_filename = join(data_dir, dataname + "_emb.pt")
         if exists(emb_filename):
             X = load(emb_filename)
         else:
@@ -267,7 +353,7 @@ def main(model_type='LSTM', data_dir: str = dataset_dir, lr=cfg["model"]["optimi
 
         if use_lpa:
             logger.info(f'Apply Label Propagation to get label vectors for unlabelled nodes:')
-            label_proba_filename = join(data_dir, labelled_source_name + "_lpa_vecs.pt")
+            label_proba_filename = join(data_dir, dataname + "_lpa_vecs.pt")
             if exists(label_proba_filename):
                 lpa_vecs = torch.load(label_proba_filename)
             else:
@@ -295,69 +381,6 @@ def main(model_type='LSTM', data_dir: str = dataset_dir, lr=cfg["model"]["optimi
         #         lpa_vecs[node_id].tolist()
         # DataFrame.from_dict(node_txt2label_vec, orient='index').to_csv(labelled_source_name +
         # 'node_txt2label_vec.csv')
-
-        logger.critical('BEFORE ---------------------------------------------')
-        if model_type == 'GCN':
-            logger.info('Using GAT model')
-            train_epochs_output_dict, test_output = GCN_LSTM_trainer(
-                adj, X, train_dataloader, val_dataloader, test_dataloader,
-                in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-                epochs=cfg['training']['num_epoch'], lr=lr)
-
-        else:
-            train_epochs_output_dict, test_output = GLEN_trainer(
-                adj, X, train_dataloader, val_dataloader, test_dataloader,
-                in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-                num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
-
-        # train_epochs_output_dict, test_output = GAT_BiLSTM_trainer(
-        #     adj, X, train_dataloader, val_dataloader, test_dataloader,
-        #     in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-        #     epochs=cfg['training']['num_epoch'], lr=lr, state=None)
-
-    logger.critical('PRETRAIN ###########################################')
-
-    pretrain_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
-    data_filename = cfg['data']['name']
-    emb_filename = join(pretrain_dir, data_filename + "_pretrained_emb.pt")
-    save_path = join(pretrain_dir, cfg['data']['name'] + '_model.pt')
-    if exists(join(pretrain_dir, data_filename + '_joint_vocab.csv'))\
-            and exists(emb_filename) and exists(save_path):
-        # joint_vocab = read_json(join(pretrain_dir, data_filename + '_joint_vocab'))
-        logger.info('Accessing token graph node embeddings:')
-        X = load(emb_filename)
-        state = torch.load(save_path)
-    else:
-        state, joint_vocab, pretrain_embs = get_pretrain_artifacts(
-            epochs=cfg['pretrain']['epochs'])
-        calculate_vocab_overlap(train_vocab, joint_vocab)
-        # save_json(joint_vocab, labelled_source_path + '_joint_vocab', overwrite=True)
-        logger.info('Get node embeddings from token graph:')
-        X = g_ob.get_node_embeddings(oov_embs, glove_embs, train_vocab['idx2str_map'], pretrain_embs=pretrain_embs)
-        # X = sp_coo2torch_coo(X)
-        save(X, emb_filename)
-
-        ## Plot pretrained embeddings:
-        # C = set(glove_embs.keys()).intersection(set(pretrain_embs.keys()))
-        # logger.debug(f'Common vocab size: {len(C)}')
-        # words = ['nepal', 'italy', 'building', 'damage', 'kathmandu', 'water',
-        #          'wifi', 'need', 'available', 'earthquake']
-        # X_glove = {word: glove_embs[word] for word in words}
-        # X_gcn = {word: pretrain_embs[word].detach().cpu().numpy() for word in words}
-        # from Plotter.plot_functions import plot_vecs_color
-        #
-        # plot_vecs_color(tokens2vec=X_gcn, save_name='gcn_pretrained.pdf')
-        # plot_vecs_color(tokens2vec=X_glove, save_name='glove_pretrained.pdf')
-        # logger.debug(f'Word list: {words}')
-
-    logger.critical('AFTER None **********************************************')
-    if model_type == 'GCN':
-        logger.info('Using GAT model')
-        train_epochs_output_dict, test_output = GCN_LSTM_trainer(
-            adj, X, train_dataloader, val_dataloader, test_dataloader,
-            in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-            epochs=cfg['training']['num_epoch'], lr=lr)
-    else:
         train_epochs_output_dict, test_output = GLEN_trainer(
             adj, X, train_dataloader, val_dataloader, test_dataloader,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
