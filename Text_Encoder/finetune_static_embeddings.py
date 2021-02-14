@@ -408,7 +408,7 @@ def get_oov_tokens(dataset, dataname, data_dir, vocab, glove_embs):
 def get_oov_vecs(high_oov_tokens, corpus, dataname, data_dir, glove_embs,
                  mittens_iter=cfg['model']['mittens_iter']):
     logger.info(f'Get embeddings for OOV tokens')
-    oov_filename = dataname + '_OOV_vectors_dict_' + str(mittens_iter)
+    oov_filename = dataname + '_OOV_vectors_dict'# + str(mittens_iter)
     if exists(join(data_dir, oov_filename + '.pkl')):
         logger.info('Read OOV embeddings:')
         oov_embs = load_pickle(filepath=data_dir, filename=oov_filename)
