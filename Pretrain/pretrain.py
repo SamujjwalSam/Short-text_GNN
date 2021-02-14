@@ -370,7 +370,7 @@ def get_graph_and_dataset(limit_dataset=None):
     return dataset, G, oov_embs, joint_vocab
 
 
-def prepare_pretraining(model_type='MLP', oov_emb_filename=data_filename + '_OOV_vectors_dict',
+def prepare_pretraining(model_type='GCN', oov_emb_filename=data_filename + '_OOV_vectors_dict',
                         graph_path=join(pretrain_dir, data_filename + '_token_nx.bin'),
                         vocab_path=join(pretrain_dir, data_filename + '_joint_vocab'),
                         dataset_path=join(pretrain_dir, data_filename + '_dataset')):

@@ -33,7 +33,14 @@ from config import configuration as cfg, platform as plat, username as user, dat
 device = device('cuda' if cuda.is_available() else 'cpu')
 
 
-def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoader, epochs: int = 5, node_list=None, idx2str=None, save_epochs=cfg['pretrain']['save_epochs']):
+def eval_gcn(model, A, X):
+    model.eval()
+    X = model(A, X).detach().cpu()
+    return X
+
+
+def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoader, epochs: int = 5, node_list=None,
+              idx2str=None, save_epochs=cfg['pretrain']['save_epochs']):
     logger.info("Started GCN training...")
     train_epoch_losses = []
     for epoch in range(epochs):
@@ -61,7 +68,9 @@ def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoad
         logger.info(f'Epoch {epoch}, Time: {epoch_train_time / 60} mins, Loss: {epoch_loss}')
         train_epoch_losses.append(epoch_loss)
 
-        save_pretrained_embs(X_hat, node_list, idx2str, epoch)
+        if epoch in save_epochs:
+            X_hat = eval_gcn(model, A, X)
+            save_pretrained_embs(X_hat, node_list, idx2str, epoch)
 
     return train_epoch_losses
 
@@ -95,9 +104,7 @@ def gcn_trainer(A, X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
 
     save(state, save_path)
 
-    model.eval()
-    X_hat = model(A, X)
-    X_hat = X_hat.detach().cpu()
+    X_hat = eval_gcn(model, A, X)
 
     return epoch_losses, state, save_path, X_hat
 
