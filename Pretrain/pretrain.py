@@ -413,9 +413,11 @@ def get_pretrain_artifacts(epochs=cfg['pretrain']['epochs']):
         epochs) + '.pt')
     vocab_path = join(pretrain_dir, data_filename + '_joint_vocab')
     token_embs_path = join(pretrain_dir, str(cfg['pretrain']['epochs']) + 'token2pretrained.pt')
-    if exists(state_path) and exists(vocab_path + '.json') and exists(token_embs_path):
+    state = None
+    if exists(vocab_path + '.json') and exists(token_embs_path):
+    # if exists(state_path) and exists(vocab_path + '.json') and exists(token_embs_path):
         logger.info(f'Loading Pretraining Artifacts from [{token_embs_path}] and [{vocab_path}]')
-        state = load(state_path)
+        # state = load(state_path)
         joint_vocab = read_json(vocab_path)
         token2GCN_embs = load(token_embs_path)
     else:
