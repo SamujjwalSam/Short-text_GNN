@@ -113,6 +113,13 @@ def prepare_datasets(
     return train_dataset, test_dataset, train_vocab, test_vocab
 
 
+def clean_dataset(dataset):
+    logger.info('Check if any example has no token left after cleaning.')
+    for ex in dataset.examples:
+        if len(ex.text) == 0:
+            logger.warning(f'Examples [{ex.ids}] has no token left.')
+
+
 def prepare_splitted_datasets(
         stoi=None, vectors=None, get_iter=False, dim=cfg['embeddings']['emb_dim'],
         data_dir=dataset_dir, train_dataname=cfg["data"]["train"],
@@ -150,6 +157,8 @@ def prepare_splitted_datasets(
             labelled_data=True, embedding_file=None, embedding_dir=None)
         train_vocab.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
 
+    clean_dataset(train_dataset)
+
     ## Prepare labelled validation data:
     logger.info(f'Prepare labelled VALIDATION (source) data: {val_dataname}')
     # if val_df is None:
@@ -159,6 +168,8 @@ def prepare_splitted_datasets(
     # val_df.to_csv(join(data_dir, val_dataname))
     val_dataset, (val_vocab, val_label) = get_dataset_fields(
         csv_dir=data_dir, csv_file=val_dataname, labelled_data=True)
+
+    clean_dataset(val_dataset)
 
     ## Prepare labelled target data:
     logger.info(f'Prepare labelled TESTING (target) data: {test_dataname}')
@@ -172,6 +183,8 @@ def prepare_splitted_datasets(
     # test_df.to_csv(join(data_dir, test_dataname))
     test_dataset, (test_vocab, test_label) = get_dataset_fields(
         csv_dir=data_dir, csv_file=test_dataname, labelled_data=True)
+
+    clean_dataset(test_dataset)
 
     if get_iter:
         logger.info('Geting train, val and test iterators')
