@@ -117,10 +117,8 @@ if device.type == 'cuda':
 """
 
 
-def main(model_type='LSTM', data_dir: str = dataset_dir, lr=cfg["model"]["optimizer"]["lr"],
-         glove_embs=None, labelled_source_name: str = cfg['data']['train'],
+def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['data']['train'],
          labelled_val_name: str = cfg['data']['val'], labelled_test_name: str = cfg['data']['test']):
-    logger.critical(f'Current Learning Rate: [{lr}]')
     logger.info('Read labelled data and prepare')
     train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
@@ -138,11 +136,47 @@ def main(model_type='LSTM', data_dir: str = dataset_dir, lr=cfg["model"]["optimi
     if glove_embs is None:
         glove_embs = glove2dict()
 
-    logger.critical('BEFORE ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
-    classifier(model_type, train_dataloader, val_dataloader, test_dataloader, train_vocab,
-               train_dataset, val_dataset, test_dataset, labelled_source_name, glove_embs)
+    logger.info('Run for multiple LR')
+    lrs = [1e-2, 1e-3, 1e-4]
+    for lr in lrs:
+        logger.critical(f'Current Learning Rate: [{lr}]')
+        logger.critical('BEFORE ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader, train_vocab,
+                   train_dataset, val_dataset, test_dataset, labelled_source_name, glove_embs, lr)
 
-    logger.critical('PRETRAIN ###########################################')
+        epochs = cfg['pretrain']['save_epochs']
+        for pepoch in epochs:
+            logger.critical(f'Current Pretrain Epoch: [{pepoch}]')
+            logger.critical('PRETRAIN ###########################################')
+            token2idx_map, X = pretrain(train_dataset, train_vocab_mod, glove_embs, labelled_source_name, epoch=pepoch)
+
+            # logger.info('Plot pretrained embeddings:')
+            # C = set(glove_embs.keys()).intersection(set(pretrain_embs.keys()))
+            # logger.debug(f'Common vocab size: {len(C)}')
+            # words = ['nepal', 'italy', 'building', 'damage', 'kathmandu', 'water',
+            #          'wifi', 'need', 'available', 'earthquake']
+            # X_glove = {word: glove_embs[word] for word in words}
+            # X_gcn = {word: pretrain_embs[word].detach().cpu().numpy() for word in words}
+            # from Plotter.plot_functions import plot_vecs_color
+            #
+            # plot_vecs_color(tokens2vec=X_gcn, save_name='gcn_pretrained.pdf')
+            # plot_vecs_color(tokens2vec=X_glove, save_name='glove_pretrained.pdf')
+            # logger.debug(f'Word list: {words}')
+
+            train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+            train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+                stoi=token2idx_map, vectors=X, get_iter=True,
+                dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+                train_dataname=labelled_source_name, val_dataname=labelled_val_name,
+                test_dataname=labelled_test_name)
+
+            logger.critical('AFTER **********************************************')
+
+            classifier(model_type, train_dataloader, val_dataloader, test_dataloader, train_vocab,
+                       train_dataset, val_dataset, test_dataset, labelled_source_name, glove_embs, lr)
+
+
+def pretrain(train_dataset, train_vocab, glove_embs, labelled_source_name, epoch=cfg['pretrain']['epochs']):
     pretrain_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
     data_filename = cfg['data']['name']
     emb_filename = join(pretrain_dir, data_filename + "_pretrained_emb.pt")
@@ -150,7 +184,7 @@ def main(model_type='LSTM', data_dir: str = dataset_dir, lr=cfg["model"]["optimi
     # save_path = join(pretrain_dir, cfg['data']['name'] + '_model.pt')
     if exists(join(pretrain_dir, data_filename + '_pretrain_vocab.json'))\
             and exists(emb_filename) and exists(token2idx_filename):
-            # and exists(save_path):
+        # and exists(save_path):
         # pretrain_vocab = read_json(join(pretrain_dir, data_filename + '_pretrain_vocab'))
         logger.info('Accessing token graph node embeddings:')
         X = load(emb_filename)
@@ -158,13 +192,13 @@ def main(model_type='LSTM', data_dir: str = dataset_dir, lr=cfg["model"]["optimi
         # state = load(save_path)
     else:
         state, pretrain_vocab, pretrain_embs = get_pretrain_artifacts(
-            epochs=cfg['pretrain']['epochs'])
-        calculate_vocab_overlap(set(train_vocab_mod['str2idx_map'].keys()),
+            epochs=epoch)
+        calculate_vocab_overlap(set(train_vocab['str2idx_map'].keys()),
                                 set(pretrain_vocab['str2idx_map'].keys()))
         # save_json(pretrain_vocab, labelled_source_path + '_pretrain_vocab', overwrite=True)
         logger.info('Get token embeddings with pretrained vectors')
         high_oov, low_glove, low_oov, corpus, corpus_toks = get_oov_tokens(
-            train_dataset, labelled_source_name, data_dir, train_vocab_mod, glove_embs)
+            train_dataset, labelled_source_name, data_dir, train_vocab, glove_embs)
         oov_embs = get_oov_vecs(list(high_oov.keys()), corpus, labelled_source_name, data_dir, glove_embs)
         # X, token2idx_map = get_token_embedding(train_vocab_mod['str2idx_map'], oov_embs, glove_embs, pretrain_embs)
         X, token2idx_map = get_token_embedding(set(pretrain_embs.keys()).union(
@@ -175,35 +209,12 @@ def main(model_type='LSTM', data_dir: str = dataset_dir, lr=cfg["model"]["optimi
         # save(state, save_path)
         save_json(token2idx_map, token2idx_filename, '')
 
-    # logger.info('Plot pretrained embeddings:')
-    # C = set(glove_embs.keys()).intersection(set(pretrain_embs.keys()))
-    # logger.debug(f'Common vocab size: {len(C)}')
-    # words = ['nepal', 'italy', 'building', 'damage', 'kathmandu', 'water',
-    #          'wifi', 'need', 'available', 'earthquake']
-    # X_glove = {word: glove_embs[word] for word in words}
-    # X_gcn = {word: pretrain_embs[word].detach().cpu().numpy() for word in words}
-    # from Plotter.plot_functions import plot_vecs_color
-    #
-    # plot_vecs_color(tokens2vec=X_gcn, save_name='gcn_pretrained.pdf')
-    # plot_vecs_color(tokens2vec=X_glove, save_name='glove_pretrained.pdf')
-    # logger.debug(f'Word list: {words}')
-
-    train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
-    train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
-        stoi=token2idx_map, vectors=X, get_iter=True,
-        dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
-        train_dataname=labelled_source_name, val_dataname=labelled_val_name,
-        test_dataname=labelled_test_name)
-
-    logger.critical('AFTER **********************************************')
-
-    classifier(model_type, train_dataloader, val_dataloader, test_dataloader, train_vocab,
-               train_dataset, val_dataset, test_dataset, labelled_source_name, glove_embs)
+    return token2idx_map, X
 
 
 def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, train_vocab,
                train_dataset, val_dataset, test_dataset, dataname,
-               glove_embs=None, mittens_iter=300, use_lpa=False):
+               glove_embs=None, lr=cfg['model']['optimizer']['lr'], use_lpa=False):
     logger.info(f'Classifying examples using [{model_type}] model.')
     datapath = join(data_dir, dataname)
     if model_type == 'MLP':
@@ -618,7 +629,5 @@ if __name__ == "__main__":
 
     # train, test = split_target(test_df, test_size=0.3,
     #                            train_size=.6, stratified=False)
-    lrs = [1e-3]
-    for lr in lrs:
-        main(lr=lr)
+    main()
     logger.info("Execution complete.")
