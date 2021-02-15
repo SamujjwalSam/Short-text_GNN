@@ -25,7 +25,7 @@ from config import dataset_dir
 from Logger.logger import logger
 
 
-def load_csvs(data_dir=dataset_dir,
+def read_csvs(data_dir=dataset_dir,
               filenames=('fire16_train', 'fire16_val', 'smerp17_test')):
     """ Reads multiple csv files.
 
@@ -44,7 +44,7 @@ def load_csvs(data_dir=dataset_dir,
 
         dfs.append(df)
 
-    return dfs
+    return pd.concat(dfs)
 
 
 def read_csv(data_dir=dataset_dir, data_file='fire16_labeled_train', index_col=0,

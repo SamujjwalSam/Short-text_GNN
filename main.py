@@ -32,7 +32,7 @@ from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_p
 from Utils.utils import count_parameters, logit2label, sp_coo2torch_coo
 from Layers.bilstm_classifiers import BiLSTM_Classifier
 from Pretrain.pretrain import get_pretrain_artifacts, calculate_vocab_overlap
-# from File_Handlers.csv_handler import read_csv, load_csvs
+# from File_Handlers.csv_handler import read_csv, read_csvs
 from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 # from File_Handlers.read_datasets import load_fire16, load_smerp17
 from File_Handlers.pkl_handler import save_pickle, load_pickle
@@ -149,7 +149,7 @@ def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['da
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
         get_iter=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         train_dataname=labelled_source_name, val_dataname=labelled_val_name,
-        test_dataname=labelled_test_name)
+        test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
 
     # train_vocab_mod = train_vocab.copy()
     train_vocab_mod = {
@@ -196,7 +196,7 @@ def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['da
                 stoi=token2idx_map, vectors=X, get_iter=True,
                 dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
                 train_dataname=labelled_source_name, val_dataname=labelled_val_name,
-                test_dataname=labelled_test_name)
+                test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
 
             extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
             logger.info(f'Add {len(extra_pretrained_tokens)} extra pretrained vectors to vocab')
