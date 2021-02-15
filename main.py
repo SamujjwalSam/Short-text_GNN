@@ -117,6 +117,31 @@ if device.type == 'cuda':
 """
 
 
+def add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab):
+    """ Adds extra pretrained tokens and vectors to TorchText train vocab.
+
+    NOTE: "extra" here means tokens which are not present in train data vocab.
+
+    :param extra_pretrained_tokens:
+    :param token2idx_map:
+    :param X:
+    :param train_vocab:
+    :return:
+    """
+    extra_vecs = []
+    extra_idx_start = len(train_vocab.vocab.stoi)
+    for token in extra_pretrained_tokens:
+        extra_vecs.append(X[token2idx_map[token]])
+        train_vocab.vocab.stoi.__setitem__(token, extra_idx_start)
+        train_vocab.vocab.itos.append(token)
+        extra_idx_start += 1
+
+    extra_vecs = torch.stack(extra_vecs)
+    train_vocab.vocab.vectors = torch.cat((train_vocab.vocab.vectors, extra_vecs), 0)
+
+    return train_vocab
+
+
 def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['data']['train'],
          labelled_val_name: str = cfg['data']['val'], labelled_test_name: str = cfg['data']['test']):
     logger.info('Read labelled data and prepare')
@@ -135,6 +160,9 @@ def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['da
 
     if glove_embs is None:
         glove_embs = glove2dict()
+
+    _, _ = pretrain(train_dataset, train_vocab_mod, glove_embs,
+                    labelled_source_name, epoch=cfg['pretrain']['epoch'])
 
     logger.info('Run for multiple LR')
     lrs = [1e-2, 1e-3, 1e-4]
@@ -170,13 +198,17 @@ def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['da
                 train_dataname=labelled_source_name, val_dataname=labelled_val_name,
                 test_dataname=labelled_test_name)
 
+            extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
+            logger.info(f'Add {len(extra_pretrained_tokens)} extra pretrained vectors to vocab')
+            train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
+
             logger.critical('AFTER **********************************************')
 
             classifier(model_type, train_dataloader, val_dataloader, test_dataloader, train_vocab,
                        train_dataset, val_dataset, test_dataset, labelled_source_name, glove_embs, lr)
 
 
-def pretrain(train_dataset, train_vocab, glove_embs, labelled_source_name, epoch=cfg['pretrain']['epochs']):
+def pretrain(train_dataset, train_vocab, glove_embs, labelled_source_name, epoch=cfg['pretrain']['epoch']):
     pretrain_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
     data_filename = cfg['data']['name']
     emb_filename = join(pretrain_dir, data_filename + "_pretrained_emb.pt")

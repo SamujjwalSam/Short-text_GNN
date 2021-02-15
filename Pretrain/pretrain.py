@@ -370,7 +370,7 @@ def get_graph_and_dataset(limit_dataset=None):
     return dataset, G, oov_embs, joint_vocab
 
 
-def prepare_pretraining(model_type='GCN', oov_emb_filename=data_filename + '_OOV_vectors_dict',
+def prepare_pretraining(model_type=cfg['pretrain']['model_type'], oov_emb_filename=data_filename + '_OOV_vectors_dict',
                         graph_path=join(pretrain_dir, data_filename + '_token_nx.bin'),
                         vocab_path=join(pretrain_dir, data_filename + '_joint_vocab'),
                         dataset_path=join(pretrain_dir, data_filename + '_dataset')):
@@ -393,26 +393,26 @@ def prepare_pretraining(model_type='GCN', oov_emb_filename=data_filename + '_OOV
     if model_type == 'MLP':
         train_epochs_losses, state, save_path, X = mlp_trainer(
             X, pretrain_dataloader, in_dim=cfg['embeddings']['emb_dim'],
-            hid_dim=cfg['gnn_params']['hid_dim'], epochs=cfg['pretrain']['epochs'],
+            hid_dim=cfg['gnn_params']['hid_dim'], epochs=cfg['pretrain']['epoch'],
             lr=cfg["pretrain"]["lr"], node_list=node_list, idx2str=idx2str)
     elif model_type == 'GCN':
         train_epochs_losses, state, save_path, X = gcn_trainer(
             adj, X, pretrain_dataloader, in_dim=cfg['embeddings']['emb_dim'],
-            hid_dim=cfg['gnn_params']['hid_dim'], epochs=cfg['pretrain']['epochs'],
+            hid_dim=cfg['gnn_params']['hid_dim'], epochs=cfg['pretrain']['epoch'],
             lr=cfg["pretrain"]["lr"], node_list=node_list, idx2str=idx2str)
     else:
         raise NotImplementedError(f'[{model_type}] not found.')
 
-    token2GCN_embs = save_pretrained_embs(X, node_list, idx2str, cfg['pretrain']['epochs'])
+    token2GCN_embs = save_pretrained_embs(X, node_list, idx2str, cfg['pretrain']['epoch'])
 
     return train_epochs_losses, state, save_path, joint_vocab, token2GCN_embs
 
 
-def get_pretrain_artifacts(epochs=cfg['pretrain']['epochs']):
+def get_pretrain_artifacts(epochs=cfg['pretrain']['epoch']):
     state_path = join(pretrain_dir, cfg['data']['name'] + '_model' + str(
         epochs) + '.pt')
     vocab_path = join(pretrain_dir, data_filename + '_joint_vocab')
-    token_embs_path = join(pretrain_dir, str(cfg['pretrain']['epochs']) + 'token2pretrained.pt')
+    token_embs_path = join(pretrain_dir, str(cfg['pretrain']['epoch']) + 'token2pretrained.pt')
     state = None
     if exists(vocab_path + '.json') and exists(token_embs_path):
     # if exists(state_path) and exists(vocab_path + '.json') and exists(token_embs_path):
