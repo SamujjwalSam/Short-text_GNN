@@ -378,14 +378,14 @@ def train_mittens(coocc_ar, oov_vocabs, pre_glove, emb_dim=cfg['embeddings'][
 
 def get_oov_tokens(dataset, dataname, data_dir, vocab, glove_embs):
     datapath = join(data_dir, dataname)
-    if exists(datapath + 'high_oov.json')\
-            and exists(datapath + 'corpus.json')\
-            and exists(datapath + 'corpus_toks.json'):
-        high_oov = read_json(datapath + 'high_oov')
-        low_glove = read_json(datapath+'low_glove')
-        low_oov = read_json(datapath+'low_oov')
-        corpus = read_json(datapath + 'corpus', convert_ordereddict=False)
-        corpus_toks = read_json(datapath + 'corpus_toks', convert_ordereddict=False)
+    if exists(datapath + '_high_oov.json')\
+            and exists(datapath + '_corpus.json')\
+            and exists(datapath + '_corpus_toks.json'):
+        high_oov = read_json(datapath + '_high_oov')
+        low_glove = read_json(datapath+'_low_glove')
+        low_oov = read_json(datapath+'_low_oov')
+        corpus = read_json(datapath + '_corpus', convert_ordereddict=False)
+        corpus_toks = read_json(datapath + '_corpus_toks', convert_ordereddict=False)
         # vocab = read_json(datapath + 'vocab', convert_ordereddict=False)
     else:
         ## Get all OOVs which does not have Glove embedding:
@@ -395,11 +395,11 @@ def get_oov_tokens(dataset, dataname, data_dir, vocab, glove_embs):
         corpus, corpus_toks, _ = create_clean_corpus(dataset, low_oov)
 
         ## Save token sets: high_oov, low_glove, corpus, corpus_toks
-        save_json(high_oov, datapath + 'high_oov')
-        save_json(low_glove, datapath+'low_glove')
-        save_json(low_oov, datapath+'low_oov')
-        save_json(corpus, datapath + 'corpus')
-        save_json(corpus_toks, datapath + 'corpus_toks')
+        save_json(high_oov, datapath + '_high_oov')
+        save_json(low_glove, datapath+'_low_glove')
+        save_json(low_oov, datapath+'_low_oov')
+        save_json(corpus, datapath + '_corpus')
+        save_json(corpus_toks, datapath + '_corpus_toks')
         # save_json(vocab, datapath + 'vocab', overwrite=True)
 
     return high_oov, low_glove, low_oov, corpus, corpus_toks

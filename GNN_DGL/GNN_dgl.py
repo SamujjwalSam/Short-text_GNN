@@ -270,7 +270,7 @@ class GAT_Node_Classifier(torch.nn.Module):
 def train_node_classifier(g: DGLGraph, features: torch.Tensor,
                           labels: torch.Tensor, labelled_mask: torch.Tensor,
                           model: GAT_Node_Classifier, loss_func,
-                          optimizer, epochs: int = 5) -> None:
+                          optimizer, epoch: int = 5) -> None:
     """
 
     :param g:
@@ -280,11 +280,11 @@ def train_node_classifier(g: DGLGraph, features: torch.Tensor,
     :param model:
     :param loss_func:
     :param optimizer:
-    :param epochs:
+    :param epoch:
     """
     model.train()
     dur = []
-    for epoch in range(epochs):
+    for epoch in range(epoch):
         t0 = time.time()
         logits = model(g, features)
         logp = F.log_softmax(logits, 1)
@@ -329,7 +329,7 @@ def node_binary_classification(hid_dim: int = 4, out_dim: int = 7,
 
     optimizer = optim.Adam(net.parameters(), lr=1e-3)
     train_node_classifier(g, features, labels, labelled_mask=mask, model=net,
-                          loss_func=loss_func, optimizer=optimizer, epochs=5)
+                          loss_func=loss_func, optimizer=optimizer, epoch=5)
 
 
 def test_node_classifier():
@@ -373,11 +373,11 @@ class GAT_Graph_Classifier(torch.nn.Module):
 def train_graph_classifier(model: GAT_Graph_Classifier,
                            dataloader: torch.utils.data.dataloader.DataLoader,
                            loss_func: torch.nn.modules.loss.BCEWithLogitsLoss,
-                           optimizer, epochs: int = 5,
+                           optimizer, epoch: int = 5,
                            eval_dataloader: torch.utils.data.dataloader.DataLoader = None):
     train_epoch_losses = []
     train_epoch_dict = OrderedDict()
-    for epoch in range(epochs):
+    for epoch in range(epoch):
         model.train()
         epoch_loss = 0
         preds = []
@@ -458,7 +458,7 @@ def test_graph_classifier(model: GAT_Graph_Classifier, loss_func,
 
 def graph_multilabel_classification(
         gdh, in_dim: int = 100, hid_dim: int = 50, num_heads: int = 2,
-        epochs=cfg['training']['num_epoch']):
+        epoch=cfg['training']['num_epoch']):
     model = GAT_Graph_Classifier(in_dim, hid_dim, num_heads=num_heads,
                                  out_dim=gdh.num_classes)
     logger.info(model)
@@ -468,7 +468,7 @@ def graph_multilabel_classification(
 
     epoch_losses, train_epochs_output_dict = train_graph_classifier(
         model, gdh.train_dataloader(), loss_func=loss_func,
-        optimizer=optimizer, epochs=epochs,
+        optimizer=optimizer, epoch=epoch,
         eval_dataloader=gdh.test_dataloader())
 
     losses, test_output = test_graph_classifier(model, loss_func=loss_func,
@@ -498,7 +498,7 @@ def graph_multiclass_classification(in_dim: int = 1, hid_dim: int = 4, num_heads
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     epoch_losses, epoch_predictions_dict = train_graph_classifier(
-        model, dataloader, loss_func=loss_func, optimizer=optimizer, epochs=5)
+        model, dataloader, loss_func=loss_func, optimizer=optimizer, epoch=5)
 
 
 def main():

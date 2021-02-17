@@ -38,14 +38,14 @@ if cuda.is_available():
 
 
 def train_GCN_LSTM(model, A, X, dataloader: utils.data.dataloader.DataLoader,
-                   loss_func: nn.modules.loss.BCEWithLogitsLoss, optimizer, epochs: int = 5,
+                   loss_func: nn.modules.loss.BCEWithLogitsLoss, optimizer, epoch: int = 5,
                    eval_dataloader: utils.data.dataloader.DataLoader = None,
                    test_dataloader: utils.data.dataloader.DataLoader = None,
                    n_classes=cfg['data']['num_classes']):
     logger.info("Started training...")
     train_epoch_losses = []
     train_epoch_dict = OrderedDict()
-    for epoch in range(epochs):
+    for epoch in range(epoch):
         model.train()
         epoch_loss = 0
         preds = []
@@ -187,7 +187,7 @@ def eval_GCN_LSTM(model: GCN_BiLSTM_Classifier, A, X, loss_func,
 
 def GCN_LSTM_trainer(
         A, X, train_dataloader, val_dataloader, test_dataloader, in_dim: int = 100,
-        hid_dim: int = 50, epochs=cfg['training']['num_epoch'],
+        hid_dim: int = 50, epoch=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"], state=None):
     # train_dataloader, test_dataloader = dataloaders
     model = GCN_BiLSTM_Classifier(
@@ -206,7 +206,7 @@ def GCN_LSTM_trainer(
 
     epoch_losses, train_epochs_output_dict = train_GCN_LSTM(
         model, A, X, train_dataloader, loss_func=loss_func,
-        optimizer=optimizer, epochs=epochs, eval_dataloader=val_dataloader,
+        optimizer=optimizer, epoch=epoch, eval_dataloader=val_dataloader,
         test_dataloader=test_dataloader)
 
     start_time = timeit.default_timer()

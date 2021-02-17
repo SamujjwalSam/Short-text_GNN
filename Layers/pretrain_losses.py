@@ -102,7 +102,7 @@ def contrastive_distance(x, x_pos, x_neg, delta=0.6):
 
 
 if __name__ == "__main__":
-    epochs = 5
+    epoch = 5
     d = 2
     w = 3
     n = d + w

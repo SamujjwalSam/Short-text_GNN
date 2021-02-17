@@ -20,7 +20,7 @@ __license__     : "This source code is licensed under the MIT-style license
 import random
 import numpy as np
 import pandas as pd
-from torch import cuda, save, load, device, manual_seed, backends
+from torch import cuda, save, load, device, manual_seed, backends, from_numpy
 from torch.utils.data import Dataset
 from networkx import adjacency_matrix
 from os import environ
@@ -393,12 +393,12 @@ def prepare_pretraining(model_type=cfg['pretrain']['model_type'], oov_emb_filena
     if model_type == 'MLP':
         train_epochs_losses, state, save_path, X = mlp_trainer(
             X, pretrain_dataloader, in_dim=cfg['embeddings']['emb_dim'],
-            hid_dim=cfg['gnn_params']['hid_dim'], epochs=cfg['pretrain']['epoch'],
+            hid_dim=cfg['gnn_params']['hid_dim'], epoch=cfg['pretrain']['epoch'],
             lr=cfg["pretrain"]["lr"], node_list=node_list, idx2str=idx2str)
     elif model_type == 'GCN':
         train_epochs_losses, state, save_path, X = gcn_trainer(
             adj, X, pretrain_dataloader, in_dim=cfg['embeddings']['emb_dim'],
-            hid_dim=cfg['gnn_params']['hid_dim'], epochs=cfg['pretrain']['epoch'],
+            hid_dim=cfg['gnn_params']['hid_dim'], epoch=cfg['pretrain']['epoch'],
             lr=cfg["pretrain"]["lr"], node_list=node_list, idx2str=idx2str)
     else:
         raise NotImplementedError(f'[{model_type}] not found.')
@@ -408,9 +408,9 @@ def prepare_pretraining(model_type=cfg['pretrain']['model_type'], oov_emb_filena
     return train_epochs_losses, state, save_path, joint_vocab, token2GCN_embs
 
 
-def get_pretrain_artifacts(epochs=cfg['pretrain']['epoch']):
+def get_pretrain_artifacts(epoch=cfg['pretrain']['epoch']):
     state_path = join(pretrain_dir, cfg['data']['name'] + '_model' + str(
-        epochs) + '.pt')
+        epoch) + '.pt')
     vocab_path = join(pretrain_dir, data_filename + '_joint_vocab')
     token_embs_path = join(pretrain_dir, str(cfg['pretrain']['epoch']) + 'token2pretrained.pt')
     state = None

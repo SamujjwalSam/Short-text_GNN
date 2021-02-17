@@ -27,10 +27,10 @@ from Layers.pretrain_losses import supervised_contrastive_loss
 from Layers.mlp_classifier import MLP_Model
 from Utils.utils import count_parameters, save_pretrained_embs
 from Logger.logger import logger
-from config import configuration as cfg, platform as plat, username as user
+from config import configuration as cfg, platform as plat, username as user, pretrain_dir
 
 device = device('cuda' if cuda.is_available() else 'cpu')
-pretrain_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
+# pretrain_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['pretrain']['name'])
 
 
 def eval_mlp(model, X):
@@ -50,15 +50,15 @@ def eval_mlp(model, X):
     return X
 
 
-def train_mlp(model, X, optimizer, dataloader: utils.data.dataloader.DataLoader, epochs: int = 5, node_list=None, idx2str=None, save_epochs=cfg['pretrain']['save_epochs']):
-    logger.info(f"Started MLP training for {epochs} epochs.")
+def train_mlp(model, X, optimizer, dataloader: utils.data.dataloader.DataLoader, epoch: int = 5, node_list=None, idx2str=None, save_epochs=cfg['pretrain']['save_epochs']):
+    logger.info(f"Started MLP training for {epoch} epoch.")
     train_epoch_losses = []
     train_epoch_embs = []
     train_epoch_weights = []
     params, grads = None, None
     x_hat_old = None
     model.train()
-    for epoch in range(epochs):
+    for epoch in range(epoch):
         epoch_loss = 0
         epoch_start_time = timeit.default_timer()
         loss = 0
@@ -113,7 +113,7 @@ def train_mlp(model, X, optimizer, dataloader: utils.data.dataloader.DataLoader,
 
 
 def mlp_trainer(X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
-                epochs=cfg['training']['num_epoch'], lr=cfg["pretrain"]["lr"],node_list=None, idx2str=None):
+                epoch=cfg['training']['num_epoch'], lr=cfg["pretrain"]["lr"],node_list=None, idx2str=None):
     model = MLP_Model(in_dim=in_dim, hid_dim=hid_dim, out_dim=in_dim, num_layer=2)
 
     logger.info(model)
@@ -126,16 +126,16 @@ def mlp_trainer(X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     epoch_losses = train_mlp(
-        model, X, optimizer, train_dataloader, epochs=epochs, node_list=node_list, idx2str=idx2str)
+        model, X, optimizer, train_dataloader, epoch=epoch, node_list=node_list, idx2str=idx2str)
 
     # https://stackoverflow.com/a/49078976/2794244
     state = {
-        'epoch':      epochs,
+        'epoch':      epoch,
         'state_dict': model.state_dict(),
         'optimizer':  optimizer.state_dict(),
     }
     save_path = join(join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name']),
-                     cfg['data']['name'] + '_model' + str(epochs) + '.pt')
+                     cfg['data']['name'] + '_model' + str(epoch) + '.pt')
 
     save(state, save_path)
 

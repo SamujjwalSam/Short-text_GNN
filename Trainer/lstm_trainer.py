@@ -39,14 +39,15 @@ if cuda.is_available():
 
 def train_lstm_classifier(
         model, dataloader: utils.data.dataloader.DataLoader,
-        loss_func: nn.modules.loss.BCEWithLogitsLoss, optimizer, epochs: int = 5,
+        loss_func: nn.modules.loss.BCEWithLogitsLoss, optimizer,
+        epoch: int = cfg['training']['num_epoch'],
         eval_dataloader: utils.data.dataloader.DataLoader = None,
         test_dataloader: utils.data.dataloader.DataLoader = None,
         n_classes=cfg['data']['num_classes']):
-    logger.info(f"Started training for {epochs} Epochs: ")
+    logger.info(f"Started training for {epoch} epoch: ")
     train_epoch_losses = []
     train_epoch_dict = OrderedDict()
-    for epoch in range(epochs):
+    for epoch in range(epoch):
         model.train()
         epoch_loss = 0
         preds = []
@@ -81,6 +82,9 @@ def train_lstm_classifier(
         epoch_loss /= (iter + 1)
         train_time = timeit.default_timer() - start_time
         logger.info(f"Epoch {epoch}, time: {train_time / 60} mins, loss: {epoch_loss}")
+
+        save_model_state(model, epoch, optimizer)
+
         val_losses, val_output = eval_lstm_classifier(
             model, loss_func=loss_func, dataloader=eval_dataloader)
         logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
@@ -119,7 +123,10 @@ def train_lstm_classifier(
 
 def eval_lstm_classifier(model: BiLSTM_Classifier, loss_func,
                          dataloader: utils.data.dataloader.DataLoader,
-                         n_classes=cfg['data']['num_classes']):
+                         n_classes=cfg['data']['num_classes'], use_saved=True, epoch=cfg['training']['num_epoch']):
+    if use_saved:
+        model = load_model_state(model, epoch)
+
     model.eval()
     preds = []
     trues = []
@@ -171,12 +178,12 @@ def eval_lstm_classifier(model: BiLSTM_Classifier, loss_func,
 
 def LSTM_trainer(
         train_dataloader, val_dataloader, test_dataloader, vectors, in_dim: int = 100,
-        hid_dim: int = 50, epochs=cfg['training']['num_epoch'],
+        hid_dim: int = 50, epoch=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"]):
     # train_dataloader, test_dataloader = dataloaders
     model = BiLSTM_Emb_Classifier(
         vocab_size=vectors.shape[0], in_dim=in_dim, hid_dim=hid_dim, out_dim=cfg["data"]["num_classes"])
-        # in_dim=in_dim, out_dim=cfg["data"]["num_classes"], hid_dim=hid_dim)
+    # in_dim=in_dim, out_dim=cfg["data"]["num_classes"], hid_dim=hid_dim)
     logger.info(model)
     count_parameters(model)
 
@@ -188,19 +195,30 @@ def LSTM_trainer(
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
-    ## Load optimizer state and params:
-    # if state is not None:
-    #     optimizer.load_state_dict(state['optimizer'])
+    model_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
+    saved_model = load_model_state(model, epoch=epoch, optimizer=optimizer,
+                                   model_dir=model_dir,
+                                   # sub_dir=''
+                                   )
 
-    epoch_losses, train_epochs_output_dict = train_lstm_classifier(
-        model, train_dataloader, loss_func=loss_func,
-        optimizer=optimizer, epochs=epochs, eval_dataloader=val_dataloader,
-        test_dataloader=test_dataloader)
+    train_epochs_output_dict = None
+    if not saved_model:
+        epoch_losses, train_epochs_output_dict = train_lstm_classifier(
+            model, train_dataloader, loss_func=loss_func,
+            optimizer=optimizer, epoch=epoch, eval_dataloader=val_dataloader,
+            test_dataloader=test_dataloader)
 
-    start_time = timeit.default_timer()
-    losses, test_output = eval_lstm_classifier(
-        model, loss_func=loss_func, dataloader=test_dataloader)
-    test_time = timeit.default_timer() - start_time
+    if saved_model:
+        start_time = timeit.default_timer()
+        losses, test_output = eval_lstm_classifier(
+            saved_model, loss_func=loss_func, dataloader=test_dataloader)
+        test_time = timeit.default_timer() - start_time
+    else:
+        start_time = timeit.default_timer()
+        losses, test_output = eval_lstm_classifier(
+            model, loss_func=loss_func, dataloader=test_dataloader)
+        test_time = timeit.default_timer() - start_time
+
     test_count = test_dataloader.dataset.__len__()
     logger.info(f"Total inference time for [{test_count}] examples: [{test_time} sec]"
                 f"\nPer example: [{test_time / test_count} sec]")

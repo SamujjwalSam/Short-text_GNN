@@ -124,7 +124,7 @@ def prepare_splitted_datasets(
         stoi=None, vectors=None, get_iter=False, dim=cfg['embeddings']['emb_dim'],
         data_dir=dataset_dir, train_dataname=cfg["data"]["train"],
         val_dataname=cfg["data"]["val"], test_dataname=cfg["data"]["test"],
-        use_all_data=False):
+        use_all_data=False, min_freq=cfg["data"]["min_freq"]):
     """ Creates train and test dataset from df and returns data loader.
 
     :param use_all_data: Uses all disaster data for training if True
@@ -155,11 +155,11 @@ def prepare_splitted_datasets(
     if stoi is None:
         logger.critical('Setting default GLOVE vectors:')
         train_dataset, (train_vocab, train_label) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=train_dataname, min_freq=1, labelled_data=True)
+            csv_dir=data_dir, csv_file=train_dataname, min_freq=min_freq, labelled_data=True)
     else:
         logger.critical('Setting custom vectors:')
         train_dataset, (train_vocab, train_label) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=train_dataname, min_freq=1,
+            csv_dir=data_dir, csv_file=train_dataname, min_freq=min_freq,
             labelled_data=True, embedding_file=None, embedding_dir=None)
         train_vocab.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
 

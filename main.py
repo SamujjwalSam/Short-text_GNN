@@ -28,8 +28,8 @@ from os import environ
 from os.path import join, exists
 from json import dumps
 
-from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_propagation
-from Utils.utils import count_parameters, logit2label, sp_coo2torch_coo
+# from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_propagation
+from Utils.utils import count_parameters, logit2label, sp_coo2torch_coo, save_pretrained_embs
 from Layers.bilstm_classifiers import BiLSTM_Classifier
 from Pretrain.pretrain import get_pretrain_artifacts, calculate_vocab_overlap
 # from File_Handlers.csv_handler import read_csv, read_csvs
@@ -49,9 +49,10 @@ from Trainer.mlp_trainer import MLP_trainer
 from Text_Encoder.finetune_static_embeddings import glove2dict, get_oov_vecs,\
     train_mittens, preprocess_and_find_oov2, create_clean_corpus, get_oov_tokens
 from Trainer.trainer import trainer, predict_with_label
-from Plotter.plot_functions import plot_training_loss
+# from Plotter.plot_functions import plot_training_loss
 from Metrics.metrics import calculate_performance_pl
-from config import configuration as cfg, platform as plat, username as user, dataset_dir
+from config import configuration as cfg, platform as plat, username as user, \
+    dataset_dir, pretrain_dir
 from Logger.logger import logger
 
 ## Enable multi GPU cuda environment:
@@ -253,13 +254,13 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, tr
         train_epochs_output_dict, test_output = MLP_trainer(
             train_dataloader, val_dataloader, test_dataloader,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-            epochs=cfg['training']['num_epoch'], lr=lr)
+            epoch=cfg['training']['num_epoch'], lr=lr)
 
     elif model_type == 'LSTM':
         train_epochs_output_dict, test_output = LSTM_trainer(
             train_dataloader, val_dataloader, test_dataloader, vectors=train_vocab.vocab.vectors,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-            epochs=cfg['training']['num_epoch'], lr=lr)
+            epoch=cfg['training']['num_epoch'], lr=lr)
 
     elif model_type == 'GAT':
         logger.info('Create GAT dataloader')
@@ -271,7 +272,7 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, tr
         train_epochs_output_dict, test_output = GAT_BiLSTM_trainer(
             train_dataloader, val_dataloader, test_dataloader,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-            num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
+            num_heads=cfg['gnn_params']['num_heads'], epoch=cfg['training']['num_epoch'], lr=lr)
 
     else:
         logger.info(f'Creating token graph for model: [{model_type}]')
@@ -319,7 +320,7 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, tr
                 and exists(datapath + 'T_corpus_toks.json'):
             # S_high_oov = read_json(datapath + 'S_high_oov')
             # T_high_oov = read_json(datapath + 'T_high_oov')
-            # low_glove = read_json(labelled_source_name+'low_glove')
+            # low_glove = read_json(labelled_source_name+'_low_glove')
             S_corpus = read_json(datapath + 'S_corpus', convert_ordereddict=False)
             T_corpus = read_json(datapath + 'T_corpus', convert_ordereddict=False)
             S_corpus_toks = read_json(datapath + 'S_corpus_toks', convert_ordereddict=False)
@@ -427,7 +428,7 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, tr
         train_epochs_output_dict, test_output = GLEN_trainer(
             adj, X, train_dataloader, val_dataloader, test_dataloader,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-            num_heads=cfg['gnn_params']['num_heads'], epochs=cfg['training']['num_epoch'], lr=lr)
+            num_heads=cfg['gnn_params']['num_heads'], epoch=cfg['training']['num_epoch'], lr=lr)
 
 
 def get_graph_dataloader(model_type, train_dataset, val_dataset, test_dataset,
@@ -569,8 +570,8 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
     model_best, val_preds_trues_best, val_preds_trues_all, losses = trainer(
         model, train_iter, val_iter, N_EPOCHS=epoch, lr=lr)
 
-    plot_training_loss(losses['train'], losses['val'],
-                       plot_name='loss' + str(epoch) + str(lr))
+    # plot_training_loss(losses['train'], losses['val'],
+    #                    plot_name='loss' + str(epoch) + str(lr))
 
     if cls_thresh is None:
         cls_thresh = [default_thresh] * n_classes
@@ -593,7 +594,7 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
 
 
 def get_supervised_result(model, train_iterator, val_iterator, test_iterator,
-                          EPOCHS=5, cls_thresh=None, n_classes=cfg['data']['num_classes']):
+                          epoch=5, cls_thresh=None, n_classes=cfg['data']['num_classes']):
     """ Train and Predict on full supervised mode.
 
     Returns:
@@ -601,7 +602,7 @@ def get_supervised_result(model, train_iterator, val_iterator, test_iterator,
     """
 
     model_best, val_preds_trues_best, val_preds_trues_all, losses = trainer(
-        model, train_iterator, val_iterator, N_EPOCHS=EPOCHS)
+        model, train_iterator, val_iterator, N_EPOCHS=epoch)
 
     # logger.debug(losses)
 

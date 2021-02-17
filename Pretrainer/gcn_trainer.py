@@ -76,35 +76,42 @@ def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoad
 
 
 def gcn_trainer(A, X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
-                epochs=cfg['training']['num_epoch'], lr=cfg["pretrain"]["lr"], node_list=None, idx2str=None):
+                epoch=cfg['training']['num_epoch'], lr=cfg["pretrain"]["lr"], node_list=None, idx2str=None):
     model = GCN(in_dim=in_dim, hid_dim=hid_dim, out_dim=hid_dim)
     # model = MLP_Model(in_dim=in_dim, hid_dim=hid_dim, out_dim=hid_dim)
 
     logger.info(model)
     count_parameters(model)
 
-    model.to(device)
-    A = A.to(device)
-    X = X.to(device)
+    if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+        model.to(device)
+        A = A.to(device)
+        X = X.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
-    epoch_losses = train_gcn(
-        model, A, X, optimizer, train_dataloader, epochs=epochs, node_list=node_list, idx2str=idx2str)
+    model_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
+    saved_model = load_model_state(model, epoch=epoch, optimizer=optimizer,
+                                   model_dir=model_dir, sub_dir='pretrained')
+    epoch_losses = None
+    if not saved_model:
+        epoch_losses = train_gcn(
+            model, A, X, optimizer, train_dataloader, epoch=epoch, node_list=node_list, idx2str=idx2str)
 
-    # https://stackoverflow.com/a/49078976/2794244
-    state = {
-        'epoch':      epochs,
-        'state_dict': model.state_dict(),
-        'optimizer':  optimizer.state_dict(),
-    }
-    save_path = join(join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name']),
-                     cfg['data']['name'] + '_model' + str(
-                         epochs) + '.pt')
+        # https://stackoverflow.com/a/49078976/2794244
+        state = {
+            'epoch':      epoch,
+            'state_dict': model.state_dict(),
+            'optimizer':  optimizer.state_dict(),
+        }
+        save_path = join(join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name']),
+                         cfg['data']['name'] + '_model' + str(epoch) + '.pt')
 
-    save(state, save_path)
-
-    X_hat = eval_gcn(model, A, X)
+        save(state, save_path)
+    if saved_model:
+        X_hat = eval_gcn(saved_model, A, X)
+    else:
+        X_hat = eval_gcn(model, A, X)
 
     return epoch_losses, state, save_path, X_hat
 

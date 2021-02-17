@@ -39,14 +39,14 @@ if cuda.is_available():
 
 def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
                loss_func: nn.modules.loss.BCEWithLogitsLoss,
-               optimizer, epochs: int = 5,
+               optimizer, epoch: int = 5,
                eval_dataloader: utils.data.dataloader.DataLoader = None,
                test_dataloader: utils.data.dataloader.DataLoader = None,
                n_classes=cfg['data']['num_classes']):
     logger.info("Started training...")
     train_epoch_losses = []
     train_epoch_dict = OrderedDict()
-    for epoch in range(epochs):
+    for epoch in range(epoch):
         model.train()
         epoch_loss = 0
         preds = []
@@ -188,7 +188,7 @@ def eval_glen(model: GLEN_Classifier, G, X, loss_func,
 
 def GLEN_trainer(
         G, X, train_dataloader, val_dataloader, test_dataloader, in_dim: int = 100,
-        hid_dim: int = 50, num_heads: int = 2, epochs=cfg['training']['num_epoch'],
+        hid_dim: int = 50, num_heads: int = 2, epoch=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
         n_classes=cfg['data']['num_classes'], state=None):
     # train_dataloader, test_dataloader = dataloaders
@@ -211,7 +211,7 @@ def GLEN_trainer(
 
     epoch_losses, train_epochs_output_dict = train_glen(
         model, G, X, train_dataloader, loss_func=loss_func, optimizer=optimizer,
-        epochs=epochs, eval_dataloader=val_dataloader, test_dataloader=test_dataloader)
+        epoch=epoch, eval_dataloader=val_dataloader, test_dataloader=test_dataloader)
 
     start_time = timeit.default_timer()
     losses, test_output = eval_glen(model, G, X, loss_func=loss_func,

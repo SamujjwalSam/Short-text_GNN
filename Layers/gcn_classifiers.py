@@ -184,7 +184,7 @@ class GCN(torch.nn.Module):
 
 
 if __name__ == "__main__":
-    epochs = 5
+    epoch = 5
     d = 2
     w = 3
     n = d+w
