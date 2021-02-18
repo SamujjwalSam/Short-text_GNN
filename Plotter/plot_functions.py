@@ -17,7 +17,7 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
-import umap
+# import umap
 import statistics
 import numpy as np
 import networkx as nx
@@ -148,7 +148,7 @@ def plot_training_loss(training_losses: list, val_losses: list,
     :param training_losses:
     :param val_losses:
     """
-    # Create count of the number of epochs
+    # Create count of the number of epoch
     epoch_count = range(1, len(training_losses) + 1)
 
     fig, ax = plt.subplots()
@@ -304,7 +304,7 @@ def plot_graph(G: nx.Graph, plot_name: str = 'H.png', labels: dict = None):
 def plot_occurance(losses: list, title="Losses", ylabel="Loss", xlabel="Epoch", clear=True, log_scale=False,
                    plot_name=None,
                    plot_dir="", show_plot=False):
-    """ Plots the validation loss against epochs.
+    """ Plots the validation loss against epoch.
 
     :param plot_name:
     :param plot_dir:

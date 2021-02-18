@@ -20,13 +20,13 @@ __license__     : "This source code is licensed under the MIT-style license
 import timeit
 # import numpy as np
 from os.path import join
-from torch import utils, cuda, save, load, device  # , stack, norm, sum, Tensor
+from torch import utils, cuda, save, load, device
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from Layers.pretrain_losses import supervised_contrastive_loss
 from Layers.gcn_classifiers import GCN
-from Utils.utils import count_parameters, save_pretrained_embs
+from Utils.utils import count_parameters, save_model_state, load_model_state, save_token2pretrained_embs
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user, dataset_dir
 
@@ -69,8 +69,10 @@ def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoad
         train_epoch_losses.append(epoch_loss)
 
         if epoch in save_epochs:
-            X_hat = eval_gcn(model, A, X)
-            save_pretrained_embs(X_hat, node_list, idx2str, epoch)
+            X_hat_eval = eval_gcn(model, A, X)
+            # token2pretrained_embs = get_token2pretrained_embs(X_hat, node_list, idx2str)
+            save_token2pretrained_embs(X_hat_eval, node_list, idx2str, epoch=epoch)
+            logger.info(f'Saved pretrained embeddings for epoch {epoch}')
 
     return train_epoch_losses
 
@@ -95,19 +97,11 @@ def gcn_trainer(A, X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
                                    model_dir=model_dir, sub_dir='pretrained')
     epoch_losses = None
     if not saved_model:
-        epoch_losses = train_gcn(
-            model, A, X, optimizer, train_dataloader, epoch=epoch, node_list=node_list, idx2str=idx2str)
+        epoch_losses = train_gcn(model, A, X, optimizer, train_dataloader,
+                                 epochs=epoch, node_list=node_list, idx2str=idx2str)
 
-        # https://stackoverflow.com/a/49078976/2794244
-        state = {
-            'epoch':      epoch,
-            'state_dict': model.state_dict(),
-            'optimizer':  optimizer.state_dict(),
-        }
-        save_path = join(join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name']),
-                         cfg['data']['name'] + '_model' + str(epoch) + '.pt')
+        save_model_state(model, 'GCN', epoch, optimizer)
 
-        save(state, save_path)
     if saved_model:
         X_hat = eval_gcn(saved_model, A, X)
     else:

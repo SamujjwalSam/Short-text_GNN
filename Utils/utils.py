@@ -22,7 +22,8 @@ import pandas as pd
 import numpy as np
 import scipy.sparse as sp
 from functools import partial
-from os.path import join
+from os import mkdir, makedirs
+from os.path import join, exists
 from collections import OrderedDict, Counter
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
@@ -30,8 +31,8 @@ from skmultilearn.model_selection import IterativeStratification
 from skmultilearn.model_selection.measures import\
     get_combination_wise_output_matrix
 
-from config import configuration as cfg, dataset_dir, pretrain_dir
-from File_Handlers.json_handler import read_labelled_json
+from config import configuration as cfg, dataset_dir, pretrain_dir, platform as plat, username as user
+from File_Handlers.json_handler import read_labelled_json, read_json
 from Text_Processesor.tweet_normalizer import normalizeTweet
 from Logger.logger import logger
 
@@ -367,28 +368,114 @@ def merge_dicts(*dict_args):
     return result
 
 
-def save_model(model, saved_model_name='tweet_bilstm', saved_model_dir=dataset_dir):
-    try:
-        torch.save(model.state_dict(), join(saved_model_dir, saved_model_name))
-    except Exception as e:
-        logger.fatal(
-            "Could not save model at [{}] due to Error: [{}]".format(join(
-                saved_model_dir, saved_model_name), e))
-        return False
-    return True
+def save_model(model, epoch=cfg['training']['num_epoch'], optimizer=None,
+               model_dir=join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])):
+    """ Saves the whole model and optimizer
+
+    :param epoch:
+    :param model_dir:
+    :return:
+    """
+    logger.info(f'Saving model and optimizer after {epoch} epoch.')
+    state = {
+        'epoch': epoch,
+        'model': model,
+    }
+
+    if optimizer is not None:
+        state['optimizer'] = optimizer,
+
+    model_dir = join(model_dir, str(epoch))
+    if not exists(model_dir):
+        mkdir(model_dir)
+    model_save_path = join(model_dir, cfg['data']['name'] + '_model.pt')
+    torch.save(state, model_save_path)
+    logger.info(f'Saved model at [{model_save_path}]')
 
 
-def load_model(model, saved_model_name='tweet_bilstm', saved_model_dir=dataset_dir):
-    try:
-        model.load_state_dict(
-            torch.load(join(saved_model_dir, saved_model_name)))
-    except Exception as e:
-        logger.fatal(
-            "Could not load model from [{}] due to Error: [{}]".format(join(
-                saved_model_dir, saved_model_name), e))
-        return False
-    model.eval()
-    return model
+def load_model(epoch=cfg['training']['num_epoch'],
+               model_dir=join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])):
+    """ Loads a model with optimizer
+
+    :param epoch:
+    :param model_dir:
+    :return:
+    """
+    model_dir = join(model_dir, str(epoch))
+    model_save_path = join(model_dir, cfg['data']['name'] + '_model.pt')
+    if exists(model_save_path):
+        logger.info(f'Loading model with epoch {epoch} from [{model_save_path}]')
+        state = torch.load(model_save_path)
+
+        model = state['model']
+
+        if state['optimizer'] is not None:
+            optimizer = state['optimizer']
+            logger.info(f'Loaded model and optimizer from [{model_save_path}]')
+            return model, optimizer
+        logger.info(f'Optimizer not found, loaded model from [{model_save_path}]')
+        return model
+
+
+def save_model_state(model, model_type=cfg['model']['type'], epoch=cfg['training']['num_epoch'], optimizer=None,
+                     model_dir=join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name']),
+                     sub_dir='trained'):
+    """ Save state dict of model and optimizer params
+
+    :param sub_dir:
+    :param model_type:
+    :param model:
+    :param epoch:
+    :param optimizer:
+    :param model_dir:
+    """
+    logger.info(f'Saving model and optimizer STATE after {epoch} epoch.')
+    state = {
+        'epoch':      epoch,
+        'state_dict': model.state_dict(),
+    }
+
+    if optimizer is not None:
+        state['optimizer_state'] = optimizer.state_dict(),
+
+    model_dir = join(model_dir, sub_dir, model_type, str(epoch))
+    if not exists(model_dir):
+        makedirs(model_dir)
+    model_save_path = join(model_dir, cfg['data']['name'] + '_model_state.pt')
+    torch.save(state, model_save_path)
+    logger.info(f'Saved model STATE at [{model_save_path}]')
+
+
+def load_model_state(model, model_type=cfg['model']['type'], epoch=cfg['training']['num_epoch'], optimizer=None,
+                     model_dir=join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name']),
+                     sub_dir='trained'):
+    """ Loads state dict to model and optimizer
+
+    :param sub_dir:
+    :param model_type:
+    :param model:
+    :param epoch:
+    :param optimizer:
+    :param model_dir:
+    """
+    model_dir = join(model_dir, sub_dir, model_type, str(epoch-1))
+    model_save_path = join(model_dir, cfg['data']['name'] + '_model_state.pt')
+    if exists(model_save_path):
+        logger.info(f'Loading model STATE with epoch {epoch} from [{model_save_path}]')
+        state = torch.load(model_save_path)
+
+        try:
+            model.load_state_dict(state['state_dict'])
+
+            if optimizer is not None and state['optimizer_state'] is not None:
+                optimizer.load_state_dict(state['optimizer_state'][0])
+        except RuntimeError as e:
+            logger.error(e)
+            return False
+        logger.info(f'Loaded model STATE from [{model_save_path}]')
+        return model
+
+    return False
 
 
 from networkx.readwrite.gpickle import write_gpickle, read_gpickle
@@ -439,18 +526,61 @@ def print_norms(model, params_old=None, grads_old=None):
     return params, grads
 
 
-def save_pretrained_embs(X: np.ndarray, node_list, idx2str, epoch):
-    logger.info(f'Saving token to pretrained emb mapping for epoch [{epoch}]')
-    # G_node_list = list(G.G.nodes)
-    token2GCN_embs = {}
+def get_token2pretrained_embs(X: torch.tensor, node_list, idx2str):
+    X = torch.from_numpy(X)
+    token2pretrained_embs = {}
     for node_id in node_list:
-        token2GCN_embs[idx2str[node_id]] = X[node_id]
+        token2pretrained_embs[idx2str[node_id]] = X[node_id]
 
-    savepath = join(pretrain_dir, str(epoch) + 'token2pretrained.pt')
-    logger.info(f'Saving pretrained embs at [{savepath}]')
-    torch.save(token2GCN_embs, savepath)
+    return token2pretrained_embs
 
-    return token2GCN_embs
+
+def save_token2pretrained_embs(
+        X: torch.tensor, ordered_tokens, idx2str, epoch,
+        pretrainedX_path=join(pretrain_dir, 'pretrained', 'X_'),
+        token2pretrained_path=join(pretrain_dir, 'pretrained', 'token2pretrained_')):
+    """ Saves pretrained vectors in 2 formats.
+
+    :param X:
+    :param ordered_tokens:
+    :param idx2str:
+    :param epoch:
+    :param pretrainedX_path:
+    :param token2pretrained_path:
+    :return:
+    """
+    logger.info(f'Saving pretrained embs for epoch [{epoch}]')
+    # G_node_list = list(G.G.nodes)
+    pretrainedX_path = pretrainedX_path + str(epoch) + '.pt'
+    X = torch.from_numpy(X)
+    torch.save(X, pretrainedX_path)
+    logger.info(f'Saved pretrained_X at [{pretrainedX_path}]')
+
+    token2pretrained_path = token2pretrained_path + str(epoch) + '.pt'
+    token2pretrained_embs = {}
+    for node_id in ordered_tokens:
+        token2pretrained_embs[idx2str[node_id]] = X[node_id]
+
+    torch.save(token2pretrained_embs, token2pretrained_path)
+    logger.info(f'Saved token2pretrained at [{token2pretrained_path}]')
+
+
+def load_token2pretrained_embs(
+        epoch, pretrainedX_path=join(pretrain_dir, 'pretrained', 'X_'),
+        token2pretrained_path=join(pretrain_dir, 'pretrained', 'token2pretrained_')):
+    ## Reduce epoch value as idx starts from 0:
+    epoch = epoch-1
+
+    logger.info(f'Loading saved pretrained embs for epoch [{epoch}]')
+    pretrainedX_path = pretrainedX_path + str(epoch) + '.pt'
+    X = torch.load(pretrainedX_path)
+    logger.info(f'Loaded X at [{pretrainedX_path}]')
+
+    token2pretrained_path = token2pretrained_path + str(epoch) + '.pt'
+    token2pretrained_embs = torch.load(token2pretrained_path)
+    logger.info(f'Loaded token2pretrained from [{token2pretrained_path}]')
+
+    return X, token2pretrained_embs
 
 
 def main():

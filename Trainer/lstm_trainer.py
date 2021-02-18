@@ -18,8 +18,9 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import timeit
-from torch import nn, stack, utils, sigmoid, mean, cat, device, cuda, save
-from os import environ
+from torch import nn, stack, utils, sigmoid, mean, cat, device, cuda, save, load
+from os import environ, mkdir
+from os.path import join, exists
 from json import dumps
 from collections import OrderedDict
 import torch.optim as optim
@@ -28,7 +29,7 @@ from torch.utils.data import DataLoader
 from Layers.bilstm_classifiers import BiLSTM_Classifier, BiLSTM_Emb_Classifier
 from Metrics.metrics import calculate_performance_sk as calculate_performance,\
     calculate_performance_bin_sk
-from Utils.utils import logit2label, count_parameters
+from Utils.utils import logit2label, count_parameters, save_model_state, load_model_state
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user
 
@@ -38,7 +39,7 @@ if cuda.is_available():
 
 
 def train_lstm_classifier(
-        model, dataloader: utils.data.dataloader.DataLoader,
+        model: BiLSTM_Emb_Classifier, dataloader: utils.data.dataloader.DataLoader,
         loss_func: nn.modules.loss.BCEWithLogitsLoss, optimizer,
         epoch: int = cfg['training']['num_epoch'],
         eval_dataloader: utils.data.dataloader.DataLoader = None,
@@ -83,7 +84,7 @@ def train_lstm_classifier(
         train_time = timeit.default_timer() - start_time
         logger.info(f"Epoch {epoch}, time: {train_time / 60} mins, loss: {epoch_loss}")
 
-        save_model_state(model, epoch, optimizer)
+        save_model_state(model, 'LSTM', epoch, optimizer)
 
         val_losses, val_output = eval_lstm_classifier(
             model, loss_func=loss_func, dataloader=eval_dataloader)
@@ -121,11 +122,11 @@ def train_lstm_classifier(
     return train_epoch_losses, train_epoch_dict
 
 
-def eval_lstm_classifier(model: BiLSTM_Classifier, loss_func,
+def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
                          dataloader: utils.data.dataloader.DataLoader,
                          n_classes=cfg['data']['num_classes'], use_saved=True, epoch=cfg['training']['num_epoch']):
-    if use_saved:
-        model = load_model_state(model, epoch)
+    # if use_saved:
+    #     model = load_model_state(model, epoch)
 
     model.eval()
     preds = []

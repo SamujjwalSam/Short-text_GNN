@@ -287,8 +287,7 @@ class TextEncoder:
 
 
 def train_w2v(sentences, tokens_list, in_dim=cfg['embeddings']['emb_dim'],
-              min_freq=cfg["prep_vecs"]["min_count"],
-              context=cfg["prep_vecs"]["window"]):
+              min_freq=cfg["prep_vecs"]["min_count"], context=cfg["prep_vecs"]["window"]):
     """ Trains, saves, loads Word2Vec model.
 
     :param sentences: list of tokenized tokens

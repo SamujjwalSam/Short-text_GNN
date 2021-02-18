@@ -25,7 +25,7 @@ from torch.utils.data import DataLoader
 
 from Layers.pretrain_losses import supervised_contrastive_loss
 from Layers.mlp_classifier import MLP_Model
-from Utils.utils import count_parameters, save_pretrained_embs
+from Utils.utils import count_parameters, save_token2pretrained_embs
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user, pretrain_dir
 
@@ -106,8 +106,10 @@ def train_mlp(model, X, optimizer, dataloader: utils.data.dataloader.DataLoader,
         train_epoch_losses.append(epoch_loss)
 
         if epoch in save_epochs:
-            X_hat = eval_mlp(model, X)
-            save_pretrained_embs(X_hat, node_list, idx2str, epoch)
+            X_hat_eval = eval_mlp(model, X)
+            # token2pretrained_embs = get_token2pretrained_embs(X_hat, node_list, idx2str)
+            save_token2pretrained_embs(X_hat_eval, node_list, idx2str, epoch=epoch)
+            logger.info(f'Saved pretrained embeddings for epoch {epoch}')
 
     return train_epoch_losses
 
@@ -120,7 +122,6 @@ def mlp_trainer(X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
     count_parameters(model)
 
     model.to(device)
-    # A = A.to(device)
     X = X.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
