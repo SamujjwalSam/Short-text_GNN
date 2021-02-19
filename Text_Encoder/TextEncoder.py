@@ -33,10 +33,10 @@ from gensim.models.keyedvectors import KeyedVectors
 from gensim.test.utils import get_tmpfile
 from gensim.utils import simple_preprocess
 
-from Logger.logger import logger
 from config import configuration as cfg, pretrain_dir
 from config import platform as plat
 from config import username as user
+from Logger.logger import logger
 
 
 # from Text_Processesor.clean_text import Clean_Text

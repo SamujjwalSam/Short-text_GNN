@@ -25,9 +25,9 @@ from torch import from_numpy, Tensor, sparse, sqrt, diag
 from torch.utils.data import Dataset
 from torch.nn.functional import kl_div, softmax, mse_loss, l1_loss
 
-from Logger.logger import logger
 from Utils.utils import dot, save_graph, load_graph
-from config import dataset_dir
+from config import dataset_dir, configuration as cfg
+from Logger.logger import logger
 
 
 class Token_Dataset_nx(Dataset):

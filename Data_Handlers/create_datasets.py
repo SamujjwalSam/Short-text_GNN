@@ -25,8 +25,8 @@ from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 from File_Handlers.read_datasets import load_fire16, load_smerp17
 from Utils.utils import freq_tokens_per_class, split_target
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
-from Logger.logger import logger
 from config import configuration as cfg, dataset_dir
+from Logger.logger import logger
 
 
 def prepare_datasets(

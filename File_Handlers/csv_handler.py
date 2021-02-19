@@ -21,7 +21,7 @@ from os.path import exists, join
 from pathlib import Path
 import pandas as pd
 
-from config import dataset_dir
+from config import configuration as cfg, dataset_dir
 from Logger.logger import logger
 
 

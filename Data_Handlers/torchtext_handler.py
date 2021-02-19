@@ -24,8 +24,8 @@ from pathlib import Path
 from os.path import join
 from torchtext import data
 
-from Logger.logger import logger
 from config import configuration as cfg
+from Logger.logger import logger
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 

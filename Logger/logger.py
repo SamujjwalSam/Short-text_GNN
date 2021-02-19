@@ -55,7 +55,7 @@ class ColoredFormatter(logging.Formatter):
 
 
 def create_logger(logger_name: str = 'root',
-                  log_filename: str = timestamp,
+                  log_time: str = timestamp,
                   filepath: str = 'logs',
                   file_level: int = logging.DEBUG,
                   file_format: str = "%(asctime)s [%(levelname)s %("
@@ -69,7 +69,7 @@ def create_logger(logger_name: str = 'root',
     """
 
     :param logger_name:
-    :param log_filename:
+    :param log_time:
     :param filepath:
     :param file_level:
     :param file_format:
@@ -78,12 +78,12 @@ def create_logger(logger_name: str = 'root',
     :param color:
     :return:
     """
-    log_filename = logger_name + log_filename
+    log_time = log_time + logger_name
     if not exists(filepath):
         makedirs(filepath)
     logger = logging.getLogger(logger_name)
     logger.setLevel(file_level)
-    file_logger = logging.FileHandler(join(filepath, log_filename + '.log'))
+    file_logger = logging.FileHandler(join(filepath, log_time + '.log'))
     file_logger.setLevel(file_level)
     file_logger.setFormatter(logging.Formatter(file_format))
     logger.addHandler(file_logger)
@@ -98,6 +98,8 @@ def create_logger(logger_name: str = 'root',
     return logger
 
 
-logger = create_logger(logger_name='logger',
-                       log_filename=timestamp)
+from config import configuration as cfg
+
+logger_name = f"_[{cfg['data']['name']}]_[{cfg['data']['test']}]"
+logger = create_logger(logger_name=logger_name, log_time=timestamp)
 logger.info("Logger created succesfully.")

@@ -24,9 +24,9 @@ from json import load, loads, dumps
 from collections import OrderedDict
 from sklearn.preprocessing import MultiLabelBinarizer
 
-from Logger.logger import logger
 # from Utils.utils import json_keys2df
 from config import configuration as cfg, dataset_dir
+from Logger.logger import logger
 
 
 def load_json(filename: str, filepath: str = dataset_dir, ext: str = ".json",

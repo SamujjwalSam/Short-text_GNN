@@ -27,8 +27,8 @@ from torch.utils.data import DataLoader
 from Layers.pretrain_losses import supervised_contrastive_loss
 from Layers.gcn_classifiers import GCN
 from Utils.utils import count_parameters, save_model_state, load_model_state, save_token2pretrained_embs
-from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user, dataset_dir
+from Logger.logger import logger
 
 device = device('cuda' if cuda.is_available() else 'cpu')
 
@@ -93,8 +93,8 @@ def gcn_trainer(A, X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     model_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
-    saved_model = load_model_state(model, epoch=epoch, optimizer=optimizer,
-                                   model_dir=model_dir, sub_dir='pretrained')
+    saved_model = load_model_state(model, model_name=epoch, optimizer=optimizer, model_dir=model_dir,
+                                   sub_dir='pretrained')
     epoch_losses = None
     if not saved_model:
         epoch_losses = train_gcn(model, A, X, optimizer, train_dataloader,

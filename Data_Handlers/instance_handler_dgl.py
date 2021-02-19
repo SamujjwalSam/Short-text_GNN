@@ -28,8 +28,8 @@ from sklearn.model_selection import train_test_split
 
 from Utils.utils import iterative_train_test_split
 from File_Handlers.pkl_handler import save_pickle, load_pickle
-from Logger.logger import logger
 from config import configuration as cfg, dataset_dir
+from Logger.logger import logger
 
 
 class Instance_Dataset_DGL(DGLDataset):
