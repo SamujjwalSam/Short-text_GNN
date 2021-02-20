@@ -33,7 +33,7 @@ from gensim.models.keyedvectors import KeyedVectors
 from gensim.test.utils import get_tmpfile
 from gensim.utils import simple_preprocess
 
-from config import configuration as cfg, pretrain_dir
+from config import configuration as cfg, pretrain_dir, emb_dir
 from config import platform as plat
 from config import username as user
 from Logger.logger import logger
@@ -118,7 +118,7 @@ class TextEncoder:
 
     def load_doc2vec(
             self, documents: list, vector_size: int = cfg['embeddings']['emb_dim'],
-            window: int = cfg["prep_vecs"]["window"], min_count: int = cfg["prep_vecs"]["min_count"],
+            window: int = cfg["prep_vecs"]["window"], min_count: int = cfg["prep_vecs"]["min_freq"],
             workers: int = cfg["text_process"]["workers"], seed: int = 0,
             clean_tmp: bool = False, save_model: bool = True,
             doc2vec_model_file: str = cfg["data"]["name"] + "_doc2vec",
@@ -286,8 +286,33 @@ class TextEncoder:
         return embedding_weights
 
 
+def load_word2vec(model_dir: str = emb_dir,
+                  model_file_name: str = 'crisisNLP_word_vector', binary=True):
+    """ Loads Word2Vec model. """
+    model_path = join(model_dir, model_file_name)
+    assert exists(model_path), f'Model [{model_path}] not found'
+    try:
+        pretrain_model = FastText.load_fasttext_format(model_path)
+    except Exception as e:
+        logger.info('Loading fasttext format failed; trying word2vec format.')
+        try:
+            pretrain_model = KeyedVectors.load_word2vec_format(
+                model_path, binary=binary)
+        except Exception as e:
+            logger.info('Loading word2vec format failed; trying Gensim format.')
+            pretrain_model = KeyedVectors.load(model_path)
+            # pretrain_model.save_word2vec_format(
+            #     join(model_dir, model_file_name + "_w2v.bin"),
+            #     binary=True)  # Save model in binary format for faster loading in future.
+            # logger.info("Saved binary model at: [{0}]".format(
+            #     join(model_dir, model_file_name + ".bin")))
+    logger.debug(f"Loaded model from [{model_path}]")
+
+    return pretrain_model
+
+
 def train_w2v(sentences, tokens_list, in_dim=cfg['embeddings']['emb_dim'],
-              min_freq=cfg["prep_vecs"]["min_count"], context=cfg["prep_vecs"]["window"]):
+              min_freq=cfg["prep_vecs"]["min_freq"], context=cfg["prep_vecs"]["window"]):
     """ Trains, saves, loads Word2Vec model.
 
     :param sentences: list of tokenized tokens

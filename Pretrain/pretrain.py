@@ -27,10 +27,10 @@ from os import environ
 from os.path import join, exists
 from sklearn.preprocessing import MultiLabelBinarizer
 
-from Text_Encoder.TextEncoder import train_w2v
+from Text_Encoder.TextEncoder import train_w2v, load_word2vec
 from Pretrainer.mlp_trainer import mlp_trainer
 from Pretrainer.gcn_trainer import gcn_trainer
-from Utils.utils import load_graph, sp_coo2torch_coo, get_token2pretrained_embs
+from Utils.utils import load_graph, sp_coo2torch_coo, get_token2pretrained_embs, save_token2pretrained_embs, load_token2pretrained_embs
 from File_Handlers.csv_handler import read_csv
 from File_Handlers.json_handler import save_json, read_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
@@ -38,7 +38,7 @@ from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
 from Text_Encoder.finetune_static_embeddings import glove2dict, train_mittens,\
     calculate_cooccurrence_mat, preprocess_and_find_oov2, create_clean_corpus
-from config import configuration as cfg, pretrain_dir
+from config import configuration as cfg, pretrain_dir, emb_dir
 from Logger.logger import logger
 
 ## Enable multi GPU cuda environment:
@@ -443,14 +443,42 @@ def get_w2v_embs():
 
     X = train_w2v(joint_corpus_toks, list(joint_vocab['str2idx_map'].keys()),
                   in_dim=cfg['embeddings']['emb_dim'],
-                  min_freq=cfg["prep_vecs"]["min_count"],
+                  min_freq=cfg["prep_vecs"]["min_freq"],
                   context=cfg["prep_vecs"]["window"])
 
     return joint_vocab['str2idx_map'], from_numpy(X)
 
 
+def get_crisisNLP_embs():
+    if exists(join(emb_dir, 'crisisNLP_0.pt')) and exists(join(emb_dir, 'str2idx.pt')):
+        X, _ = load_token2pretrained_embs(
+            '1', pretrainedX_path=join(emb_dir, '', 'crisisNLP_'),
+            token2pretrained_path=join(emb_dir, '', 'crisisNLP_token2pretrained_'))
+        str2idx = read_json(join(emb_dir, 'str2idx.pt'))
+    else:
+        joint_vocab, joint_corpus_toks, joint_corpus_strs, joint_oov_high_freqs =\
+            get_vocab_data(joint_path, name='_joint', glove_embs=glove_embs)
+
+        crisisnlp_model = load_word2vec(model_file_name='crisisNLP_word_vector_w2v.bin')
+        ordered_tokens = list(joint_vocab['str2idx_map'].keys())
+        X = [np.array(
+            [crisisnlp_model[w] if w in crisisnlp_model else np.random.uniform(
+                -0.25, 0.25, crisisnlp_model.vector_size) for w in ordered_tokens])][0]
+
+        X = from_numpy(X)
+
+        save_token2pretrained_embs(
+            X, ordered_tokens, joint_vocab['idx2str_map'], '0',
+            pretrainedX_path=join(emb_dir, '', 'crisisNLP_'),
+            token2pretrained_path=join(emb_dir, '', 'crisisNLP_token2pretrained_'))
+        str2idx = joint_vocab['str2idx_map']
+
+    return str2idx, X
+
+
 if __name__ == "__main__":
-    X, jv = get_w2v_embs()
+    jv, X = get_crisisNLP_embs()
+    jv, X = get_w2v_embs()
 
     state, joint_vocab, token2pretrained_embs, X = get_pretrain_artifacts()
     C = set(glove_embs.keys()).intersection(set(token2pretrained_embs.keys()))

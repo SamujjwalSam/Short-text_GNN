@@ -96,8 +96,8 @@ def train_lstm_classifier(
         logger.info(f'test_output: \n{dumps(test_output["result"], indent=4)}')
         logger.info(f"Epoch {epoch}, "
                     # f"Train loss {epoch_loss}, val loss {val_losses}, test loss {test_losses}, "
-                    f"Val W-F1 {val_output['result']['f1']['weighted'].item():6.4} "
-                    f"Test W-F1 {test_output['result']['f1']['weighted'].item():6.4} "
+                    f"Val W-F1 {val_output['result']['f1']['weighted'].item():4.4} "
+                    f"Test W-F1 {test_output['result']['f1']['weighted'].item():4.4} "
                     f"Model {model_name}")
         # logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
         #             f"{val_losses}, Val Weighted F1 {val_output['result']['f1']['weighted'].item()}")
