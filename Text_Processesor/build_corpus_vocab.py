@@ -18,7 +18,7 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import numpy as np
-from torch import from_numpy
+from torch import from_numpy, stack
 from collections import Counter
 from functools import partial
 # from nltk.corpus import stopwords
@@ -32,7 +32,7 @@ from config import configuration as cfg, platform as plat, username as user
 from Logger.logger import logger
 
 
-def get_token_embedding(ordered_tokens: set, oov_embs: dict, embs: dict,
+def get_token_embedding(ordered_tokens: list, oov_embs: dict, embs: dict,
                         pretrain_embs=None):
     """ Generates embeddings in node_list order.
 
@@ -43,14 +43,14 @@ def get_token_embedding(ordered_tokens: set, oov_embs: dict, embs: dict,
     :param embs: Default embedding (e.g. GloVe)
     :return:
     """
-    emb_shape = embs[list(embs.keys())[0]].shape
-    embs['<unk>'] = embs.get('<unk>', np.random.normal(size=emb_shape))
-    embs['<pad>'] = embs.get('<pad>', np.zeros(emb_shape))
-    embs['HTTPURL'] = embs.get('HTTPURL', np.random.normal(size=emb_shape))
+    X = []
+    emb_shape = oov_embs[list(oov_embs.keys())[0]].shape
+    oov_embs['<unk>'] = embs.get('<unk>', np.random.normal(size=emb_shape))
+    oov_embs['<pad>'] = embs.get('<pad>', np.zeros(emb_shape))
+    oov_embs['HTTPURL'] = embs.get('HTTPURL', np.random.normal(size=emb_shape))
     token2idx_map = {}
     i = 3
     if pretrain_embs is not None:
-        X = []
         for node_txt in ordered_tokens:
             if node_txt in pretrain_embs:
                 node_emb = pretrain_embs[node_txt]
@@ -59,18 +59,25 @@ def get_token_embedding(ordered_tokens: set, oov_embs: dict, embs: dict,
             else:
                 node_emb = embs[node_txt]
             token2idx_map[node_txt] = i
-            X.append(node_emb)
+            if isinstance(node_emb, np.ndarray):
+                X.append(from_numpy(node_emb))
+            else:
+                X.append(node_emb)
+            i += 1
     else:
-        X = []
         for node_txt in ordered_tokens:
             if node_txt in oov_embs:
                 node_emb = oov_embs[node_txt]
             else:
                 node_emb = embs[node_txt]
             token2idx_map[node_txt] = i
-            X.append(node_emb)
+            if isinstance(node_emb, np.ndarray):
+                X.append(from_numpy(node_emb))
+            else:
+                X.append(node_emb)
+            i += 1
 
-    X = np.stack(X)
+    X = stack(X)
     # X = from_numpy(X).float()
 
     return X, token2idx_map
