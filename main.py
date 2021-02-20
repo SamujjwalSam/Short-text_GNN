@@ -155,6 +155,16 @@ def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['da
         train_dataname=labelled_source_name, val_dataname=labelled_val_name,
         test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
 
+    tr_freq = train_vocab.vocab.freqs.keys()
+    tr_v = train_vocab.vocab.itos
+    ts_freq = test_vocab.vocab.freqs.keys()
+    ts_v = test_vocab.vocab.itos
+    ov_freq = set(tr_freq).intersection(ts_freq)
+    ov_v = set(tr_v).intersection(ts_v)
+    logger.info(
+        f'Vocab overlap train {len(tr_freq)}, {len(tr_v)}, test {len(ts_freq)}, {len(ts_v)}: {len(ov_freq)}, '
+        f'{len(ov_v)}')
+
     # train_vocab_mod = train_vocab.copy()
     train_vocab_mod = {
         'freqs':       train_vocab.vocab.freqs.copy(),
