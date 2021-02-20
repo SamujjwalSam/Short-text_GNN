@@ -1,7 +1,7 @@
 # coding=utf-8
 # !/usr/bin/python3.7  # Please use python 3.7
 """
-__synopsis__    : Short summary of the script.
+__synopsis__    : Contrastive pretraining script
 __description__ : Details and usage.
 __project__     : WSCP
 __classes__     : WSCP
@@ -27,17 +27,18 @@ from os import environ
 from os.path import join, exists
 from sklearn.preprocessing import MultiLabelBinarizer
 
+from Text_Encoder.TextEncoder import train_w2v
 from Pretrainer.mlp_trainer import mlp_trainer
 from Pretrainer.gcn_trainer import gcn_trainer
-from Utils.utils import load_graph, sp_coo2torch_coo, save_pretrained_embs
+from Utils.utils import load_graph, sp_coo2torch_coo, get_token2pretrained_embs
 from File_Handlers.csv_handler import read_csv
 from File_Handlers.json_handler import save_json, read_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
-from Text_Encoder.finetune_static_embeddings import glove2dict, calculate_cooccurrence_mat,\
-    train_mittens, preprocess_and_find_oov2, create_clean_corpus
-from config import configuration as cfg, platform as plat, username as user, pretrain_dir
+from Text_Encoder.finetune_static_embeddings import glove2dict, train_mittens,\
+    calculate_cooccurrence_mat, preprocess_and_find_oov2, create_clean_corpus
+from config import configuration as cfg, pretrain_dir
 from Logger.logger import logger
 
 ## Enable multi GPU cuda environment:
@@ -66,6 +67,8 @@ data_filename = cfg['pretrain']['name']
 joint_path = join(pretrain_dir, data_filename + "_multihot.csv")
 pos_path = join(pretrain_dir, data_filename + "_pos.csv")
 neg_path = join(pretrain_dir, data_filename + "_neg.csv")
+
+glove_embs = glove2dict()
 
 
 def read_dataset(dataname, data_dir=pretrain_dir):
@@ -101,7 +104,6 @@ mlb = MultiLabelBinarizer()
 def read_input_files(joint_path=join(pretrain_dir, data_filename + "_multihot.csv"),
                      pos_path=join(pretrain_dir, data_filename + "_pos.csv"),
                      neg_path=join(pretrain_dir, data_filename + "_neg.csv")):
-
     ## Read multiple data files:
     df_all = pd.DataFrame()
     df_all_pos = pd.DataFrame()
@@ -308,8 +310,7 @@ def get_graph_and_dataset(limit_dataset=None):
             high_oov_tokens_list = list(joint_oov_high_freqs.keys())
             # c_corpus = corpus[0] + corpus[1]
             oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens_list, joint_corpus_strs)
-            oov_embs = train_mittens(oov_mat_coo, high_oov_tokens_list,
-                                     glove_embs, max_iter=200)
+            oov_embs = train_mittens(oov_mat_coo, high_oov_tokens_list, glove_embs, max_iter=200)
             save_pickle(oov_embs, filepath=pretrain_dir, filename=oov_emb_filename, overwrite=True)
 
     G = Token_Dataset_nx(joint_corpus_toks, joint_vocab, dataset_name=joint_path[:-12])
@@ -322,12 +323,12 @@ def get_graph_and_dataset(limit_dataset=None):
 
     ## Create G+:
     pos_vocab, pos_corpus_toks, pos_corpus_strs, pos_oov_high_freqs =\
-        get_vocab_data(pos_path, name='_pos', glove_embs=None)
+        get_vocab_data(pos_path, name='_pos', glove_embs=glove_embs)
     G_pos = Token_Dataset_nx(pos_corpus_toks, pos_vocab, dataset_name=pos_path[:-4])
 
     ## Create G-:
     neg_vocab, neg_corpus_toks, neg_corpus_strs, neg_oov_high_freqs =\
-        get_vocab_data(neg_path, name='_neg', glove_embs=None)
+        get_vocab_data(neg_path, name='_neg', glove_embs=glove_embs)
     G_neg = Token_Dataset_nx(neg_corpus_toks, neg_vocab, dataset_name=neg_path[:-4])
 
     ## Find common nodes (C):
@@ -370,12 +371,13 @@ def get_graph_and_dataset(limit_dataset=None):
     return dataset, G, oov_embs, joint_vocab
 
 
-def prepare_pretraining(model_type=cfg['pretrain']['model_type'], oov_emb_filename=data_filename + '_OOV_vectors_dict',
+def prepare_pretraining(model_type=cfg['pretrain']['model_type'],
+                        oov_emb_filename=data_filename + '_OOV_vectors_dict',
                         graph_path=join(pretrain_dir, data_filename + '_token_nx.bin'),
                         vocab_path=join(pretrain_dir, data_filename + '_joint_vocab'),
                         dataset_path=join(pretrain_dir, data_filename + '_dataset')):
-    if exists(dataset_path + '.json') and exists(join(pretrain_dir, oov_emb_filename + '.pkl'))\
-            and exists(graph_path):
+    if exists(dataset_path + '.json') and exists(join(
+            pretrain_dir, oov_emb_filename + '.pkl')) and exists(graph_path):
         dataset = read_json(dataset_path, convert_ordereddict=False)
         joint_vocab = read_json(vocab_path)
         g = load_graph(graph_path)
@@ -399,43 +401,64 @@ def prepare_pretraining(model_type=cfg['pretrain']['model_type'], oov_emb_filena
         train_epochs_losses, state, save_path, X = gcn_trainer(
             adj, X, pretrain_dataloader, in_dim=cfg['embeddings']['emb_dim'],
             hid_dim=cfg['gnn_params']['hid_dim'], epoch=cfg['pretrain']['epoch'],
-            lr=cfg["pretrain"]["lr"], node_list=node_list, idx2str=idx2str)
+            lr=cfg["pretrain"]["lr"], node_list=node_list, idx2str=idx2str, model_type=model_type)
     else:
         raise NotImplementedError(f'[{model_type}] not found.')
 
-    token2GCN_embs = save_pretrained_embs(X, node_list, idx2str, cfg['pretrain']['epoch'])
+    token2pretrained_embs = get_token2pretrained_embs(X, node_list, idx2str)
 
-    return train_epochs_losses, state, save_path, joint_vocab, token2GCN_embs
+    return train_epochs_losses, state, save_path, joint_vocab, token2pretrained_embs, X
 
 
-def get_pretrain_artifacts(epoch=cfg['pretrain']['epoch']):
-    state_path = join(pretrain_dir, cfg['data']['name'] + '_model' + str(
-        epoch) + '.pt')
-    vocab_path = join(pretrain_dir, data_filename + '_joint_vocab')
-    token_embs_path = join(pretrain_dir, str(cfg['pretrain']['epoch']) + 'token2pretrained.pt')
+def get_pretrain_artifacts(
+        epoch=cfg['pretrain']['epoch'], model_type=cfg['pretrain']['model_type'],
+        vocab_path=join(pretrain_dir, data_filename + '_joint_vocab'),
+        token_embs_path=join(pretrain_dir, 'pretrained', 'token2pretrained_'),
+        pretrainedX_path=join(pretrain_dir, 'pretrained', 'X_')):
+    token_embs_path = token_embs_path + str(epoch) + '.pt'
+    pretrainedX_path = pretrainedX_path + str(epoch) + '.pt'
+
     state = None
-    if exists(vocab_path + '.json') and exists(token_embs_path):
-    # if exists(state_path) and exists(vocab_path + '.json') and exists(token_embs_path):
+    if exists(vocab_path + '.json') and exists(pretrainedX_path):
         logger.info(f'Loading Pretraining Artifacts from [{token_embs_path}] and [{vocab_path}]')
-        # state = load(state_path)
-        joint_vocab = read_json(vocab_path)
-        token2GCN_embs = load(token_embs_path)
+        vocab = read_json(vocab_path)
+        X = load(pretrainedX_path)
+
+        if exists(token_embs_path):
+            token2pretrained_embs = load(token_embs_path)
+        else:
+            token2pretrained_embs = get_token2pretrained_embs(
+                X, list(vocab['str2idx_map'].keys()), vocab['idx2str_map'])
     else:
         logger.info('Pretraining')
-        _, state, _, joint_vocab, token2GCN_embs = prepare_pretraining()
+        _, state, _, vocab, token2pretrained_embs, X = prepare_pretraining(
+            model_type=model_type)
 
-    return state, joint_vocab, token2GCN_embs
+    return state, vocab, token2pretrained_embs, X
+
+
+def get_w2v_embs():
+    joint_vocab, joint_corpus_toks, joint_corpus_strs, joint_oov_high_freqs =\
+        get_vocab_data(joint_path, name='_joint', glove_embs=glove_embs)
+
+    X = train_w2v(joint_corpus_toks, list(joint_vocab['str2idx_map'].keys()),
+                  in_dim=cfg['embeddings']['emb_dim'],
+                  min_freq=cfg["prep_vecs"]["min_count"],
+                  context=cfg["prep_vecs"]["window"])
+
+    return joint_vocab['str2idx_map'], from_numpy(X)
 
 
 if __name__ == "__main__":
-    state, joint_vocab, token2GCN_embs = get_pretrain_artifacts()
-    glove_embs = glove2dict()
-    C = set(glove_embs.keys()).intersection(set(token2GCN_embs.keys()))
+    X, jv = get_w2v_embs()
+
+    state, joint_vocab, token2pretrained_embs, X = get_pretrain_artifacts()
+    C = set(glove_embs.keys()).intersection(set(token2pretrained_embs.keys()))
     logger.debug(f'Common vocab size: {len(C)}')
     words = ['nepal', 'italy', 'building', 'damage', 'kathmandu', 'water',
              'wifi', 'need', 'available', 'earthquake']
     X_glove = {word: glove_embs[word] for word in words}
-    X_gcn = {word: token2GCN_embs[word] for word in words}
+    X_gcn = {word: token2pretrained_embs[word] for word in words}
     from Plotter.plot_functions import plot_vecs_color
 
     plot_vecs_color(tokens2vec=X_gcn, save_name='gcn_pretrained.pdf')
