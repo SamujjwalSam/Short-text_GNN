@@ -44,7 +44,7 @@ def train_lstm_classifier(
         epoch: int = cfg['training']['num_epoch'],
         eval_dataloader: utils.data.dataloader.DataLoader = None,
         test_dataloader: utils.data.dataloader.DataLoader = None,
-        n_classes=cfg['data']['num_classes']):
+        n_classes=cfg['data']['num_classes'], model_name='Glove'):
     logger.info(f"Started training for {epoch} epoch: ")
     train_epoch_losses = []
     train_epoch_dict = OrderedDict()
@@ -84,18 +84,21 @@ def train_lstm_classifier(
         train_time = timeit.default_timer() - start_time
         logger.info(f"Epoch {epoch}, time: {train_time / 60} mins, loss: {epoch_loss}")
 
-        save_model_state(model, 'LSTM', epoch, optimizer)
+        ## Don't save model if name starts with 'no'
+        # if not model_name.startswith('WSCP'):
+        save_model_state(model, model_name + '_epoch' + str(epoch), optimizer=optimizer)
 
         val_losses, val_output = eval_lstm_classifier(
             model, loss_func=loss_func, dataloader=eval_dataloader)
-        logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
+        # logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
         test_losses, test_output = eval_lstm_classifier(
             model, loss_func=loss_func, dataloader=test_dataloader)
         logger.info(f'test_output: \n{dumps(test_output["result"], indent=4)}')
-        logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
-                    f"{val_losses}, test loss {test_losses}, Val Weighted F1 "
-                    f"{val_output['result']['f1']['weighted'].item()} Test Weighted F1"
-                    f" {test_output['result']['f1']['weighted'].item()}")
+        logger.info(f"Epoch {epoch}, "
+                    # f"Train loss {epoch_loss}, val loss {val_losses}, test loss {test_losses}, "
+                    f"Val W-F1 {val_output['result']['f1']['weighted'].item():6.4} "
+                    f"Test W-F1 {test_output['result']['f1']['weighted'].item():6.4} "
+                    f"Model {model_name}")
         # logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
         #             f"{val_losses}, Val Weighted F1 {val_output['result']['f1']['weighted'].item()}")
         train_epoch_losses.append(epoch_loss)
@@ -180,7 +183,8 @@ def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
 def LSTM_trainer(
         train_dataloader, val_dataloader, test_dataloader, vectors, in_dim: int = 100,
         hid_dim: int = 50, epoch=cfg['training']['num_epoch'],
-        loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"]):
+        loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
+        model_name='Glove'):
     # train_dataloader, test_dataloader = dataloaders
     model = BiLSTM_Emb_Classifier(
         vocab_size=vectors.shape[0], in_dim=in_dim, hid_dim=hid_dim, out_dim=cfg["data"]["num_classes"])
@@ -196,18 +200,17 @@ def LSTM_trainer(
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
-    model_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
-    saved_model = load_model_state(model, epoch=epoch, optimizer=optimizer,
-                                   model_dir=model_dir,
-                                   # sub_dir=''
-                                   )
+    # model_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
+    # model_name = model_name + '_epoch' + str(epoch)
+    saved_model = load_model_state(model, model_name=model_name + '_epoch' + str(epoch), optimizer=optimizer)
 
     train_epochs_output_dict = None
     if not saved_model:
+        logger.info(f'Model name: {model_name}')
         epoch_losses, train_epochs_output_dict = train_lstm_classifier(
-            model, train_dataloader, loss_func=loss_func,
-            optimizer=optimizer, epoch=epoch, eval_dataloader=val_dataloader,
-            test_dataloader=test_dataloader)
+            model, train_dataloader, loss_func=loss_func, optimizer=optimizer,
+            epoch=epoch, eval_dataloader=val_dataloader,
+            test_dataloader=test_dataloader, model_name=model_name)
 
     if saved_model:
         start_time = timeit.default_timer()

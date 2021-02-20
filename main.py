@@ -27,11 +27,13 @@ from networkx import adjacency_matrix
 from os import environ
 from os.path import join, exists
 from json import dumps
+from collections import Counter
+from typing import Dict
 
 # from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_propagation
-from Utils.utils import count_parameters, logit2label, sp_coo2torch_coo, save_pretrained_embs
+from Utils.utils import count_parameters, logit2label, sp_coo2torch_coo, get_token2pretrained_embs
 from Layers.bilstm_classifiers import BiLSTM_Classifier
-from Pretrain.pretrain import get_pretrain_artifacts, calculate_vocab_overlap
+from Pretrain.pretrain import get_pretrain_artifacts, calculate_vocab_overlap, get_w2v_embs
 # from File_Handlers.csv_handler import read_csv, read_csvs
 from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 # from File_Handlers.read_datasets import load_fire16, load_smerp17
@@ -51,14 +53,15 @@ from Text_Encoder.finetune_static_embeddings import glove2dict, get_oov_vecs,\
 from Trainer.trainer import trainer, predict_with_label
 # from Plotter.plot_functions import plot_training_loss
 from Metrics.metrics import calculate_performance_pl
-from config import configuration as cfg, platform as plat, username as user, \
+from config import configuration as cfg, platform as plat, username as user,\
     dataset_dir, pretrain_dir
 from Logger.logger import logger
 
 ## Enable multi GPU cuda environment:
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 if cuda.is_available():
     environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
+torch.cuda.device(1)
 
 
 def set_all_seeds(seed=0):
@@ -162,8 +165,8 @@ def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['da
     if glove_embs is None:
         glove_embs = glove2dict()
 
-    _, _ = pretrain(train_dataset, train_vocab_mod, glove_embs,
-                    labelled_source_name, epoch=cfg['pretrain']['epoch'])
+    # _, _ = pretrain(train_dataset, train_vocab_mod, glove_embs,
+    #                 labelled_source_name, epoch=cfg['pretrain']['epoch'])
 
     logger.info('Run for multiple LR')
     lrs = [1e-2, 1e-3, 1e-4]
@@ -175,9 +178,11 @@ def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['da
 
         epochs = cfg['pretrain']['save_epochs']
         for pepoch in epochs:
-            logger.critical(f'Current Pretrain Epoch: [{pepoch}]')
-            logger.critical('PRETRAIN ###########################################')
-            token2idx_map, X = pretrain(train_dataset, train_vocab_mod, glove_embs, labelled_source_name, epoch=pepoch)
+            logger.critical(f'Current Pretrain Epoch: [{pepoch}], Model: {pmodel_type}')
+            logger.critical('PRETRAIN ##########')
+            token2idx_map, X = pretrain(
+                train_dataset, train_vocab_mod, glove_embs, labelled_source_name,
+                epoch=pepoch, model_type=pmodel_type)
 
             # logger.info('Plot pretrained embeddings:')
             # C = set(glove_embs.keys()).intersection(set(pretrain_embs.keys()))
@@ -203,64 +208,53 @@ def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['da
             logger.info(f'Add {len(extra_pretrained_tokens)} extra pretrained vectors to vocab')
             train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
 
-            logger.critical('AFTER **********************************************')
+            model_name = f'WSCP_{model_type}_freq{cfg["data"]["min_freq"]}'\
+                         f'_lr{str(lr)}_Pepoch{str(pepoch)}_Pmodel{pmodel_type}'
+            logger.critical(f'AFTER ********** {model_name}')
+            classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                       train_vocab, train_dataset, val_dataset, test_dataset,
+                       labelled_source_name, glove_embs, lr, model_name=model_name)
+    logger.info("Execution complete.")
 
-            classifier(model_type, train_dataloader, val_dataloader, test_dataloader, train_vocab,
-                       train_dataset, val_dataset, test_dataset, labelled_source_name, glove_embs, lr)
 
+def pretrain(train_dataset, train_vocab: Dict[str, Counter],
+             glove_embs: Dict[str, np.ndarray], labelled_source_name: str,
+             epoch: int = cfg['pretrain']['epoch'], model_type=cfg['pretrain']['model_type']) -> (Dict, torch.tensor):
+    state, pretrain_vocab, pretrain_embs, X = get_pretrain_artifacts(
+        epoch=epoch, model_type=model_type)
+    calculate_vocab_overlap(set(train_vocab['str2idx_map'].keys()),
+                            set(pretrain_vocab['str2idx_map'].keys()))
 
-def pretrain(train_dataset, train_vocab, glove_embs, labelled_source_name, epoch=cfg['pretrain']['epoch']):
-    pretrain_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
-    data_filename = cfg['data']['name']
-    emb_filename = join(pretrain_dir, data_filename + "_pretrained_emb.pt")
-    token2idx_filename = join(pretrain_dir, data_filename + "_pretrained_stoi")
-    # save_path = join(pretrain_dir, cfg['data']['name'] + '_model.pt')
-    if exists(join(pretrain_dir, data_filename + '_pretrain_vocab.json'))\
-            and exists(emb_filename) and exists(token2idx_filename):
-        # and exists(save_path):
-        # pretrain_vocab = read_json(join(pretrain_dir, data_filename + '_pretrain_vocab'))
-        logger.info('Accessing token graph node embeddings:')
-        X = load(emb_filename)
-        token2idx_map = read_json(token2idx_filename)
-        # state = load(save_path)
-    else:
-        state, pretrain_vocab, pretrain_embs = get_pretrain_artifacts(
-            epochs=epoch)
-        calculate_vocab_overlap(set(train_vocab['str2idx_map'].keys()),
-                                set(pretrain_vocab['str2idx_map'].keys()))
-        # save_json(pretrain_vocab, labelled_source_path + '_pretrain_vocab', overwrite=True)
+    if X is None:
         logger.info('Get token embeddings with pretrained vectors')
         high_oov, low_glove, low_oov, corpus, corpus_toks = get_oov_tokens(
             train_dataset, labelled_source_name, data_dir, train_vocab, glove_embs)
-        oov_embs = get_oov_vecs(list(high_oov.keys()), corpus, labelled_source_name, data_dir, glove_embs)
-        # X, token2idx_map = get_token_embedding(train_vocab_mod['str2idx_map'], oov_embs, glove_embs, pretrain_embs)
-        X, token2idx_map = get_token_embedding(set(pretrain_embs.keys()).union(
-            set(oov_embs.keys())), oov_embs, glove_embs, pretrain_embs)
-        # X = g_ob.get_node_embeddings(oov_embs, glove_embs, train_vocab['idx2str_map'], pretrain_embs=pretrain_embs)
-        X = torch.from_numpy(X)
-        save(X, emb_filename)
-        # save(state, save_path)
-        save_json(token2idx_map, token2idx_filename, '')
+        oov_embs = get_oov_vecs(list(high_oov.keys()), corpus,
+                                labelled_source_name, data_dir, glove_embs)
+        X, _ = get_token_embedding(list(pretrain_vocab['str2idx_map'].keys(
+        )), oov_embs, glove_embs, pretrain_embs)
 
-    return token2idx_map, X
+    return pretrain_vocab['str2idx_map'], X
 
 
 def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, train_vocab,
                train_dataset, val_dataset, test_dataset, dataname,
-               glove_embs=None, lr=cfg['model']['optimizer']['lr'], use_lpa=False):
+               glove_embs=None, lr=cfg['model']['optimizer']['lr'], model_name=None):
+    if model_name is None:
+        model_name = f'{model_type}_epoch{str(cfg["training"]["num_epoch"])}_lr{str(lr)}'
     logger.info(f'Classifying examples using [{model_type}] model.')
     datapath = join(data_dir, dataname)
     if model_type == 'MLP':
         train_epochs_output_dict, test_output = MLP_trainer(
             train_dataloader, val_dataloader, test_dataloader,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-            epoch=cfg['training']['num_epoch'], lr=lr)
+            epoch=cfg['training']['num_epoch'], lr=lr, model_name=model_name)
 
     elif model_type == 'LSTM':
         train_epochs_output_dict, test_output = LSTM_trainer(
             train_dataloader, val_dataloader, test_dataloader, vectors=train_vocab.vocab.vectors,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-            epoch=cfg['training']['num_epoch'], lr=lr)
+            epoch=cfg['training']['num_epoch'], lr=lr, model_name=model_name)
 
     elif model_type == 'GAT':
         logger.info('Create GAT dataloader')
@@ -272,7 +266,8 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, tr
         train_epochs_output_dict, test_output = GAT_BiLSTM_trainer(
             train_dataloader, val_dataloader, test_dataloader,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-            num_heads=cfg['gnn_params']['num_heads'], epoch=cfg['training']['num_epoch'], lr=lr)
+            num_heads=cfg['gnn_params']['num_heads'], epoch=cfg['training']['num_epoch'],
+            lr=lr, model_name=model_name)
 
     else:
         logger.info(f'Creating token graph for model: [{model_type}]')
@@ -341,7 +336,7 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, tr
             ## Save token sets: high_oov, low_glove, corpus, corpus_toks
             save_json(S_high_oov, datapath + 'S_high_oov')
             save_json(T_high_oov, datapath + 'T_high_oov')
-            # save_json(low_glove, labelled_source_name+'low_glove', overwrite=True)
+            # save_json(low_glove, labelled_source_name+'_low_glove', overwrite=True)
             save_json(S_corpus, datapath + 'S_corpus')
             save_json(T_corpus, datapath + 'T_corpus')
             save_json(S_corpus_toks, datapath + 'S_corpus_toks')
@@ -395,24 +390,24 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, tr
             # X = sp_coo2torch_coo(X)
             save(X, emb_filename)
 
-        if use_lpa:
-            logger.info(f'Apply Label Propagation to get label vectors for unlabelled nodes:')
-            label_proba_filename = join(data_dir, dataname + "_lpa_vecs.pt")
-            if exists(label_proba_filename):
-                lpa_vecs = torch.load(label_proba_filename)
-            else:
-                all_node_labels, labelled_masks = fetch_all_nodes(
-                    node_list, labelled_token2vec_map, C_vocab['idx2str_map'],
-                    # default_fill=[0.])
-                    default_fill=[0., 0., 0., 0.])
-                lpa_vecs = label_propagation(adj, all_node_labels, labelled_masks)
-                torch.save(lpa_vecs, label_proba_filename)
-
-            logger.info('Recalculate edge weights using LPA vectors:')
-            g_ob.normalize_edge_weights(lpa_vecs)
-
-            adj = adjacency_matrix(g_ob.G, nodelist=node_list, weight='weight')
-            adj = sp_coo2torch_coo(adj)
+        # if use_lpa:
+        #     logger.info(f'Apply Label Propagation to get label vectors for unlabelled nodes:')
+        #     label_proba_filename = join(data_dir, dataname + "_lpa_vecs.pt")
+        #     if exists(label_proba_filename):
+        #         lpa_vecs = torch.load(label_proba_filename)
+        #     else:
+        #         all_node_labels, labelled_masks = fetch_all_nodes(
+        #             node_list, labelled_token2vec_map, C_vocab['idx2str_map'],
+        #             # default_fill=[0.])
+        #             default_fill=[0., 0., 0., 0.])
+        #         lpa_vecs = label_propagation(adj, all_node_labels, labelled_masks)
+        #         torch.save(lpa_vecs, label_proba_filename)
+        #
+        #     logger.info('Recalculate edge weights using LPA vectors:')
+        #     g_ob.normalize_edge_weights(lpa_vecs)
+        #
+        #     adj = adjacency_matrix(g_ob.G, nodelist=node_list, weight='weight')
+        #     adj = sp_coo2torch_coo(adj)
 
         logger.info('Normalize token graph:')
         adj = g_ob.normalize_adj(adj)
@@ -428,7 +423,8 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, tr
         train_epochs_output_dict, test_output = GLEN_trainer(
             adj, X, train_dataloader, val_dataloader, test_dataloader,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-            num_heads=cfg['gnn_params']['num_heads'], epoch=cfg['training']['num_epoch'], lr=lr)
+            num_heads=cfg['gnn_params']['num_heads'], epoch=cfg['training']['num_epoch'],
+            lr=lr, model_name=model_name)
 
 
 def get_graph_dataloader(model_type, train_dataset, val_dataset, test_dataset,

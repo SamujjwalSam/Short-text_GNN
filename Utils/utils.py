@@ -417,51 +417,55 @@ def load_model(epoch=cfg['training']['num_epoch'],
         return model
 
 
-def save_model_state(model, model_type=cfg['model']['type'], epoch=cfg['training']['num_epoch'], optimizer=None,
-                     model_dir=join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name']),
-                     sub_dir='trained'):
+def save_model_state(model, model_name, optimizer=None, overwrite=False,
+                     model_dir=join(cfg['paths']['dataset_root'][plat][user],
+                                    cfg['data']['name'], 'saved_models')):
     """ Save state dict of model and optimizer params
 
     :param sub_dir:
     :param model_type:
     :param model:
-    :param epoch:
+    :param model_name:
     :param optimizer:
     :param model_dir:
     """
-    logger.info(f'Saving model and optimizer STATE after {epoch} epoch.')
+    if not exists(model_dir):
+        makedirs(model_dir)
+    model_save_path = join(model_dir, model_name + '_state.pt')
+    if not overwrite and exists(model_save_path):
+        logger.info(f'Not saved; STATE exists at [{model_save_path}]')
+        return False
+
+    logger.info(f'Saving model and optimizer STATE after {model_name} epoch.')
     state = {
-        'epoch':      epoch,
-        'state_dict': model.state_dict(),
+        'epoch':      model_name,
+        'state_dict': model.state_dict()
     }
 
     if optimizer is not None:
-        state['optimizer_state'] = optimizer.state_dict(),
+        state['optimizer_state'] = optimizer.state_dict()
 
-    model_dir = join(model_dir, sub_dir, model_type, str(epoch))
-    if not exists(model_dir):
-        makedirs(model_dir)
-    model_save_path = join(model_dir, cfg['data']['name'] + '_model_state.pt')
+    # model_dir = join(model_dir, sub_dir, model_type, str(model_name))
     torch.save(state, model_save_path)
     logger.info(f'Saved model STATE at [{model_save_path}]')
 
 
-def load_model_state(model, model_type=cfg['model']['type'], epoch=cfg['training']['num_epoch'], optimizer=None,
-                     model_dir=join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name']),
-                     sub_dir='trained'):
+def load_model_state(model, model_name, optimizer=None,
+                     model_dir=join(cfg['paths']['dataset_root'][plat][user],
+                                    cfg['data']['name'], 'saved_models')):
     """ Loads state dict to model and optimizer
 
     :param sub_dir:
     :param model_type:
     :param model:
-    :param epoch:
+    :param model_name:
     :param optimizer:
     :param model_dir:
     """
-    model_dir = join(model_dir, sub_dir, model_type, str(epoch-1))
-    model_save_path = join(model_dir, cfg['data']['name'] + '_model_state.pt')
+    # model_dir = join(model_dir, str(model_name))
+    model_save_path = join(model_dir, model_name + '_state.pt')
     if exists(model_save_path):
-        logger.info(f'Loading model STATE with epoch {epoch} from [{model_save_path}]')
+        logger.info(f'Loading model STATE with epoch {model_name} from [{model_save_path}]')
         state = torch.load(model_save_path)
 
         try:
@@ -471,7 +475,7 @@ def load_model_state(model, model_type=cfg['model']['type'], epoch=cfg['training
                 optimizer.load_state_dict(state['optimizer_state'][0])
         except RuntimeError as e:
             logger.error(e)
-            return False
+            raise Exception(e)
         logger.info(f'Loaded model STATE from [{model_save_path}]')
         return model
 
@@ -552,7 +556,8 @@ def save_token2pretrained_embs(
     logger.info(f'Saving pretrained embs for epoch [{epoch}]')
     # G_node_list = list(G.G.nodes)
     pretrainedX_path = pretrainedX_path + str(epoch) + '.pt'
-    X = torch.from_numpy(X)
+    if isinstance(X, np.ndarray):
+        X = torch.from_numpy(X)
     torch.save(X, pretrainedX_path)
     logger.info(f'Saved pretrained_X at [{pretrainedX_path}]')
 

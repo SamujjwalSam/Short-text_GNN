@@ -78,7 +78,7 @@ def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoad
 
 
 def gcn_trainer(A, X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
-                epoch=cfg['training']['num_epoch'], lr=cfg["pretrain"]["lr"], node_list=None, idx2str=None):
+                epoch=cfg['training']['num_epoch'], lr=cfg["pretrain"]["lr"], node_list=None, idx2str=None, model_type='GCN'):
     model = GCN(in_dim=in_dim, hid_dim=hid_dim, out_dim=hid_dim)
     # model = MLP_Model(in_dim=in_dim, hid_dim=hid_dim, out_dim=hid_dim)
 
@@ -100,7 +100,7 @@ def gcn_trainer(A, X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
         epoch_losses = train_gcn(model, A, X, optimizer, train_dataloader,
                                  epochs=epoch, node_list=node_list, idx2str=idx2str)
 
-        save_model_state(model, 'GCN', epoch, optimizer)
+        save_model_state(model, 'GCN' + str(epoch), optimizer)
 
     if saved_model:
         X_hat = eval_gcn(saved_model, A, X)
