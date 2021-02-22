@@ -65,7 +65,7 @@ def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoad
         optimizer.step()
         epoch_train_time = timeit.default_timer() - epoch_start_time
         epoch_loss = loss.detach().item() / (iter + 1)
-        logger.info(f'Epoch {epoch}, Time: {epoch_train_time / 60} mins, Loss: {epoch_loss}')
+        logger.info(f'Epoch {epoch}, Time: {epoch_train_time / 60:6.3} mins, Loss: {epoch_loss}')
         train_epoch_losses.append(epoch_loss)
 
         if epoch in save_epochs:
@@ -107,7 +107,7 @@ def gcn_trainer(A, X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
     else:
         X_hat = eval_gcn(model, A, X)
 
-    return epoch_losses, state, save_path, X_hat
+    return epoch_losses, X_hat
 
 
 def main():

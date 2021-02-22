@@ -190,7 +190,7 @@ def GAT_BiLSTM_trainer(
     test_time = timeit.default_timer() - start_time
 
     test_count = test_dataloader.dataset.__len__()
-    logger.info(f"Total inference time for [{test_count}] examples: [{test_time} sec]"
+    logger.info(f"Total inference time for [{test_count}] examples: [{test_time:2.4} sec]"
                 f"\nPer example: [{test_time / test_count} sec]")
     logger.info(dumps(test_output['result'], indent=4))
 

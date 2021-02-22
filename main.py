@@ -179,7 +179,7 @@ def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['da
     #                 labelled_source_name, epoch=cfg['pretrain']['epoch'])
 
     logger.info('Run for multiple LR')
-    lrs = [1e-2, 1e-3]
+    lrs = [1e-3]
     for lr in lrs:
         logger.critical(f'Current Learning Rate: [{lr}]')
         model_name = f'Glove_{model_type}_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
@@ -187,6 +187,8 @@ def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['da
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
                    labelled_source_name, glove_embs, lr, model_name=model_name)
+
+        # ======================================================================
 
         token2idx_map, X = get_w2v_embs()
         train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
@@ -200,6 +202,8 @@ def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['da
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
                    labelled_source_name, glove_embs, lr, model_name=model_name)
+
+        # ======================================================================
 
         token2idx_map, X = get_crisisNLP_embs()
         train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
@@ -699,5 +703,10 @@ if __name__ == "__main__":
 
     # train, test = split_target(test_df, test_size=0.3,
     #                            train_size=.6, stratified=False)
-    main()
-    logger.info("Execution complete.")
+
+    logger.info('Run for multiple SEEDS')
+    num_seeds = 3
+    for seed in range(num_seeds):
+        set_all_seeds(seed)
+        main()
+    logger.info(f"Execution complete for {num_seeds} SEEDs.")

@@ -393,12 +393,12 @@ def prepare_pretraining(model_type=cfg['pretrain']['model_type'],
     node_list = list(G.G.nodes)
     idx2str = joint_vocab['idx2str_map']
     if model_type == 'MLP':
-        train_epochs_losses, state, save_path, X = mlp_trainer(
+        train_epochs_losses, state, X = mlp_trainer(
             X, pretrain_dataloader, in_dim=cfg['embeddings']['emb_dim'],
             hid_dim=cfg['gnn_params']['hid_dim'], epoch=cfg['pretrain']['epoch'],
             lr=cfg["pretrain"]["lr"], node_list=node_list, idx2str=idx2str)
     elif model_type == 'GCN':
-        train_epochs_losses, state, save_path, X = gcn_trainer(
+        train_epochs_losses, state, X = gcn_trainer(
             adj, X, pretrain_dataloader, in_dim=cfg['embeddings']['emb_dim'],
             hid_dim=cfg['gnn_params']['hid_dim'], epoch=cfg['pretrain']['epoch'],
             lr=cfg["pretrain"]["lr"], node_list=node_list, idx2str=idx2str, model_type=model_type)
@@ -407,7 +407,7 @@ def prepare_pretraining(model_type=cfg['pretrain']['model_type'],
 
     token2pretrained_embs = get_token2pretrained_embs(X, node_list, idx2str)
 
-    return train_epochs_losses, state, save_path, joint_vocab, token2pretrained_embs, X
+    return train_epochs_losses, state, joint_vocab, token2pretrained_embs, X
 
 
 def get_pretrain_artifacts(

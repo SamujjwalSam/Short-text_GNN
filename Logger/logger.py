@@ -14,7 +14,7 @@ __last_modified__:
 """
 
 import logging
-# from json import dumps
+from json import dumps
 from os import makedirs
 from os.path import join, exists
 import sys
@@ -102,4 +102,5 @@ from config import configuration as cfg
 
 logger_name = f"_[{cfg['data']['name']}]_[{cfg['data']['test']}]"
 logger = create_logger(logger_name=logger_name, log_time=timestamp)
+logger.info(dumps(cfg, indent=4))
 logger.info("Logger created succesfully.")

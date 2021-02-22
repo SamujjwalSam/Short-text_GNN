@@ -161,7 +161,7 @@ def eval_GCN_LSTM(model: GCN_BiLSTM_Classifier, A, X, loss_func,
             trues.append(label.detach())
             losses.append(loss.detach())
     test_time = timeit.default_timer() - start_time
-    logger.info(f"Total test time: [{test_time / 60} mins]")
+    logger.info(f"Total test time: [{test_time / 60:2.4} mins]")
     losses = mean(stack(losses))
     preds = cat(preds)
 
@@ -214,7 +214,7 @@ def GCN_LSTM_trainer(
                                         dataloader=test_dataloader, save_gcn_embs=True)
     test_time = timeit.default_timer() - start_time
     test_count = test_dataloader.dataset.__len__()
-    logger.info(f"Total inference time for [{test_count}] examples: [{test_time} sec]"
+    logger.info(f"Total inference time for [{test_count}] examples: [{test_time:2.4} sec]"
                 f"\nPer example: [{test_time / test_count} sec]")
     logger.info(dumps(test_output['result'], indent=4))
 

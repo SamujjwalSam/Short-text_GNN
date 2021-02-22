@@ -56,7 +56,11 @@ def train_lstm_classifier(
         start_time = timeit.default_timer()
         for iter, batch in enumerate(dataloader):
             text, text_lengths = batch.text
-            label = batch.__getattribute__('0').unsqueeze(1)
+            ## Get label based on number of classes:
+            if cfg['data']['class_names'] == 1:
+                label = batch.__getattribute__('0').unsqueeze(1)
+            else:
+                label = stack([batch.__getattribute__(cls) for cls in cfg['data']['class_names']]).T
             prediction = model(text, text_lengths).squeeze()
             if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
                 prediction = prediction.to(device)
@@ -127,7 +131,7 @@ def train_lstm_classifier(
 
 def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
                          dataloader: utils.data.dataloader.DataLoader,
-                         n_classes=cfg['data']['num_classes'], use_saved=True, epoch=cfg['training']['num_epoch']):
+                         n_classes=cfg['data']['num_classes']):
     # if use_saved:
     #     model = load_model_state(model, epoch)
 
@@ -138,7 +142,11 @@ def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
     start_time = timeit.default_timer()
     for iter, batch in enumerate(dataloader):
         text, text_lengths = batch.text
-        label = batch.__getattribute__('0').unsqueeze(1)
+        ## Get label based on number of classes:
+        if cfg['data']['class_names'] == 1:
+            label = batch.__getattribute__('0').unsqueeze(1)
+        else:
+            label = stack([batch.__getattribute__(cls) for cls in cfg['data']['class_names']]).T
         prediction = model(text, text_lengths)
         # test_count = label.shape[0]
         if prediction.dim() == 1:
@@ -156,7 +164,7 @@ def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
             trues.append(label.detach())
             losses.append(loss.detach())
     test_time = timeit.default_timer() - start_time
-    logger.info(f"Total test time: [{test_time / 60} mins]")
+    logger.info(f"Total test time: [{test_time / 60:2.4} mins]")
     losses = mean(stack(losses))
     preds = cat(preds)
 
@@ -224,7 +232,7 @@ def LSTM_trainer(
         test_time = timeit.default_timer() - start_time
 
     test_count = test_dataloader.dataset.__len__()
-    logger.info(f"Total inference time for [{test_count}] examples: [{test_time} sec]"
+    logger.info(f"Total inference time for [{test_count}] examples: [{test_time:2.4} sec]"
                 f"\nPer example: [{test_time / test_count} sec]")
     logger.info(dumps(test_output['result'], indent=4))
 
