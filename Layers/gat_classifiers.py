@@ -24,8 +24,7 @@ from dgl import DGLGraph
 from dgl.nn.pytorch.conv import GATConv, GraphConv
 
 from Layers.bilstm_classifiers import BiLSTM_Classifier
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+from config import configuration as cfg, device
 
 
 class Instance_GAT_dgl(torch.nn.Module, ABC):

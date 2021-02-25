@@ -26,11 +26,14 @@ from torch.utils.data import DataLoader
 from Layers.pretrain_losses import supervised_contrastive_loss
 from Layers.mlp_classifier import MLP_Model
 from Utils.utils import count_parameters, save_token2pretrained_embs
-from config import configuration as cfg, platform as plat, username as user, pretrain_dir
+from config import configuration as cfg, platform as plat, username as user, pretrain_dir, device
 from Logger.logger import logger
 
-device = device('cuda' if cuda.is_available() else 'cpu')
-# pretrain_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['pretrain']['name'])
+## Enable multi GPU cuda environment:
+
+if cuda.is_available():
+    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'])
+    cuda.set_device(cfg['cuda']['cuda_devices'])
 
 
 def eval_mlp(model, X):

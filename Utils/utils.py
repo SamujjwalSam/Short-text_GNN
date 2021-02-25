@@ -531,7 +531,8 @@ def print_norms(model, params_old=None, grads_old=None):
 
 
 def get_token2pretrained_embs(X: torch.tensor, node_list, idx2str):
-    X = torch.from_numpy(X)
+    if isinstance(X, np.ndarray):
+        X = torch.from_numpy(X)
     token2pretrained_embs = {}
     for node_id in node_list:
         token2pretrained_embs[idx2str[node_id]] = X[node_id]
@@ -555,12 +556,14 @@ def save_token2pretrained_embs(
     """
     logger.info(f'Saving pretrained embs for epoch [{epoch}]')
     # G_node_list = list(G.G.nodes)
+    makedirs(pretrainedX_path, exist_ok=True)
     pretrainedX_path = pretrainedX_path + str(epoch) + '.pt'
     if isinstance(X, np.ndarray):
         X = torch.from_numpy(X)
     torch.save(X, pretrainedX_path)
     logger.info(f'Saved pretrained_X at [{pretrainedX_path}]')
 
+    makedirs(token2pretrained_path, exist_ok=True)
     token2pretrained_path = token2pretrained_path + str(epoch) + '.pt'
     token2pretrained_embs = {}
     for node_id in ordered_tokens:
@@ -574,7 +577,7 @@ def load_token2pretrained_embs(
         epoch, pretrainedX_path=join(pretrain_dir, 'pretrained', 'X_'),
         token2pretrained_path=join(pretrain_dir, 'pretrained', 'token2pretrained_')):
     ## Reduce epoch value as idx starts from 0:
-    epoch = epoch-1
+    # epoch = epoch-1
 
     logger.info(f'Loading saved pretrained embs for epoch [{epoch}]')
     pretrainedX_path = pretrainedX_path + str(epoch) + '.pt'

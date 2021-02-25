@@ -32,9 +32,11 @@ from Utils.utils import logit2label, count_parameters
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user
 
-device = device('cuda' if cuda.is_available() else 'cpu')
+## Enable multi GPU cuda environment:
+
 if cuda.is_available():
-    environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
+    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'])
+    cuda.set_device(cfg['cuda']['cuda_devices'])
 
 
 def train_GAT_BiLSTM(
@@ -55,7 +57,7 @@ def train_GAT_BiLSTM(
             ## Store emb in a separate file as self_loop removes emb info:
             emb = graph_batch.ndata['emb']
             # graph_batch = dgl.add_self_loop(graph_batch)
-            if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+            if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
                 graph_batch = graph_batch.to(device)
                 emb = emb.to(device)
                 # local_ids = local_ids.to(device)
@@ -63,7 +65,7 @@ def train_GAT_BiLSTM(
                 # global_ids = global_ids.to(device)
             start_time = timeit.default_timer()
             prediction = model(graph_batch, emb, local_ids, node_counts)
-            if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+            if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
                 prediction = prediction.to(device)
             if prediction.dim() == 1:
                 prediction = prediction.unsqueeze(1)
@@ -124,7 +126,7 @@ def eval_GAT_BiLSTM(
         ## Store emb in a separate file as self_loop removes emb info:
         emb = graph_batch.ndata['emb']
         # graph_batch = dgl.add_self_loop(graph_batch)
-        if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+        if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
             graph_batch = graph_batch.to(device)
             emb = emb.to(device)
             # local_ids = local_ids.to(device)
@@ -137,7 +139,7 @@ def eval_GAT_BiLSTM(
         logger.info(f"Test time per example: [{test_time / test_count} sec]")
         if prediction.dim() == 1:
             prediction = prediction.unsqueeze(1)
-        if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+        if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
             prediction = prediction.to(device)
         loss = loss_func(prediction, label)
         preds.append(prediction.detach())
@@ -176,7 +178,7 @@ def GAT_BiLSTM_trainer(
 
     logger.info(model)
     count_parameters(model)
-    if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+    if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
         model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)

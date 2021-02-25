@@ -32,9 +32,9 @@ from Utils.utils import logit2label, count_parameters
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user
 
-device = device('cuda' if cuda.is_available() else 'cpu')
 if cuda.is_available():
-    environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
+    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'])
+    cuda.set_device(cfg['cuda']['cuda_devices'])
 
 
 def train_MLP_classifier(
@@ -53,10 +53,10 @@ def train_MLP_classifier(
         trues = []
         start_time = timeit.default_timer()
         for iter, (graph_batch, local_ids, label, global_ids, node_counts) in enumerate(dataloader):
-            if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+            if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
                 X = X.to(device)
             prediction = model(X, global_ids)
-            if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+            if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
                 prediction = prediction.to(device)
                 label = label.to(device)
             if prediction.dim() == 1:
@@ -67,7 +67,7 @@ def train_MLP_classifier(
             optimizer.step()
             # train_count = label.shape[0]
             epoch_loss += loss.detach().item()
-            if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+            if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
                 preds.append(prediction.detach().cpu())
                 trues.append(label.detach().cpu())
                 # losses.append(loss.detach().cpu())
@@ -126,7 +126,7 @@ def eval_MLP_classifier(model: MLP_Model, X, loss_func,
     losses = []
     start_time = timeit.default_timer()
     for iter, (graph_batch, local_ids, label, global_ids, node_counts) in enumerate(dataloader):
-        if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+        if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
             X = X.to(device)
         if save_gcn_embs:
             save(X, 'X_glove.pt')
@@ -134,11 +134,11 @@ def eval_MLP_classifier(model: MLP_Model, X, loss_func,
         # test_count = label.shape[0]
         if prediction.dim() == 1:
             prediction = prediction.unsqueeze(1)
-        if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+        if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
             prediction = prediction.to(device)
             label = label.to(device)
         loss = loss_func(prediction, label)
-        if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+        if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
             preds.append(prediction.detach().cpu())
             trues.append(label.detach().cpu())
             losses.append(loss.detach().cpu())
@@ -180,7 +180,7 @@ def MLP_trainer(
         in_dim=in_dim, out_dim=train_dataloader.dataset.num_labels, hid_dim=hid_dim)
     logger.info(model)
     count_parameters(model)
-    if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+    if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
         model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)

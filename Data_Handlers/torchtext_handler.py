@@ -24,10 +24,8 @@ from pathlib import Path
 from os.path import join
 from torchtext import data
 
-from config import configuration as cfg
+from config import configuration as cfg, device
 from Logger.logger import logger
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def prepare_fields(text_headers: list = None, label_headers=None, tokenizer='spacy',

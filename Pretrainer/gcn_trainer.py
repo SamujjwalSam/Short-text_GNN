@@ -27,10 +27,12 @@ from torch.utils.data import DataLoader
 from Layers.pretrain_losses import supervised_contrastive_loss
 from Layers.gcn_classifiers import GCN
 from Utils.utils import count_parameters, save_model_state, load_model_state, save_token2pretrained_embs
-from config import configuration as cfg, platform as plat, username as user, dataset_dir
+from config import configuration as cfg, platform as plat, username as user, dataset_dir, device
 from Logger.logger import logger
 
-device = device('cuda' if cuda.is_available() else 'cpu')
+if cuda.is_available():
+    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'])
+    cuda.set_device(cfg['cuda']['cuda_devices'])
 
 
 def eval_gcn(model, A, X):
@@ -43,7 +45,7 @@ def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoad
               idx2str=None, save_epochs=cfg['pretrain']['save_epochs']):
     logger.info("Started GCN training...")
     train_epoch_losses = []
-    for epoch in range(epochs):
+    for epoch in range(1, epochs+1):
         model.train()
         epoch_loss = 0
         epoch_start_time = timeit.default_timer()
@@ -85,22 +87,27 @@ def gcn_trainer(A, X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
     logger.info(model)
     count_parameters(model)
 
-    if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+    if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
         model.to(device)
         A = A.to(device)
         X = X.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
-    model_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
-    saved_model = load_model_state(model, model_name=epoch, optimizer=optimizer, model_dir=model_dir,
-                                   sub_dir='pretrained')
+    # model_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
+    # model_name = model_type
+    # saved_model = load_model_state(model, model_name=model_name, optimizer=optimizer, model_dir=model_dir)
+    saved_model = False
     epoch_losses = None
     if not saved_model:
         epoch_losses = train_gcn(model, A, X, optimizer, train_dataloader,
                                  epochs=epoch, node_list=node_list, idx2str=idx2str)
+        X_hat_eval = eval_gcn(model, A, X)
+        # token2pretrained_embs = get_token2pretrained_embs(X_hat, node_list, idx2str)
+        save_token2pretrained_embs(X_hat_eval, node_list, idx2str, epoch=epoch)
+        logger.info(f'Saved pretrained embeddings for epoch {epoch}')
 
-        save_model_state(model, 'GCN' + str(epoch), optimizer)
+        # save_model_state(model, 'GCN' + str(epoch), optimizer)
 
     if saved_model:
         X_hat = eval_gcn(saved_model, A, X)

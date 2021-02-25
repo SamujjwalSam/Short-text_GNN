@@ -32,9 +32,9 @@ from Utils.utils import logit2label, count_parameters
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user
 
-device = device('cuda' if cuda.is_available() else 'cpu')
 if cuda.is_available():
-    environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
+    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'])
+    cuda.set_device(cfg['cuda']['cuda_devices'])
 
 
 def train_GCN_LSTM(model, A, X, dataloader: utils.data.dataloader.DataLoader,
@@ -55,11 +55,11 @@ def train_GCN_LSTM(model, A, X, dataloader: utils.data.dataloader.DataLoader,
             ## Store emb in a separate file as self_loop removes emb info:
             # emb = graph_batch.ndata['emb']
             # graph_batch = dgl.add_self_loop(graph_batch)
-            if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+            if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
                 A = A.to(device)
                 X = X.to(device)
             prediction = model(A, X, global_ids)
-            if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+            if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
                 prediction = prediction.to(device)
                 label = label.to(device)
             if prediction.dim() == 1:
@@ -72,7 +72,7 @@ def train_GCN_LSTM(model, A, X, dataloader: utils.data.dataloader.DataLoader,
             epoch_loss += loss.detach().item()
             # preds.append(prediction.detach())
             # trues.append(label.detach())
-            if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+            if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
                 preds.append(prediction.detach().cpu())
                 trues.append(label.detach().cpu())
                 # losses.append(loss.detach().cpu())
@@ -134,7 +134,7 @@ def eval_GCN_LSTM(model: GCN_BiLSTM_Classifier, A, X, loss_func,
         ## Store emb in a separate file as self_loop removes emb info:
         # emb = graph_batch.ndata['emb']
         # graph_batch = dgl.add_self_loop(graph_batch)
-        if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+        if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
             # graph_batch = graph_batch.to(device)
             # emb = emb.to(device)
             # local_ids = local_ids.to(device)
@@ -146,13 +146,13 @@ def eval_GCN_LSTM(model: GCN_BiLSTM_Classifier, A, X, loss_func,
             save(X, 'X_glove.pt')
         prediction = model(A, X, global_ids, save_gcn_embs)
         # test_count = label.shape[0]
-        if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+        if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
             prediction = prediction.to(device)
             label = label.to(device)
         if prediction.dim() == 1:
             prediction = prediction.unsqueeze(1)
         loss = loss_func(prediction, label)
-        if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+        if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
             preds.append(prediction.detach().cpu())
             trues.append(label.detach().cpu())
             losses.append(loss.detach().cpu())
@@ -195,7 +195,7 @@ def GCN_LSTM_trainer(
         num_classes=train_dataloader.dataset.num_labels, state=state)
     logger.info(model)
     count_parameters(model)
-    if cfg['model']['use_cuda'][plat][user] and cuda.is_available():
+    if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
         model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)

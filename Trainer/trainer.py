@@ -28,9 +28,9 @@ from Utils.utils import save_model, load_model, logit2label
 from Metrics.metrics import calculate_performance_sk as calculate_performance
 from config import configuration as cfg, platform as plat, username as user, dataset_dir
 
-# check whether cuda is available
-device = device('cuda' if cuda.is_available() else 'cpu')
-n_classes = cfg['data']['num_classes']
+if cuda.is_available():
+    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'])
+    cuda.set_device(cfg['cuda']['cuda_devices'])
 
 
 def torchtext_batch2multilabel(batch, label_cols=None):

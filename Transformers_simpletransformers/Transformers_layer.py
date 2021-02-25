@@ -37,9 +37,11 @@ from File_Handlers.json_handler import read_labelled_json
 from Transformers_simpletransformers.BERT_multilabel_classifier import format_inputs
 
 ## Setting up the device for GPU usage
-from torch import cuda
+from torch import cuda, device
 
-device = 'cuda' if cuda.is_available() else 'cpu'
+if cuda.is_available():
+    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'])
+    cuda.set_device(cfg['cuda']['cuda_devices'])
 
 
 # Preparing for TPU usage
@@ -562,7 +564,7 @@ if __name__ == "__main__":
     # parser.add_argument("-ne", "--num_train_epochs",
     #                     default=cfg['training']['num_epoch'], type=int)
     # parser.add_argument("-c", "--use_cuda",
-    #                     default=cfg['model']['use_cuda'], action='store_true')
+    #                     default=cfg['cuda']['use_cuda'], action='store_true')
     #
     # args = parser.parse_args()
     #

@@ -20,7 +20,7 @@ __license__     : "This source code is licensed under the MIT-style license
 import torch
 import random
 import numpy as np
-from torch import cuda, save, load
+from torch import cuda, save, load, device
 from torch.utils.data import DataLoader
 from pandas import DataFrame
 from networkx import adjacency_matrix
@@ -54,14 +54,12 @@ from Trainer.trainer import trainer, predict_with_label
 # from Plotter.plot_functions import plot_training_loss
 from Metrics.metrics import calculate_performance_pl
 from config import configuration as cfg, platform as plat, username as user,\
-    dataset_dir, pretrain_dir
+    dataset_dir, pretrain_dir, device
 from Logger.logger import logger
 
-## Enable multi GPU cuda environment:
-device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 if cuda.is_available():
-    environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
-torch.cuda.device(1)
+    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'])
+    cuda.set_device(cfg['cuda']['cuda_devices'])
 
 
 def set_all_seeds(seed=0):
@@ -72,8 +70,6 @@ def set_all_seeds(seed=0):
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
 
-
-set_all_seeds(1)
 
 """
 In [1]: import torch
@@ -146,6 +142,20 @@ def add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
     return train_vocab
 
 
+# logger.info('Plot pretrained embeddings:')
+# C = set(glove_embs.keys()).intersection(set(pretrain_embs.keys()))
+# logger.debug(f'Common vocab size: {len(C)}')
+# words = ['nepal', 'italy', 'building', 'damage', 'kathmandu', 'water',
+#          'wifi', 'need', 'available', 'earthquake']
+# X_glove = {word: glove_embs[word] for word in words}
+# X_gcn = {word: pretrain_embs[word].detach().cpu().numpy() for word in words}
+# from Plotter.plot_functions import plot_vecs_color
+#
+# plot_vecs_color(tokens2vec=X_gcn, save_name='gcn_pretrained.pdf')
+# plot_vecs_color(tokens2vec=X_glove, save_name='glove_pretrained.pdf')
+# logger.debug(f'Word list: {words}')
+
+
 def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['data']['train'],
          labelled_val_name: str = cfg['data']['val'], labelled_test_name: str = cfg['data']['test']):
     logger.info('Read labelled data and prepare')
@@ -183,7 +193,39 @@ def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['da
     for lr in lrs:
         logger.critical(f'Current Learning Rate: [{lr}]')
         model_name = f'Glove_{model_type}_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
-        logger.critical(f'BEFORE ^^^^^^^^^^ {model_name}')
+        logger.critical(f'GLOVE ^^^^^^^^^^ {model_name}')
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   labelled_source_name, glove_embs, lr, model_name=model_name)
+
+        # ======================================================================
+
+        ## Sort epochs highest to lowest:
+        # epochs = cfg['pretrain']['save_epochs'].sort(reverse=True)
+        # epochs = cfg['pretrain']['save_epochs']
+        pmodel_type = cfg['pretrain']['model_type']
+        # for pepoch in epochs:
+        # logger.critical(f'Current Pretrain Epoch: [{pepoch}], Model: {pmodel_type}')
+        logger.critical('PRETRAIN ##########')
+        token2idx_map, X = pretrain(
+            train_dataset, train_vocab_mod, glove_embs, labelled_source_name,
+            epoch=cfg['pretrain']['epoch'], model_type=pmodel_type)
+
+        train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+        train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+            stoi=token2idx_map, vectors=X, get_iter=True,
+            dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+            train_dataname=labelled_source_name, val_dataname=labelled_val_name,
+            test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
+
+        extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
+        logger.info(f'Add {len(extra_pretrained_tokens)} extra pretrained vectors to vocab')
+        if len(extra_pretrained_tokens) > 0:
+            train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
+
+        model_name = f'WSCP_{model_type}_freq{cfg["data"]["min_freq"]}'\
+                     f'_lr{str(lr)}_Pepoch{str(60)}_Pmodel{pmodel_type}'
+        logger.critical(f'WSCP ********** {model_name}')
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
                    labelled_source_name, glove_embs, lr, model_name=model_name)
@@ -218,54 +260,13 @@ def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['da
                    train_vocab, train_dataset, val_dataset, test_dataset,
                    labelled_source_name, glove_embs, lr, model_name=model_name)
 
-        ## Sort epochs highest to lowest:
-        # epochs = cfg['pretrain']['save_epochs'].sort(reverse=True)
-        epochs = cfg['pretrain']['save_epochs']
-        for pepoch in epochs:
-            logger.critical(f'Current Pretrain Epoch: [{pepoch}], Model: {pmodel_type}')
-            logger.critical('PRETRAIN ##########')
-            token2idx_map, X = pretrain(
-                train_dataset, train_vocab_mod, glove_embs, labelled_source_name,
-                epoch=pepoch, model_type=pmodel_type)
-
-            # logger.info('Plot pretrained embeddings:')
-            # C = set(glove_embs.keys()).intersection(set(pretrain_embs.keys()))
-            # logger.debug(f'Common vocab size: {len(C)}')
-            # words = ['nepal', 'italy', 'building', 'damage', 'kathmandu', 'water',
-            #          'wifi', 'need', 'available', 'earthquake']
-            # X_glove = {word: glove_embs[word] for word in words}
-            # X_gcn = {word: pretrain_embs[word].detach().cpu().numpy() for word in words}
-            # from Plotter.plot_functions import plot_vecs_color
-            #
-            # plot_vecs_color(tokens2vec=X_gcn, save_name='gcn_pretrained.pdf')
-            # plot_vecs_color(tokens2vec=X_glove, save_name='glove_pretrained.pdf')
-            # logger.debug(f'Word list: {words}')
-
-            train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
-            train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
-                stoi=token2idx_map, vectors=X, get_iter=True,
-                dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
-                train_dataname=labelled_source_name, val_dataname=labelled_val_name,
-                test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
-
-            extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
-            logger.info(f'Add {len(extra_pretrained_tokens)} extra pretrained vectors to vocab')
-            if len(extra_pretrained_tokens) > 0:
-                train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
-
-            model_name = f'WSCP_{model_type}_freq{cfg["data"]["min_freq"]}'\
-                         f'_lr{str(lr)}_Pepoch{str(pepoch)}_Pmodel{pmodel_type}'
-            logger.critical(f'AFTER ********** {model_name}')
-            classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
-                       train_vocab, train_dataset, val_dataset, test_dataset,
-                       labelled_source_name, glove_embs, lr, model_name=model_name)
     logger.info("Execution complete.")
 
 
 def pretrain(train_dataset, train_vocab: Dict[str, Counter],
              glove_embs: Dict[str, np.ndarray], labelled_source_name: str,
              epoch: int = cfg['pretrain']['epoch'], model_type=cfg['pretrain']['model_type']) -> (Dict, torch.tensor):
-    state, pretrain_vocab, pretrain_embs, X = get_pretrain_artifacts(
+    pretrain_vocab, pretrain_embs, X = get_pretrain_artifacts(
         epoch=epoch, model_type=model_type)
     calculate_vocab_overlap(set(train_vocab['str2idx_map'].keys()),
                             set(pretrain_vocab['str2idx_map'].keys()))
@@ -576,9 +577,6 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
         csv_dir=data_dir, csv_file=test_dataname,  # init_vocab=True,
         labelled_data=True)
 
-    # check whether cuda is available
-    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
     logger.info('Get iterator')
     train_iter, val_iter = dataset2bucket_iter(
         (train_dataset, test_dataset), batch_sizes=(train_batch_size, test_batch_size))
@@ -677,7 +675,7 @@ if __name__ == "__main__":
     # parser.add_argument("-ne", "--num_train_epochs",
     #                     default=cfg['training']['num_epoch'], type=int)
     # parser.add_argument("-c", "--use_cuda",
-    #                     default=cfg['model']['use_cuda'], action='store_true')
+    #                     default=cfg['cuda']['use_cuda'], action='store_true')
     #
     # args = parser.parse_args()
 

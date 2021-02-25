@@ -87,7 +87,7 @@ def BERT_classifier(train_df: pd.core.frame.DataFrame,
                     model_name: str = cfg['transformer']['model_name'],
                     model_type: str = cfg['transformer']['model_type'],
                     num_epoch: int = cfg['training']['num_epoch'],
-                    use_cuda: bool = cfg['model']['use_cuda']) -> (dict, dict):
+                    use_cuda: bool = cfg['cuda']['use_cuda']) -> (dict, dict):
     """Train and Evaluation data needs to be in a Pandas Dataframe
 
     containing at least two columns, a 'text' and a 'labels' column. The
@@ -183,8 +183,6 @@ def BERT_classifier(train_df: pd.core.frame.DataFrame,
         model_type=model_type, model_name=model_name, num_labels=n_classes,
         use_cuda=use_cuda and torch.cuda.is_available(), args=args)
 
-    device = torch.device('cuda' if use_cuda and torch.cuda.is_available() else 'cpu')
-
     ## Train the model
     start_time = timeit.default_timer()
     model.train_model(train_df, eval_df=test_df)
@@ -248,7 +246,7 @@ if __name__ == "__main__":
     parser.add_argument("-ne", "--num_train_epochs",
                         default=cfg['training']['num_epoch'], type=int)
     parser.add_argument("-c", "--use_cuda",
-                        default=cfg['model']['use_cuda'], action='store_true')
+                        default=cfg['cuda']['use_cuda'], action='store_true')
 
     args = parser.parse_args()
 

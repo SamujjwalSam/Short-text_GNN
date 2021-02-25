@@ -292,12 +292,12 @@ def load_word2vec(model_dir: str = emb_dir,
     model_path = join(model_dir, model_file_name)
     assert exists(model_path), f'Model [{model_path}] not found'
     try:
-        pretrain_model = FastText.load_fasttext_format(model_path)
+        pretrain_model = KeyedVectors.load_word2vec_format(
+            model_path, binary=binary)
     except Exception as e:
         logger.info('Loading fasttext format failed; trying word2vec format.')
         try:
-            pretrain_model = KeyedVectors.load_word2vec_format(
-                model_path, binary=binary)
+            pretrain_model = FastText.load_fasttext_format(model_path)
         except Exception as e:
             logger.info('Loading word2vec format failed; trying Gensim format.')
             pretrain_model = KeyedVectors.load(model_path)

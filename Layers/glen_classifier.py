@@ -25,7 +25,7 @@ from Layers.gcn_classifiers import GCN
 from Layers.gat_classifiers import Instance_GAT_dgl
 from Layers.bilstm_classifiers import BiLSTM_Classifier
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+from config import configuration as cfg, device
 
 
 class GLEN_Classifier(torch.nn.Module):
