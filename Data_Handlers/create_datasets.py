@@ -25,7 +25,7 @@ from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 from File_Handlers.read_datasets import load_fire16, load_smerp17
 from Utils.utils import freq_tokens_per_class, split_target
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
-from config import configuration as cfg, dataset_dir
+from config import configuration as cfg, dataset_dir, pretrain_dir
 from Logger.logger import logger
 
 
@@ -148,9 +148,9 @@ def prepare_splitted_datasets(
     train_dataname = train_dataname + ".csv"
     if use_all_data:
         train_dataname = "all_training.csv"
-        if not exists(join(dataset_dir, train_dataname)):
-            train_df = read_csvs(data_dir=dataset_dir, filenames=cfg['pretrain']['files'])
-            train_df.to_csv(join(data_dir, train_dataname))
+        # if not exists(join(dataset_dir, train_dataname)):
+        train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
+        train_df.to_csv(join(data_dir, train_dataname))
 
     if stoi is None:
         logger.critical('Setting default GLOVE vectors:')
