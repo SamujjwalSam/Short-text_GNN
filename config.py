@@ -25,7 +25,10 @@ __last_modified__:
 
 import json
 from os.path import join
-from Logger.logger import logger
+from torch import cuda, device
+
+# from Logger.logger import create_logger
+# logger = create_logger(logger_name=f"{cfg['data']['name']}")
 
 global seed
 seed = 0
@@ -250,7 +253,7 @@ configuration = {
             "Linux":   {
                 "sam":            "/home/sam/Embeddings",
                 "cs14mtech11017": "/home/cs14mtech11017/Embeddings",
-                "cs16resch01001": "/home/cs16resch01001/Embeddings",
+                "cs16resch01001": "/raid/cs16resch01001/Embeddings",
                 ## Code path: /home/cs14resch11001/codes/MNXC
                 "cs14resch11001": "/raid/ravi/pretrain"
             }
@@ -262,68 +265,14 @@ configuration = {
             "Linux":   {
                 "sam":            "/home/sam/Datasets",
                 "cs14mtech11017": "/home/cs14mtech11017/Datasets",
-                "cs16resch01001": "/home/cs16resch01001/datasets",
+                "cs16resch01001": "/raid/cs16resch01001/datasets",
                 "cs14resch11001": "/raid/ravi/Datasets/Extreme Classification"
             }
         }
     },
 
-    # "transformer":  {
-    #     "model_type":                  "distilbert",
-    #     "model_name":                  "distilbert-base-uncased-distilled-squad",
-    #     "num_folds":                   5,
-    #     "max_seq_len":                 128,
-    #     'gradient_accumulation_steps': 1,
-    #     "max_vec_len":                 5000,
-    #     "dropout":                     0.1,
-    #     "dropout_external":            0.0,
-    #     "clipnorm":                    1.0,
-    #     "data_slice":                  5120,
-    #     "use_cuda":                    {
-    #         "Windows": False,
-    #         "OSX":     False,
-    #         "Linux":   {
-    #             "sam":            False,
-    #             "cs14mtech11017": True,
-    #             "cs16resch01001": True,
-    #             "cs14resch11001": True
-    #         },
-    #     },
-    #     "normalize_inputs":            False,
-    #     "kernel_size":                 1,
-    #     "stride":                      1,
-    #     "padding":                     1,
-    #     "context":                     10,
-    #     "classify_count":              0,
-    #     "fce":                         True,
-    #     "optimizer":                   {
-    #         "optimizer_type":          "AdamW",
-    #         "learning_rate_scheduler": "linear_warmup",
-    #         "lr":                      3e-4,
-    #         "lr_decay":                0.,
-    #         "weight_decay":            0.,
-    #         "max_grad_norm":           1.0,
-    #         "adam_epsilon":            1e-8,
-    #         'warmup_ratio':            0.06,
-    #         'warmup_steps':            0.,
-    #         "momentum":                0.9,
-    #         "dampening":               0.9,
-    #         "alpha":                   0.99,
-    #         "rho":                     0.9,
-    #         "centered":                False
-    #     },
-    #     "view_grads":                  False,
-    #     "view_train_precision":        True
-    # },
-
-    "model":        {
-        'mittens_iter':         10,
-        "num_folds":            5,
-        "max_sequence_length":  200,
-        "dropout":              0.2,
-        "dropout_external":     0.0,
-        "clipnorm":             1.0,
-        "use_cuda":             {
+    'cuda':         {
+        "use_cuda":     {
             "Windows": False,
             "OSX":     False,
             "Linux":   {
@@ -333,6 +282,64 @@ configuration = {
                 "cs14resch11001": True
             },
         },
+        "cuda_devices":     {
+            "Windows": False,
+            "OSX":     False,
+            "Linux":   {
+                "sam":            False,
+                "cs14mtech11017": 1,
+                "cs16resch01001": 1,
+                "cs14resch11001": 7
+            },
+        },
+    },
+
+    "transformer":  {
+        "model_type":                  "bert",
+        "model_name":                  "bert-base-uncased",
+        "num_folds":                   5,
+        "max_seq_len":                 64,
+        'gradient_accumulation_steps': 1,
+        "max_vec_len":                 5000,
+        "dropout":                     0.1,
+        "dropout_external":            0.0,
+        "clipnorm":                    2.0,
+        "data_slice":                  5120,
+        "normalize_inputs":            False,
+        "kernel_size":                 1,
+        "stride":                      1,
+        "padding":                     1,
+        "context":                     5,
+        "classify_count":              0,
+        "fce":                         True,
+        "optimizer":                   {
+            "optimizer_type":          "AdamW",
+            "learning_rate_scheduler": "linear_warmup",
+            "lr":                      3e-4,
+            "lr_decay":                0.,
+            "weight_decay":            0.,
+            "max_grad_norm":           1.0,
+            "adam_epsilon":            1e-8,
+            'warmup_ratio':            0.06,
+            'warmup_steps':            0.,
+            "momentum":                0.9,
+            "dampening":               0.9,
+            "alpha":                   0.99,
+            "rho":                     0.9,
+            "centered":                False
+        },
+        "view_grads":                  False,
+        "view_train_precision":        True
+    },
+
+    "model":        {
+        'type':                 'LSTM',
+        'mittens_iter':         500,
+        "num_folds":            5,
+        "max_sequence_length":  200,
+        "dropout":              0.2,
+        "dropout_external":     0.0,
+        "clipnorm":             1.0,
         "normalize_inputs":     False,
         "kernel_size":          1,
         "stride":               1,
@@ -361,11 +368,11 @@ configuration = {
     },
 
     "lstm_params":  {
-        "num_layers":    2,
-        "bias":          True,
-        "batch_first":   True,
-        "bi":            True,
-        "hid_size":      64,
+        "num_layers":  2,
+        "bias":        True,
+        "batch_first": True,
+        "bi":          True,
+        "hid_size":    64,
     },
 
     "gnn_params":   {
@@ -378,8 +385,8 @@ configuration = {
     },
 
     "training":     {
-        "num_epoch":        15,
-        "train_batch_size": 64,
+        "num_epoch":        5,
+        "train_batch_size": 128,
         "eval_batch_size":  256,
     },
 
@@ -387,7 +394,7 @@ configuration = {
         "max_nb_words":       20000,
         "min_word_count":     1,
         "window":             7,
-        "min_count":          1,
+        "min_freq":           1,
         "negative":           10,
         "num_chunks":         10,
         "vectorizer":         "doc2vec",
@@ -421,10 +428,10 @@ class Config(object):
 
     def print_config(self, indent=4, sort=True):
         """ Prints the config. """
-        logger.info("[{}] : {}".format("Configuration",
-                                       json.dumps(self.configuration,
-                                                  indent=indent,
-                                                  sort_keys=sort)))
+        print("[{}] : {}".format("Configuration",
+                                 json.dumps(self.configuration,
+                                            indent=indent,
+                                            sort_keys=sort)))
 
     @staticmethod
     def get_platform():
@@ -463,7 +470,7 @@ class Config(object):
 
 
 config_cls = Config()
-config_cls.print_config()
+# config_cls.print_config()
 
 global platform
 platform = config_cls.get_platform()
@@ -476,6 +483,15 @@ dataset_dir = join(configuration["paths"]['dataset_root'][platform][username],
 global pretrain_dir
 pretrain_dir = join(configuration['paths']['dataset_root'][platform][username],
                     configuration['pretrain']['name'])
+
+global emb_dir
+emb_dir = configuration['paths']['embedding_dir'][platform][username]
+
+global device
+device = device(f'cuda:'+str(configuration['cuda']['cuda_devices'][platform][
+                                 username]) if
+                cuda.is_available() else 'cpu')
+
 
 def main():
     """

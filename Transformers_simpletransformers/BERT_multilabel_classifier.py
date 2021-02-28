@@ -23,14 +23,22 @@ import argparse
 import numpy as np
 import pandas as pd
 from os.path import join
+from os import environ
 # from json import dumps, dump
-from simpletransformers.classification import MultiLabelClassificationModel, MultiLabelClassificationArgs
-# import torch.multiprocessing
-# torch.multiprocessing.set_sharing_strategy('file_system')
+from simpletransformers.classification import MultiLabelClassificationModel, MultiLabelClassificationArgs, ClassificationModel, ClassificationArgs
+# from simpletransformers.language_representation import RepresentationModel
+# from simpletransformers.config.model_args import ModelArgs
 
+from File_Handlers.csv_handler import read_csv
 from config import configuration as cfg, platform as plat, username as user, dataset_dir
-from Metrics.metrics import calculate_performance_pl, calculate_performance_sk
+from Metrics.metrics import calculate_performance_bin_sk
 from Logger.logger import logger
+
+
+if torch.cuda.is_available():
+    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
+    environ["CUDA_VISIBLE_DEVICES"] = '1'
+    torch.cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
 
 
 def format_inputs(df: pd.core.frame.DataFrame):

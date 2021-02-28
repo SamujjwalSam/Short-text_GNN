@@ -29,8 +29,8 @@ from Metrics.metrics import calculate_performance_sk as calculate_performance
 from config import configuration as cfg, platform as plat, username as user, dataset_dir
 
 if cuda.is_available():
-    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'])
-    cuda.set_device(cfg['cuda']['cuda_devices'])
+    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
+    cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
 
 
 def torchtext_batch2multilabel(batch, label_cols=None):

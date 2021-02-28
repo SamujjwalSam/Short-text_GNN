@@ -32,8 +32,8 @@ from Logger.logger import logger
 ## Enable multi GPU cuda environment:
 
 if cuda.is_available():
-    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'])
-    cuda.set_device(cfg['cuda']['cuda_devices'])
+    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
+    cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
 
 
 def eval_mlp(model, X):

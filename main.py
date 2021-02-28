@@ -58,8 +58,16 @@ from config import configuration as cfg, platform as plat, username as user,\
 from Logger.logger import logger
 
 if cuda.is_available():
-    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'])
-    cuda.set_device(cfg['cuda']['cuda_devices'])
+    environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['use_cuda'])
+    logger.debug(device)
+    logger.debug(f'current_device: {torch.cuda.current_device()}\n'
+                 f' device_count: {torch.cuda.device_count()}')
+    cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
+
+    if device.type == 'cuda':
+        # logger.info(torch.cuda.get_device_name(cfg['cuda']['use_cuda']))
+        logger.info(f'Allocated: {round(torch.cuda.memory_allocated(0)/1024**3,1)}GB')
+        logger.info(f'Cached: {round(torch.cuda.memory_reserved(0)/1024**3,1)}GB')
 
 
 def set_all_seeds(seed=0):
@@ -69,52 +77,6 @@ def set_all_seeds(seed=0):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
-
-
-"""
-In [1]: import torch
-
-In [2]: torch.cuda.current_device()
-Out[2]: 0
-
-In [3]: torch.cuda.device(0)
-Out[3]: <torch.cuda.device at 0x7efce0b03be0>
-
-In [4]: torch.cuda.device_count()
-Out[4]: 1
-
-In [5]: torch.cuda.get_device_name(0)
-Out[5]: 'GeForce GTX 950M'
-
-In [6]: torch.cuda.is_available()
-Out[6]: True
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-logger.info('Using device:', device)
-logger.info()
-
-#Additional Info when using cuda
-if device.type == 'cuda':
-    logger.info(torch.cuda.get_device_name(0))
-    logger.info('Memory Usage:')
-    logger.info('Allocated:', round(torch.cuda.memory_allocated(0)/1024**3,1), 'GB')
-    logger.info('Cached:   ', round(torch.cuda.memory_cached(0)/1024**3,1), 'GB')
-    
-    
->>> import platform
->>> platform.machine()
-'x86'
->>> platform.version()
-'5.1.2600'
->>> platform.platform()
-'Windows-XP-5.1.2600-SP2'
->>> platform.uname()
-('Windows', 'name', 'XP', '5.1.2600', 'x86', 'x86 Family 6 Model 15 Stepping 6, GenuineIntel')
->>> platform.system()
-'Windows'
->>> platform.processor()
-'x86 Family 6 Model 15 Stepping 6, GenuineIntel'
-"""
 
 
 def add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab):
@@ -172,8 +134,9 @@ def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['da
     ov_freq = set(tr_freq).intersection(ts_freq)
     ov_v = set(tr_v).intersection(ts_v)
     logger.info(
-        f'Vocab overlap train {len(tr_freq)}, {len(tr_v)}, test {len(ts_freq)}, {len(ts_v)}: {len(ov_freq)}, '
-        f'{len(ov_v)}')
+        f'Vocab train freq: {len(tr_freq)}, itos: {len(tr_v)}, '
+        f'test freq: {len(ts_freq)}, itos: {len(ts_v)} = '
+        f'overlap freq: {len(ov_freq)}, itos: {len(ov_v)}')
 
     # train_vocab_mod = train_vocab.copy()
     train_vocab_mod = {

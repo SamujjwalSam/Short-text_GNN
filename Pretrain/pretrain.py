@@ -38,14 +38,12 @@ from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
 from Text_Encoder.finetune_static_embeddings import glove2dict, train_mittens,\
     calculate_cooccurrence_mat, preprocess_and_find_oov2, create_clean_corpus
-from config import configuration as cfg, pretrain_dir, emb_dir
+from config import configuration as cfg, platform as plat, username as user, pretrain_dir, emb_dir, device
 from Logger.logger import logger
 
-## Enable multi GPU cuda environment:
-device = device('cuda' if cuda.is_available() else 'cpu')
 if cuda.is_available():
-    environ["CUDA_VISIBLE_DEVICES"] = "0"
-    cuda.set_device(0)
+    environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
+    cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
 
 
 def set_all_seeds(seed=0):

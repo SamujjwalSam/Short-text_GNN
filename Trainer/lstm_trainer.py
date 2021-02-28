@@ -34,8 +34,8 @@ from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user, device
 
 if cuda.is_available():
-    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'])
-    cuda.set_device(cfg['cuda']['cuda_devices'])
+    # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
+    cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
 
 
 def train_lstm_classifier(
@@ -61,7 +61,7 @@ def train_lstm_classifier(
                 label = batch.__getattribute__('0').unsqueeze(1)
             else:
                 label = stack([batch.__getattribute__(cls) for cls in cfg['data']['class_names']]).T
-            prediction = model(text, text_lengths).squeeze()
+            prediction = model(text, text_lengths.long().cpu()).squeeze()
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
                 prediction = prediction.to(device)
                 label = label.to(device)
@@ -147,7 +147,7 @@ def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
             label = batch.__getattribute__('0').unsqueeze(1)
         else:
             label = stack([batch.__getattribute__(cls) for cls in cfg['data']['class_names']]).T
-        prediction = model(text, text_lengths)
+        prediction = model(text, text_lengths.long().cpu())
         # test_count = label.shape[0]
         if prediction.dim() == 1:
             prediction = prediction.unsqueeze(1)
