@@ -391,12 +391,12 @@ def prepare_pretraining(model_type=cfg['pretrain']['model_type'],
     node_list = list(G.G.nodes)
     idx2str = joint_vocab['idx2str_map']
     if model_type == 'MLP':
-        train_epochs_losses, state, X = mlp_trainer(
+        train_epochs_losses, X = mlp_trainer(
             X, pretrain_dataloader, in_dim=cfg['embeddings']['emb_dim'],
             hid_dim=cfg['gnn_params']['hid_dim'], epoch=cfg['pretrain']['epoch'],
             lr=cfg["pretrain"]["lr"], node_list=node_list, idx2str=idx2str)
     elif model_type == 'GCN':
-        train_epochs_losses, state, X = gcn_trainer(
+        train_epochs_losses, X = gcn_trainer(
             adj, X, pretrain_dataloader, in_dim=cfg['embeddings']['emb_dim'],
             hid_dim=cfg['gnn_params']['hid_dim'], epoch=cfg['pretrain']['epoch'],
             lr=cfg["pretrain"]["lr"], node_list=node_list, idx2str=idx2str, model_type=model_type)
@@ -405,7 +405,7 @@ def prepare_pretraining(model_type=cfg['pretrain']['model_type'],
 
     token2pretrained_embs = get_token2pretrained_embs(X, node_list, idx2str)
 
-    return train_epochs_losses, state, joint_vocab, token2pretrained_embs, X
+    return train_epochs_losses, joint_vocab, token2pretrained_embs, X
 
 
 def get_pretrain_artifacts(
@@ -416,7 +416,6 @@ def get_pretrain_artifacts(
     token_embs_path = token_embs_path + str(epoch) + '.pt'
     pretrainedX_path = pretrainedX_path + str(epoch) + '.pt'
 
-    state = None
     if exists(vocab_path + '.json') and exists(pretrainedX_path):
         logger.info(f'Loading Pretraining Artifacts from [{token_embs_path}] and [{vocab_path}]')
         vocab = read_json(vocab_path)
@@ -429,10 +428,10 @@ def get_pretrain_artifacts(
                 X, list(vocab['str2idx_map'].keys()), vocab['idx2str_map'])
     else:
         logger.info('Pretraining')
-        _, state, _, vocab, token2pretrained_embs, X = prepare_pretraining(
+        _, vocab, token2pretrained_embs, X = prepare_pretraining(
             model_type=model_type)
 
-    return state, vocab, token2pretrained_embs, X
+    return vocab, token2pretrained_embs, X
 
 
 def get_w2v_embs():
@@ -447,42 +446,70 @@ def get_w2v_embs():
     return joint_vocab['str2idx_map'], from_numpy(X)
 
 
+# def get_crisisNLP_embs():
+#     if exists(join(emb_dir, 'crisisNLP_0.pt')) and exists(join(emb_dir, 'str2idx.pt')):
+#         X, _ = load_token2pretrained_embs(
+#             '1', pretrainedX_path=join(emb_dir, '', 'crisisNLP_'),
+#             token2pretrained_path=join(emb_dir, '', 'crisisNLP_token2pretrained_'))
+#         str2idx = read_json(join(emb_dir, 'str2idx.pt'))
+#     else:
+#         joint_vocab, joint_corpus_toks, joint_corpus_strs, joint_oov_high_freqs =\
+#             get_vocab_data(joint_path, name='_joint', glove_embs=glove_embs)
+#
+#         crisisnlp_model = load_word2vec(model_file_name='crisisNLP_word_vector_w2v.bin')
+#         ordered_tokens = list(joint_vocab['str2idx_map'].keys())
+#         X = [np.array(
+#             [crisisnlp_model[w] if w in crisisnlp_model else np.random.uniform(
+#                 -0.25, 0.25, crisisnlp_model.vector_size) for w in ordered_tokens])][0]
+#
+#         X = from_numpy(X)
+#
+#         save_token2pretrained_embs(
+#             X, ordered_tokens, joint_vocab['idx2str_map'], '0',
+#             pretrainedX_path=join(emb_dir, '', 'crisisNLP_'),
+#             token2pretrained_path=join(emb_dir, '', 'crisisNLP_token2pretrained_'))
+#         str2idx = joint_vocab['str2idx_map']
+#
+#     return str2idx, X
+
+
 def get_crisisNLP_embs():
-    if exists(join(emb_dir, 'crisisNLP_0.pt')) and exists(join(emb_dir, 'str2idx.pt')):
-        X, _ = load_token2pretrained_embs(
-            '1', pretrainedX_path=join(emb_dir, '', 'crisisNLP_'),
-            token2pretrained_path=join(emb_dir, '', 'crisisNLP_token2pretrained_'))
-        str2idx = read_json(join(emb_dir, 'str2idx.pt'))
-    else:
-        joint_vocab, joint_corpus_toks, joint_corpus_strs, joint_oov_high_freqs =\
-            get_vocab_data(joint_path, name='_joint', glove_embs=glove_embs)
+    joint_vocab, joint_corpus_toks, joint_corpus_strs, joint_oov_high_freqs =\
+        get_vocab_data(joint_path, name='_joint', glove_embs=glove_embs)
 
-        crisisnlp_model = load_word2vec(model_file_name='crisisNLP_word_vector_w2v.bin')
-        ordered_tokens = list(joint_vocab['str2idx_map'].keys())
-        X = [np.array(
-            [crisisnlp_model[w] if w in crisisnlp_model else np.random.uniform(
-                -0.25, 0.25, crisisnlp_model.vector_size) for w in ordered_tokens])][0]
+    crisisnlp_model = load_word2vec(model_file_name='crisisNLP_word_vector_w2v.bin')
+    ordered_tokens = list(joint_vocab['str2idx_map'].keys())
+    X = [np.array(
+        [crisisnlp_model[w] if w in crisisnlp_model else np.random.uniform(
+            -0.25, 0.25, crisisnlp_model.vector_size) for w in ordered_tokens])][0]
 
-        X = from_numpy(X)
+    X = from_numpy(X)
 
-        save_token2pretrained_embs(
-            X, ordered_tokens, joint_vocab['idx2str_map'], '0',
-            pretrainedX_path=join(emb_dir, '', 'crisisNLP_'),
-            token2pretrained_path=join(emb_dir, '', 'crisisNLP_token2pretrained_'))
-        str2idx = joint_vocab['str2idx_map']
-
-    return str2idx, X
+    return joint_vocab['str2idx_map'], X
 
 
 if __name__ == "__main__":
-    jv, X = get_crisisNLP_embs()
-    jv, X = get_w2v_embs()
+    # jv, X = get_crisisNLP_embs()
+    # jv, X = get_w2v_embs()
+    from Plotter.plot_functions import test_plot_heatmap
 
-    state, joint_vocab, token2pretrained_embs, X = get_pretrain_artifacts()
+    test_plot_heatmap()
+
+    joint_vocab, token2pretrained_embs, X = get_pretrain_artifacts()
     C = set(glove_embs.keys()).intersection(set(token2pretrained_embs.keys()))
     logger.debug(f'Common vocab size: {len(C)}')
-    words = ['nepal', 'italy', 'building', 'damage', 'kathmandu', 'water',
+    words = ['nepal', 'queensland', 'building', 'damage', 'kathmandu', 'water',
              'wifi', 'need', 'available', 'earthquake']
+
+    common = ['common', 'works', 'fear', 'system', 'honestly', 'such', 'trapped', 'technology', 'collect', 'thoughts', 'rise', 'hours', 'dollars']
+    words.extend(common)
+
+    pos_exp = ['linking', 'corporation', 'unclear', 'filling', 'additional', 'pledges', 'slide', 'reversing', 'particularly', 'cared', 'miraculously', 'properly', 'recovering']
+    words.extend(pos_exp)
+
+    neg_exp = ['successful', 'sounding', 'equally', 'antique', 'beautifully', 'stink', 'sauce', 'homecoming', 'emotions', 'lick', 'atheist', 'fancy', 'coconut']
+    words.extend(neg_exp)
+
     X_glove = {word: glove_embs[word] for word in words}
     X_gcn = {word: token2pretrained_embs[word] for word in words}
     from Plotter.plot_functions import plot_vecs_color
