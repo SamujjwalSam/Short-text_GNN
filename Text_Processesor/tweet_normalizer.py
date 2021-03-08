@@ -23,7 +23,7 @@ from nltk.corpus import stopwords
 from nltk.tokenize import TweetTokenizer
 from nltk.stem import PorterStemmer
 from nltk.stem import WordNetLemmatizer
-from emoji import demojize
+# from emoji import demojize
 
 from File_Handlers.json_handler import read_json
 from config import configuration as cfg, platform as plat, username as user,\
@@ -153,8 +153,8 @@ def normalizeToken(token):
         return "# " + token[1:]
     elif token_lower.startswith("http") or token_lower.startswith("www"):
         return "HTTPURL"
-    elif len(token) == 1:
-        return demojize(token)
+    # elif len(token) == 1:
+    #     return demojize(token)
     else:
         if token == "’":
             return "'"

@@ -35,6 +35,7 @@ from File_Handlers.csv_handler import read_csv
 from File_Handlers.json_handler import save_json, read_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Text_Processesor.build_corpus_vocab import get_dataset_fields
+from Text_Processesor.tweet_normalizer import normalizeTweet
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
 from Text_Encoder.finetune_static_embeddings import glove2dict, train_mittens,\
     calculate_cooccurrence_mat, preprocess_and_find_oov2, create_clean_corpus
@@ -208,10 +209,13 @@ def get_vocab_data(path=join(pretrain_dir, data_filename + "_multihot.csv"),
         corpus_strs = read_json(join(pretrain_dir, data_filename + name + '_corpus_strs'),
                                 convert_ordereddict=False)
     else:
-        ## TODO: Read pretraining data files:
-        read_input_files()
+        if read_input:
+            read_input_files()
+        # Create tokenizer:
+        tokenizer = partial(normalizeTweet, return_tokens=True)
+
         dataset, (fields, LABEL) = get_dataset_fields(
-            csv_dir='', csv_file=path, min_freq=min_freq)
+            csv_dir='', csv_file=path, min_freq=min_freq, tokenizer=tokenizer)
 
         vocab = {
             'freqs':       fields.vocab.freqs,
@@ -295,7 +299,7 @@ def get_graph_and_dataset(limit_dataset=None):
     # oov_emb_filename = data_filename + '_OOV_vectors_dict'
     oov_emb_filename = 'disaster_binary_pretrain_OOV_vectors_dict'
     joint_vocab, joint_corpus_toks, joint_corpus_strs, joint_oov_high_freqs =\
-        get_vocab_data(joint_path, name='_joint', glove_embs=glove_embs)
+        get_vocab_data(joint_path, name='_joint', glove_embs=glove_embs, read_input=True)
     if exists(join(pretrain_dir, oov_emb_filename + '.pkl')):
         oov_embs = load_pickle(filepath=pretrain_dir, filename=oov_emb_filename)
     else:
@@ -362,7 +366,8 @@ def get_graph_and_dataset(limit_dataset=None):
 
     dataset, ignored_tokens = get_pretrain_dataset(C, G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
 
-    logger.warning(f'Total number of ignored tokens: {len(ignored_tokens)}')
+    if ignored_tokens is not None:
+        logger.warning(f'Total number of ignored tokens: {len(ignored_tokens)}')
 
     G.save_graph()
 

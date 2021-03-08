@@ -92,9 +92,10 @@ def train_lstm_classifier(
         # if not model_name.startswith('WSCP'):
         # save_model_state(model, model_name + '_epoch' + str(epoch), optimizer=optimizer)
 
-        val_losses, val_output = eval_lstm_classifier(
-            model, loss_func=loss_func, dataloader=eval_dataloader)
-        # logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
+        if eval_dataloader is not None:
+            val_losses, val_output = eval_lstm_classifier(
+                model, loss_func=loss_func, dataloader=eval_dataloader)
+            # logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
         test_losses, test_output = eval_lstm_classifier(
             model, loss_func=loss_func, dataloader=test_dataloader)
         logger.info(f'test_output: \n{dumps(test_output["result"], indent=4)}')
@@ -126,7 +127,7 @@ def train_lstm_classifier(
         }
         # logger.info(f'Epoch {epoch} result: \n{result_dict}')
 
-    return train_epoch_losses, train_epoch_dict
+    return model, train_epoch_losses, train_epoch_dict
 
 
 def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
@@ -192,7 +193,7 @@ def LSTM_trainer(
         train_dataloader, val_dataloader, test_dataloader, vectors, in_dim: int = 100,
         hid_dim: int = 50, epoch=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
-        model_name='Glove'):
+        model_name='Glove', pretrain_dataloader=None):
     # train_dataloader, test_dataloader = dataloaders
     model = BiLSTM_Emb_Classifier(
         vocab_size=vectors.shape[0], in_dim=in_dim, hid_dim=hid_dim, out_dim=cfg["data"]["num_classes"])
@@ -212,10 +213,17 @@ def LSTM_trainer(
     # model_name = model_name + '_epoch' + str(epoch)
     saved_model = load_model_state(model, model_name=model_name + '_epoch' + str(epoch), optimizer=optimizer)
 
+    if pretrain_dataloader is not None:
+        logger.info(f'Training classifier with all pretraining data with classification task')
+        model, epoch_losses, train_epochs_output_dict = train_lstm_classifier(
+            model, pretrain_dataloader, loss_func=loss_func, optimizer=optimizer,
+            epoch=epoch, eval_dataloader=val_dataloader,
+            test_dataloader=test_dataloader, model_name=model_name)
+
     train_epochs_output_dict = None
     if not saved_model:
         logger.info(f'Model name: {model_name}')
-        epoch_losses, train_epochs_output_dict = train_lstm_classifier(
+        model, epoch_losses, train_epochs_output_dict = train_lstm_classifier(
             model, train_dataloader, loss_func=loss_func, optimizer=optimizer,
             epoch=epoch, eval_dataloader=val_dataloader,
             test_dataloader=test_dataloader, model_name=model_name)

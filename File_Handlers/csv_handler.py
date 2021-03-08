@@ -34,6 +34,7 @@ def read_csvs(data_dir=dataset_dir,
     :return:
     """
     dfs = []
+    logger.debug(f'Reading [{filenames}] csv files.')
     for filename in filenames:
         if exists(join(data_dir, filename+'.csv')):
             df = pd.read_csv(join(data_dir, filename+'.csv'), index_col=0,
