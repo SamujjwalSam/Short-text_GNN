@@ -21,7 +21,7 @@ import torch
 import numpy as np
 import pandas as pd
 from json import dumps
-from pytorch_lightning.metrics.functional import f1_score as f1_pl, precision, recall, accuracy as accuracy_pl
+# from pytorch_lightning.metrics.functional import f1_score as f1_pl, precision, recall, accuracy as accuracy_pl
 from sklearn.metrics import accuracy_score, recall_score, precision_score,\
     f1_score, precision_recall_fscore_support, classification_report
 

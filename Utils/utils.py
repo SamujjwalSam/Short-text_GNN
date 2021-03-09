@@ -27,9 +27,9 @@ from os.path import join, exists
 from collections import OrderedDict, Counter
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
-from skmultilearn.model_selection import IterativeStratification
-from skmultilearn.model_selection.measures import\
-    get_combination_wise_output_matrix
+# from skmultilearn.model_selection import IterativeStratification
+# from skmultilearn.model_selection.measures import\
+#     get_combination_wise_output_matrix
 
 from config import configuration as cfg, dataset_dir, pretrain_dir, platform as plat, username as user
 from File_Handlers.json_handler import read_labelled_json, read_json

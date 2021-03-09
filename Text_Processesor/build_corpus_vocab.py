@@ -28,6 +28,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from Data_Handlers.torchtext_handler import prepare_fields, create_vocab,\
     create_tabular_dataset, dataset2iter, split_dataset
 from Text_Processesor.tweet_normalizer import normalizeTweet
+from Text_Processesor.tokenizer import BERT_tokenizer
 from config import configuration as cfg, platform as plat, username as user
 from Logger.logger import logger
 

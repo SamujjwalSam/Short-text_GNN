@@ -55,6 +55,7 @@ def train_lstm_classifier(
         trues = []
         start_time = timeit.default_timer()
         for iter, batch in enumerate(dataloader):
+            logger.debug(batch)
             text, text_lengths = batch.text
             ## Get label based on number of classes:
             if cfg['data']['class_names'] == 1:

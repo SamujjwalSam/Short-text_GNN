@@ -119,126 +119,101 @@ configuration = {
         # "target":     {
         #     'labelled':   'smerp17_labeled',
         #     'unlabelled': 'smerp17_unlabeled'},
-        #
+
         # 'num_classes': 4,
         # 'class_names': ('0', '1', '2', '3'),
+        'min_freq':     3,
+        'num_classes':  1,
+        # 'class_names':  ('0', '1', '2', '3', '4'),
+        'class_names':  ('0'),
+        'use_all_data': False,
+        'all_test': [
+            'AF13_test',
+            'BB13_test',
+            'Kaggle_test',
+            'NEQ15_test',
+            'OT13_test',
+            'QFL13_test',
+            'SH12_test',
+            'WTE13_test'],
 
-        'num_classes': 1,
-        'class_names': ('0'),
+        # 'name':         'disaster_binary_task',
 
-        # 'name':        'nepal_queensland_source',
-        # 'train':       '2015_Nepal_Earthquake_train',
-        # 'val':         '2015_Nepal_Earthquake_dev',
-        # 'test':        '2013_Queensland_Floods_test',
-        # "source":      {
-        #     'labelled':   '2015_Nepal_Earthquake_train',
-        #     'unlabelled': 'fire16_unlabeled'
-        # },
-        # "target":      {
-        #     'labelled':   '2013_Queensland_Floods_test',
-        #     'unlabelled': 'fire16_unlabeled'},
+        'name':       'AF13',
+        'train':      'AF13_train',
+        'val':        'AF13_val',
+        'test':       'AF13_test',
 
-        # 'name':        'nepal_queensland_target',
-        # 'train':       '2015_Nepal_Earthquake_train',
-        # 'val':         '2015_Nepal_Earthquake_dev',
-        # 'test':        '2013_Queensland_Floods_test',
-        # "source":      {
-        #     'labelled':   '2015_Nepal_Earthquake_train',
-        #     'unlabelled': 'queensland_unlabeled'
-        # },
-        # "target":      {
-        #     'labelled':   '2013_Queensland_Floods_test',
-        #     'unlabelled': 'queensland_unlabeled'},
-        #
-        # 'name':        'nepal_queensland',
-        # 'train':       '2015_Nepal_Earthquake_train',
-        # 'val':         '2015_Nepal_Earthquake_dev',
-        # 'test':        '2013_Queensland_Floods_test',
-        # "source":      {
-        #     'labelled':   '2015_Nepal_Earthquake_train',
-        #     'unlabelled': 'fire16_unlabeled'
-        # },
-        # "target":      {
-        #     'labelled':   '2013_Queensland_Floods_test',
-        #     'unlabelled': 'queensland_unlabeled'},
+        # 'name':       'BB13',
+        # 'train':      'BB13_train',
+        # 'val':        'BB13_val',
+        # 'test':       'BB13_test',
 
-        # 'name':       'queensland_nepal',
-        # 'train':      '2013_Queensland_Floods_train',
-        # 'val':        '2013_Queensland_Floods_dev',
-        # 'test':       '2015_Nepal_Earthquake_test',
-        # "source":     {
-        #     'labelled':   '2013_Queensland_Floods_train',
-        #     'unlabelled': 'queensland_unlabeled'
-        # },
-        # "target":     {
-        #     'labelled':   '2015_Nepal_Earthquake_test',
-        #     'unlabelled': 'fire16_unlabeled'},
+        # 'name':       'Kaggle',
+        # 'train':      'Kaggle_train',
+        # 'val':        'Kaggle_val',
+        # 'test':       'Kaggle_test',
 
-        # 'name':       'queensland_nepal_source',
-        # 'train':      '2013_Queensland_Floods_train',
-        # 'val':        '2013_Queensland_Floods_dev',
-        # 'test':       '2015_Nepal_Earthquake_test',
-        # "source":     {
-        #     'labelled':   '2013_Queensland_Floods_train',
-        #     'unlabelled': 'queensland_unlabeled'
-        # },
-        # "target":     {
-        #     'labelled':   '2015_Nepal_Earthquake_test',
-        #     'unlabelled': 'queensland_unlabeled'},
+        # 'name':       'NEQ15',
+        # 'train':      'NEQ15_train',
+        # 'val':        'NEQ15_val',
+        # 'test':       'NEQ15_test',
 
-        # 'name':       'queensland_nepal_target',
-        # 'train':      '2013_Queensland_Floods_train',
-        # 'val':        '2013_Queensland_Floods_dev',
-        # 'test':       '2015_Nepal_Earthquake_test',
-        # "source":     {
-        #     'labelled':   '2013_Queensland_Floods_train',
-        #     'unlabelled': 'fire16_unlabeled'
-        # },
-        # "target":     {
-        #     'labelled':   '2015_Nepal_Earthquake_test',
-        #     'unlabelled': 'fire16_unlabeled'},
+        # 'name':       'OT13',
+        # 'train':      'OT13_train',
+        # 'val':        'OT13_val',
+        # 'test':       'OT13_test',
 
-        'name':        'NEQ_NEQ',
-        'train':       '2015_Nepal_Earthquake_train',
-        'val':         '2015_Nepal_Earthquake_dev',
-        'test':        '2015_Nepal_Earthquake_test',
-        "source":      {
-            'labelled':   '2015_Nepal_Earthquake_train',
-            'unlabelled': 'fire16_unlabeled'
-        },
-        "target":      {
-            'labelled':   '2015_Nepal_Earthquake_train',
-            'unlabelled': 'fire16_unlabeled'},
+        # 'name':       'QFL13',
+        # 'train':      'QFL13_train',
+        # 'val':        'QFL13_val',
+        # 'test':       'QFL13_test',
 
-        # 'name':       'queensland_queensland',
-        # 'train':      '2013_Queensland_Floods_train',
-        # 'val':        '2013_Queensland_Floods_dev',
-        # 'test':       '2013_Queensland_Floods_test',
-        # "source":     {
-        #     'labelled':   '2013_Queensland_Floods_train',
-        #     'unlabelled': 'queensland_unlabeled'
-        # },
-        # "target":     {
-        #     'labelled':   '2013_Queensland_Floods_train',
-        #     'unlabelled': 'queensland_unlabeled'},
+        # 'name':       'SH12',
+        # 'train':      'SH12_train',
+        # 'val':        'SH12_val',
+        # 'test':       'SH12_test',
 
-        "val_split":   0.15,
-        "test_split":  0.999,
-        "show_stat":   False
+        # 'name':       'WTE13',
+        # 'train':      'WTE13_train',
+        # 'val':        'WTE13_val',
+        # 'test':       'WTE13_test',
     },
     'pretrain':     {
-        'epochs':   60,
-        'save_epochs': [5, 10, 15, 25, 40, 60],
-        'min_freq': 2,
-        'lr':       0.005,
-        'name':     'disaster_binary_pretrain',
-        'files':    [
-            'NEQ15',
-            'IEQ12',
-            'QFL13',
+        'epoch':       1,
+        'model_type':  'GCN',
+        'save_epochs': [80, 60, 40, 25, 15, 1],
+        'min_freq':    2,
+        'lr':          0.005,
+        # 'name':        'disaster_binary_pretrain',
+        'name':        'pretrain_disaster',
+        'files':       [
+
             'AF13_train',
-            'OT13',
-            'SH12'
+            'AF13_val',
+
+            'BB13_train',
+            'BB13_val',
+
+            'Kaggle_train',
+            'Kaggle_val',
+
+            'NEQ15_train',
+            'NEQ15_val',
+
+            'OT13_train',
+            'OT13_val',
+
+            # 'QFL13_train',
+            # 'QFL13_val',
+
+            'SH12_train',
+            'SH12_val',
+
+            'WTE13_train',
+            'WTE13_val',
+
+            # 'IEQ12',
         ],
     },
 
@@ -252,6 +227,7 @@ configuration = {
             "OSX":     "/home/cs16resch01001/datasets/Extreme Classification",
             "Linux":   {
                 "sam":            "/home/sam/Embeddings",
+                "root":            "/home/sam/Embeddings",
                 "cs14mtech11017": "/home/cs14mtech11017/Embeddings",
                 "cs16resch01001": "/raid/cs16resch01001/Embeddings",
                 ## Code path: /home/cs14resch11001/codes/MNXC
@@ -264,6 +240,7 @@ configuration = {
             "OSX":     "/home/cs16resch01001/datasets/Extreme Classification",
             "Linux":   {
                 "sam":            "/home/sam/Datasets",
+                "root":            "/home/sam/Datasets",
                 "cs14mtech11017": "/home/cs14mtech11017/Datasets",
                 "cs16resch01001": "/raid/cs16resch01001/datasets",
                 "cs14resch11001": "/raid/ravi/Datasets/Extreme Classification"
@@ -277,6 +254,7 @@ configuration = {
             "OSX":     False,
             "Linux":   {
                 "sam":            False,
+                "root":           False,
                 "cs14mtech11017": True,
                 "cs16resch01001": True,
                 "cs14resch11001": True
@@ -287,8 +265,9 @@ configuration = {
             "OSX":     False,
             "Linux":   {
                 "sam":            False,
-                "cs14mtech11017": 1,
-                "cs16resch01001": 1,
+                "root":           False,
+                "cs14mtech11017": 0,
+                "cs16resch01001": 5,
                 "cs14resch11001": 7
             },
         },
@@ -385,7 +364,7 @@ configuration = {
     },
 
     "training":     {
-        "num_epoch":        5,
+        "num_epoch":        1,
         "train_batch_size": 128,
         "eval_batch_size":  256,
     },

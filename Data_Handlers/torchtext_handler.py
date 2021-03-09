@@ -275,8 +275,8 @@ def dataset2bucket_iter(datasets: tuple, batch_size=None, batch_sizes: tuple = (
 
     # datasets = create_tabular_dataset(save_path, fields)
 
-    if batch_size:
-        iterator = data.BucketIterator.splits(
+    if batch_size is not None:
+        iterator = data.BucketIterator(
             datasets,
             batch_size=batch_size,
             # batch_sizes=batch_sizes,

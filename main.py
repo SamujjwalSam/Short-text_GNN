@@ -30,6 +30,7 @@ from json import dumps
 from collections import Counter
 from typing import Dict
 
+# from Transformers_simpletransformers.BERT_multilabel_classifier import BERT_binary_classifier
 # from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_propagation
 from Utils.utils import count_parameters, logit2label, sp_coo2torch_coo, get_token2pretrained_embs
 from Layers.bilstm_classifiers import BiLSTM_Classifier
@@ -39,7 +40,7 @@ from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 # from File_Handlers.read_datasets import load_fire16, load_smerp17
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
-from Data_Handlers.create_datasets import create_unlabeled_datasets, prepare_splitted_datasets
+from Data_Handlers.create_datasets import create_unlabeled_datasets, prepare_splitted_datasets, prepare_BERT_splitted_datasets, prepare_alltrain_splitted_datasets
 from Text_Processesor.build_corpus_vocab import get_dataset_fields, get_token_embedding
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
 from Data_Handlers.instance_handler_dgl import Instance_Dataset_DGL
@@ -57,7 +58,7 @@ from config import configuration as cfg, platform as plat, username as user,\
     dataset_dir, pretrain_dir, device
 from Logger.logger import logger
 
-if cuda.is_available():
+if cuda.is_available() and cfg['cuda']["use_cuda"][plat][user]:
     environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['use_cuda'])
     logger.debug(device)
     logger.debug(f'current_device: {torch.cuda.current_device()}\n'
@@ -118,9 +119,19 @@ def add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
 # logger.debug(f'Word list: {words}')
 
 
-def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['data']['train'],
+def main(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name: str = cfg['data']['train'],
          labelled_val_name: str = cfg['data']['val'], labelled_test_name: str = cfg['data']['test']):
-    logger.info('Read labelled data and prepare')
+    # BERT_binary_classifier()
+    # if model_type == 'BERT':
+    #     logger.info('Read and prepare labelled data for BERT')
+    #     train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+    #     train_dataloader, val_dataloader, test_dataloader = prepare_BERT_splitted_datasets(
+    #         get_iter=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+    #         train_dataname=labelled_source_name, val_dataname=labelled_val_name,
+    #         test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
+    #     BERT_binary_classifier()
+    # else:
+    logger.info('Read and prepare labelled data for Word level')
     train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
         get_iter=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
@@ -226,6 +237,227 @@ def main(model_type='LSTM', glove_embs=None, labelled_source_name: str = cfg['da
     logger.info("Execution complete.")
 
 
+def main_zeroshot(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name: str = cfg['data']['train'],
+         labelled_val_name: str = cfg['data']['val'], labelled_test_name: str = cfg['data']['test'], use_all_data=True):
+    logger.info('Read and prepare labelled data for Word level')
+    train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+    train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+        get_iter=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+        train_dataname=labelled_source_name, val_dataname=labelled_val_name,
+        test_dataname=labelled_test_name, use_all_data=use_all_data)
+
+    train_dataset, train_vocab, train_dataloader = prepare_alltrain_splitted_datasets()
+
+    tr_freq = train_vocab.vocab.freqs.keys()
+    tr_v = train_vocab.vocab.itos
+    ts_freq = test_vocab.vocab.freqs.keys()
+    ts_v = test_vocab.vocab.itos
+    ov_freq = set(tr_freq).intersection(ts_freq)
+    ov_v = set(tr_v).intersection(ts_v)
+    logger.info(
+        f'Vocab train freq: {len(tr_freq)}, itos: {len(tr_v)}, '
+        f'test freq: {len(ts_freq)}, itos: {len(ts_v)} = '
+        f'overlap freq: {len(ov_freq)}, itos: {len(ov_v)}')
+
+    # train_vocab_mod = train_vocab.copy()
+    train_vocab_mod = {
+        'freqs':       train_vocab.vocab.freqs.copy(),
+        'str2idx_map': dict(train_vocab.vocab.stoi.copy()),
+        'idx2str_map': train_vocab.vocab.itos.copy(),
+    }
+
+    if glove_embs is None:
+        glove_embs = glove2dict()
+
+    logger.info('Run for multiple LR')
+    lrs = [1e-3]
+    for lr in lrs:
+        logger.critical(f'Current Learning Rate: [{lr}]')
+        model_name = f'Glove_{model_type}_zeroshot_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
+        logger.critical(f'GLOVE ^^^^^^^^^^ {model_name}')
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   labelled_source_name, glove_embs, lr, model_name=model_name)
+
+        # ======================================================================
+
+        ## Sort epochs highest to lowest:
+        # epochs = cfg['pretrain']['save_epochs'].sort(reverse=True)
+        # epochs = cfg['pretrain']['save_epochs']
+        pmodel_type = cfg['pretrain']['model_type']
+        # for pepoch in epochs:
+        # logger.critical(f'Current Pretrain Epoch: [{pepoch}], Model: {pmodel_type}')
+        logger.critical('PRETRAIN ##########')
+        token2idx_map, X = pretrain(
+            train_dataset, train_vocab_mod, glove_embs, labelled_source_name,
+            epoch=cfg['pretrain']['epoch'], model_type=pmodel_type)
+
+        train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+        train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+            stoi=token2idx_map, vectors=X, get_iter=True,
+            dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+            train_dataname=labelled_source_name, val_dataname=labelled_val_name,
+            test_dataname=labelled_test_name, use_all_data=use_all_data)
+
+        extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
+        logger.info(f'Add {len(extra_pretrained_tokens)} extra pretrained vectors to vocab')
+        if len(extra_pretrained_tokens) > 0:
+            train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
+
+        model_name = f'WSCP_{model_type}_zeroshot_freq{cfg["data"]["min_freq"]}'\
+                     f'_lr{str(lr)}_Pepoch{str(60)}_Pmodel{pmodel_type}'
+        logger.critical(f'WSCP ********** {model_name}')
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   labelled_source_name, glove_embs, lr, model_name=model_name)
+
+        # ======================================================================
+
+        token2idx_map, X = get_w2v_embs()
+        train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+        train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+            stoi=token2idx_map, vectors=X, get_iter=True,
+            dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+            train_dataname=labelled_source_name, val_dataname=labelled_val_name,
+            test_dataname=labelled_test_name, use_all_data=use_all_data)
+        model_name = f'W2V_{model_type}_zeroshot_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
+        logger.critical(f'WORD2VEC @@@@@@@@@@ {model_name}')
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   labelled_source_name, glove_embs, lr, model_name=model_name)
+
+        # ======================================================================
+
+        token2idx_map, X = get_crisisNLP_embs()
+        train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+        train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+            stoi=token2idx_map, vectors=X, get_iter=True,
+            dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+            train_dataname=labelled_source_name, val_dataname=labelled_val_name,
+            test_dataname=labelled_test_name, use_all_data=use_all_data)
+        model_name = f'crisisNLP_{model_type}_zeroshot_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
+        logger.critical(f'crisisNLP &&&&&&&&&& {model_name}')
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   labelled_source_name, glove_embs, lr, model_name=model_name)
+
+    logger.info("Execution complete.")
+
+
+def main_alltrain(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name: str = cfg['data']['train'],
+         labelled_val_name: str = cfg['data']['val'], labelled_test_name: str = cfg['data']['test']):
+    logger.info('Read and prepare labelled data for Word level')
+    train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+    train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+        get_iter=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+        train_dataname=labelled_source_name, val_dataname=labelled_val_name,
+        test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
+
+    alltrain_dataset, alltrain_vocab, alltrain_dataloader = prepare_alltrain_splitted_datasets()
+
+    tr_freq = train_vocab.vocab.freqs.keys()
+    tr_v = train_vocab.vocab.itos
+    ts_freq = test_vocab.vocab.freqs.keys()
+    ts_v = test_vocab.vocab.itos
+    ov_freq = set(tr_freq).intersection(ts_freq)
+    ov_v = set(tr_v).intersection(ts_v)
+    logger.info(
+        f'Vocab train freq: {len(tr_freq)}, itos: {len(tr_v)}, '
+        f'test freq: {len(ts_freq)}, itos: {len(ts_v)} = '
+        f'overlap freq: {len(ov_freq)}, itos: {len(ov_v)}')
+
+    # train_vocab_mod = train_vocab.copy()
+    train_vocab_mod = {
+        'freqs':       train_vocab.vocab.freqs.copy(),
+        'str2idx_map': dict(train_vocab.vocab.stoi.copy()),
+        'idx2str_map': train_vocab.vocab.itos.copy(),
+    }
+
+    if glove_embs is None:
+        glove_embs = glove2dict()
+
+    # _, _ = pretrain(train_dataset, train_vocab_mod, glove_embs,
+    #                 labelled_source_name, epoch=cfg['pretrain']['epoch'])
+
+    logger.info('Run for multiple LR')
+    lrs = [1e-3]
+    for lr in lrs:
+        logger.critical(f'Current Learning Rate: [{lr}]')
+        model_name = f'Glove_{model_type}_alltrain_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
+        logger.critical(f'GLOVE ^^^^^^^^^^ {model_name}')
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   labelled_source_name, glove_embs, lr, model_name=model_name,
+                   pretrain_dataloader=alltrain_dataloader)
+
+        # ======================================================================
+
+        ## Sort epochs highest to lowest:
+        # epochs = cfg['pretrain']['save_epochs'].sort(reverse=True)
+        # epochs = cfg['pretrain']['save_epochs']
+        pmodel_type = cfg['pretrain']['model_type']
+        # for pepoch in epochs:
+        # logger.critical(f'Current Pretrain Epoch: [{pepoch}], Model: {pmodel_type}')
+        logger.critical('PRETRAIN ##########')
+        token2idx_map, X = pretrain(
+            train_dataset, train_vocab_mod, glove_embs, labelled_source_name,
+            epoch=cfg['pretrain']['epoch'], model_type=pmodel_type)
+
+        train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+        train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+            stoi=token2idx_map, vectors=X, get_iter=True,
+            dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+            train_dataname=labelled_source_name, val_dataname=labelled_val_name,
+            test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
+
+        extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
+        logger.info(f'Add {len(extra_pretrained_tokens)} extra pretrained vectors to vocab')
+        if len(extra_pretrained_tokens) > 0:
+            train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
+
+        model_name = f'WSCP_{model_type}_alltrain_freq{cfg["data"]["min_freq"]}'\
+                     f'_lr{str(lr)}_Pepoch{str(60)}_Pmodel{pmodel_type}'
+        logger.critical(f'WSCP ********** {model_name}')
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   labelled_source_name, glove_embs, lr, model_name=model_name,
+                   pretrain_dataloader=alltrain_dataloader)
+
+        # ======================================================================
+
+        token2idx_map, X = get_w2v_embs()
+        train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+        train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+            stoi=token2idx_map, vectors=X, get_iter=True,
+            dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+            train_dataname=labelled_source_name, val_dataname=labelled_val_name,
+            test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
+        model_name = f'W2V_{model_type}_alltrain_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
+        logger.critical(f'WORD2VEC @@@@@@@@@@ {model_name}')
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   labelled_source_name, glove_embs, lr, model_name=model_name,
+                   pretrain_dataloader=alltrain_dataloader)
+
+        # ======================================================================
+
+        token2idx_map, X = get_crisisNLP_embs()
+        train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+        train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+            stoi=token2idx_map, vectors=X, get_iter=True,
+            dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+            train_dataname=labelled_source_name, val_dataname=labelled_val_name,
+            test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
+        model_name = f'crisisNLP_{model_type}_alltrain_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
+        logger.critical(f'crisisNLP &&&&&&&&&& {model_name}')
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   labelled_source_name, glove_embs, lr, model_name=model_name,
+                   pretrain_dataloader=alltrain_dataloader)
+
+    logger.info("Execution complete.")
+
+
 def pretrain(train_dataset, train_vocab: Dict[str, Counter],
              glove_embs: Dict[str, np.ndarray], labelled_source_name: str,
              epoch: int = cfg['pretrain']['epoch'], model_type=cfg['pretrain']['model_type']) -> (Dict, torch.tensor):
@@ -248,7 +480,7 @@ def pretrain(train_dataset, train_vocab: Dict[str, Counter],
 
 def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, train_vocab,
                train_dataset, val_dataset, test_dataset, dataname,
-               glove_embs=None, lr=cfg['model']['optimizer']['lr'], model_name=None):
+               glove_embs=None, lr=cfg['model']['optimizer']['lr'], model_name=None, pretrain_dataloader=None):
     if model_name is None:
         model_name = f'{model_type}_epoch{str(cfg["training"]["num_epoch"])}_lr{str(lr)}'
     logger.info(f'Classifying examples using [{model_type}] model.')
@@ -263,7 +495,8 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, tr
         train_epochs_output_dict, test_output = LSTM_trainer(
             train_dataloader, val_dataloader, test_dataloader, vectors=train_vocab.vocab.vectors,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
-            epoch=cfg['training']['num_epoch'], lr=lr, model_name=model_name)
+            epoch=cfg['training']['num_epoch'], lr=lr, model_name=model_name,
+            pretrain_dataloader=pretrain_dataloader)
 
     elif model_type == 'GAT':
         logger.info('Create GAT dataloader')
@@ -665,9 +898,12 @@ if __name__ == "__main__":
     # train, test = split_target(test_df, test_size=0.3,
     #                            train_size=.6, stratified=False)
 
+    glove_embs = glove2dict()
     logger.info('Run for multiple SEEDS')
-    num_seeds = 3
+    num_seeds = 1
     for seed in range(num_seeds):
         set_all_seeds(seed)
-        main()
+        # main(glove_embs=glove_embs)
+        main_alltrain(glove_embs=glove_embs)
+        main_zeroshot(glove_embs=glove_embs)
     logger.info(f"Execution complete for {num_seeds} SEEDs.")

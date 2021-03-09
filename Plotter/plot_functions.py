@@ -17,18 +17,22 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
+import torch
 # import umap
 import statistics
 import numpy as np
+import pandas as pd
 import networkx as nx
 import seaborn as sns
 from os.path import join
 from matplotlib import pyplot as plt
 from sklearn.manifold import TSNE
+from sklearn.metrics.pairwise import cosine_similarity
 
+from config import dataset_dir, pretrain_dir
 from Logger.logger import logger
 
-plt.rcParams.update({'font.size': 15})
+plt.rcParams.update({'font.size': 20})
 sns.set(rc={'figure.figsize': (11.7, 8.27)})
 sns.color_palette("viridis", as_cmap=True)
 
@@ -42,20 +46,6 @@ def plot_umap(data, save_name='umap_vecs.pdf'):
         c=[sns.color_palette()[x] for x in data])
     plt.gca().set_aspect('equal', 'datalim')
     plt.title('UMAP projection:', fontsize=24)
-    plt.savefig(save_name)
-    plt.show()
-
-
-def plot_heatmap(data, vmin=-1., vmax=1., save_name='heatmap.pdf'):
-    """ Plots a heatmap.
-
-    :param data: DataFrame or ndarray.
-    :param vmin:
-    :param vmax:
-    :param save_name:
-    """
-    ax = sns.heatmap(data, vmin=vmin, vmax=vmax, annot=False, fmt="f",
-                     linewidths=.5, cbar=True)
     plt.savefig(save_name)
     plt.show()
 
@@ -85,7 +75,7 @@ def plot_vecs_color(tokens2vec, axis_range=None, save_name='tsne_vecs.pdf',
     if tokens is not None:
         for i, token in enumerate(tokens):
             plt.annotate(token, xy=(X_2d[i, 0], X_2d[i, 1]), zorder=1)
-    plt.scatter(X_2d[:, 0], X_2d[:, 1], s=60, alpha=.5, # c=colors
+    plt.scatter(X_2d[:, 0], X_2d[:, 1], s=60, alpha=.5,  # c=colors
                 )
     if axis_range is not None:
         plt.xlim(-axis_range, axis_range)
@@ -335,7 +325,81 @@ def plot_occurance(losses: list, title="Losses", ylabel="Loss", xlabel="Epoch", 
     plt.close(fig)  # Closing the figure so it won't get displayed in console.
 
 
+def plot_heatmap(data, vmin=-1., vmax=1., save_name='heatmap.pdf'):
+    """ Plots a heatmap.
+
+    :param data: DataFrame or ndarray.
+    :param vmin:
+    :param vmax:
+    :param save_name:
+    """
+
+    fig, ax = plt.subplots()
+    plt.figure(figsize=(11.7, 8.27))
+    ax = sns.heatmap(data, vmin=vmin, vmax=vmax, annot=False, fmt="f",
+                     linewidths=.5, cbar=True, cmap='viridis_r')
+    plt.savefig(save_name, bbox_inches='tight')
+    plt.show()
+
+
+def test_plot_heatmap(token_embs_path=join(pretrain_dir, 'pretrained', 'token2pretrained_' + str(80) + '.pt')):
+    from Text_Encoder.finetune_static_embeddings import glove2dict
+
+    token2pretrained_embs = torch.load(token_embs_path)
+    glove_embs = glove2dict()
+
+    common = []
+    # common = ['common', 'works', 'fear', 'system', 'honestly', 'such', 'trapped', 'technology', 'collect', 'thoughts',
+    #           'rise', 'hours', 'dollars']
+    # common.extend(common)
+
+    pos_exp = ['corporation', 'unclear', 'filling', 'additional', 'pledges', 'slide', 'reversing',
+               'particularly', 'cared', 'miraculously', 'properly', 'recovering']
+    common.extend(pos_exp)
+
+    neg_exp = ['successful', 'sounding', 'equally', 'antique', 'beautifully', 'stink', 'sauce', 'homecoming',
+               'emotions', 'lick', 'atheist', 'fancy', 'coconut']
+    common.extend(neg_exp)
+
+    # glove_tensor = {word: glove_embs[word] for word in common}
+    # gcn_tensor = {word: token2pretrained_embs[word] for word in common}
+
+    glove_tensor = []
+    gcn_tensor = []
+    words = []
+
+    for word in common:
+        if word in glove_embs and word in token2pretrained_embs:
+            glove_tensor += [glove_embs[word].tolist()]
+            gcn_tensor += [token2pretrained_embs[word].tolist()]
+            words.append(word)
+
+    gcn_sim = cosine_similarity(gcn_tensor)
+    gcn_sim = (gcn_sim - gcn_sim.mean()) / gcn_sim.std()
+
+    glove_sim = cosine_similarity(glove_tensor)
+    glove_sim = (glove_sim - glove_sim.mean()) / glove_sim.std()
+
+    # index = sorted(words)
+    # columns = sorted(words)
+
+    # gcn_sigm = torch.sigmoid(torch.from_numpy(gcn_normed)).numpy()
+    gcn_df = pd.DataFrame(gcn_sim, index=words, columns=words)
+    gcn_df.to_csv('gcn_sim_df.csv')
+    plot_heatmap(data=gcn_df, save_name='gcn_heatmap.pdf')
+
+    # glove_sigm = torch.sigmoid(torch.from_numpy(glove_normed)).numpy()
+    glove_df = pd.DataFrame(glove_sim, index=words, columns=words)
+    glove_df.to_csv('glove_sim_df.csv')
+    plot_heatmap(data=glove_df, save_name='glove_heatmap.pdf')
+
+    torch.save(torch.Tensor(gcn_sim), 'gcn_cosine_sim.pt')
+    torch.save(torch.Tensor(glove_sim), 'glove_cosine_sim.pt')
+
+
 if __name__ == '__main__':
+    test_plot_heatmap()
+
     import numpy as np
 
     X = np.random.random((500, 100))

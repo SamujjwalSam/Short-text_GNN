@@ -51,7 +51,7 @@ def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoad
         epoch_start_time = timeit.default_timer()
         X_hat = model(A, X)
         loss = 0
-        for iter, (x_idx, x_pos_idx, x_pos_wt, x_neg_idx, x_neg_wt) in enumerate(dataloader):
+        for iter, (x_idx, x_pos_idx, x_neg_idx) in enumerate(dataloader):
             x = X_hat[x_idx]
             x_pos = X_hat[x_pos_idx]
             x_neg = X_hat[x_neg_idx]

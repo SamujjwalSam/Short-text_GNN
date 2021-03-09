@@ -20,6 +20,8 @@ __license__     : "This source code is licensed under the MIT-style license
 import random
 import numpy as np
 import pandas as pd
+from functools import partial
+from scipy.special import softmax
 from torch import cuda, save, load, device, manual_seed, backends, from_numpy
 from torch.utils.data import Dataset
 from networkx import adjacency_matrix
@@ -30,10 +32,12 @@ from sklearn.preprocessing import MultiLabelBinarizer
 from Text_Encoder.TextEncoder import train_w2v, load_word2vec
 from Pretrainer.mlp_trainer import mlp_trainer
 from Pretrainer.gcn_trainer import gcn_trainer
+# from Trainer.lstm_trainer import LSTM_trainer
 from Utils.utils import load_graph, sp_coo2torch_coo, get_token2pretrained_embs, save_token2pretrained_embs, load_token2pretrained_embs
 from File_Handlers.csv_handler import read_csv
 from File_Handlers.json_handler import save_json, read_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
+from Text_Processesor.tokenizer import BERT_tokenizer
 from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from Text_Processesor.tweet_normalizer import normalizeTweet
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
@@ -128,8 +132,74 @@ def calculate_vocab_overlap(task_tokens, pretrain_tokens):
     logger.info(f'Token overlap percent as fine-tune vocab:{finetune_vocab_percent}')
 
 
-def get_pretrain_dataset(C, G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab):
-    """ Fetch N+(c) and N-(c) for each token in C: """
+def get_xclusive_tokens(pos_vocab, neg_vocab, min_ratio=5.):
+    pos_s2i = set(pos_vocab['str2idx_map']) - {'<unk>', '<pad>'}
+    neg_s2i = set(neg_vocab['str2idx_map']) - {'<unk>', '<pad>'}
+    # pos_freq = set(pos_vocab['freqs'])
+    # neg_freq = set(neg_vocab['freqs'])
+    Epos = pos_s2i - neg_s2i
+    Eneg = neg_s2i - pos_s2i
+    logger.info(f'Exclusive pos {len(Epos)} and neg {len(Eneg)} counts')
+    nonX_toks = pos_s2i.union(neg_s2i)
+    nonX_toks = nonX_toks - Epos.union(Eneg)
+    # logger.info(f'Exclusive pos {len(Epos)} and neg {len(Eneg)} tokens')
+    pos_ratio_toks = []
+    neg_ratio_toks = []
+    for tok in nonX_toks:
+        if tok in neg_s2i:
+            pos_ratio = pos_vocab['freqs'][tok] / neg_vocab['freqs'][tok]
+            if pos_ratio >= min_ratio:
+                pos_ratio_toks.append(tok)
+        if tok in pos_s2i:
+            neg_ratio = neg_vocab['freqs'][tok] / pos_vocab['freqs'][tok]
+            if neg_ratio >= min_ratio:
+                neg_ratio_toks.append(tok)
+
+    Epos.update(pos_ratio_toks)
+    Eneg.update(neg_ratio_toks)
+    logger.debug(f'Added back {len(pos_ratio_toks)} pos and '
+                 f'{len(neg_ratio_toks)} neg tokens to Exclusive sets')
+    logger.info(f'Total pos {len(Epos)} and neg {len(Eneg)} tokens selected')
+
+    return Epos, Eneg
+
+
+def get_pretrain_dataset(G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
+                         limit_dataset=None):
+    """ Creates the dataset for pretraining.
+
+     Fetches N+(c) and N-(c) for each common token between pos and neg graphs.
+
+    :param G:
+    :param G_pos:
+    :param G_neg:
+    :param joint_vocab:
+    :param pos_vocab:
+    :param neg_vocab:
+    :param limit_dataset:
+    :return:
+    """
+    ## Find common nodes (C):
+    C = set(pos_vocab['str2idx_map']).intersection(set(neg_vocab['str2idx_map']))
+    logger.info(f"Intersection length of pos and neg |C|: {len(C)}")
+
+    # logger.debug(f'Find exclusive pos and neg tokens')
+    # Cpos, Cneg = get_xclusive_tokens(pos_vocab, neg_vocab)
+
+    if limit_dataset is not None:
+        C = set(list(C)[:limit_dataset])
+        logger.debug(f"Resetting |C|: {limit_dataset}")
+
+    extra_tokens = C - set(joint_vocab["str2idx_map"].keys())
+    assert len(extra_tokens) >= 0, f'C has {len(extra_tokens)} extra tokens which are not in joint_vocab.'
+
+    pos_neg_union = set(pos_vocab['str2idx_map']).union(
+        set(neg_vocab['str2idx_map']))
+    logger.info(f"Union length of pos and neg: {len(pos_neg_union)}")
+    # assert pos_neg_union == set(joint_vocab['str2idx_map'].keys()),\
+    #     f'{len(pos_neg_union)} == {len(joint_vocab["str2idx_map"].keys())} did not match.'
+    logger.info(f"IoU percentage between POS and NEG: {(len(C) / len(pos_neg_union)) * 100}")
+
     dataset = []
     ignored_tokens = set()
     for i, token in enumerate(C):
@@ -198,8 +268,114 @@ def get_pretrain_dataset(C, G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab):
     return dataset, ignored_tokens
 
 
+def get_sel_samples(C, global_G, G, vocab, joint_vocab, k=10):
+    data = {}
+    ignored_tokens = set()
+    for i, token in enumerate(C):
+        N_id = []
+        N_id_wt = []
+        N_txt = []
+        for n in G.G.neighbors(vocab['str2idx_map'][token]):
+            n_txt = vocab['idx2str_map'][n]
+            n_id = joint_vocab['str2idx_map'][n_txt]
+            if n_id in N_id:
+                continue
+            ## Take freq values from combined graph:
+            # wt = global_G.G[joint_vocab['str2idx_map'][token]][n_id]
+            wt = G.G[vocab['str2idx_map'][token]][vocab['str2idx_map'][n_txt]]
+            N_id.append(n_id)
+            N_id_wt.append(wt['freq'])
+            N_txt.append(n_txt)
+
+        if len(N_id) == 0:
+            # logger.warning(f'Token {token} has 0 POS (+) neighbors.')
+            ignored_tokens.add(token)
+            continue
+        ## Sample positive neighbors based on freq:
+        # N_sel = random.choices(N_id, N_id_wt, k=k)
+        N_id_wt = np.power(N_id_wt, (3/4)).tolist()
+        # N_id_wt2 = np.log(N_id_wt).tolist()
+        probas = softmax(N_id_wt)
+        probas_nnz = np.count_nonzero(probas)
+        # logger.debug(probas_nnz)
+        if probas_nnz < min(k, len(N_id)):
+            logger.warn(f'Fewer non-zero entries in p {probas_nnz} than size {min(k, len(N_id))}')
+            N_id_wt = np.log(N_id_wt).tolist()
+            probas = softmax(N_id_wt)
+            # probas_nnz = np.count_nonzero(probas)
+        N_sel = np.random.choice(N_id, size=min(k, len(N_id)), replace=False, p=probas).tolist()
+
+        # N_frq, N_wt = [], []
+        # for n in N_sel:
+        #     N_frq = N_wt_dict[n]['freq']
+        #     N_wt = N_wt_dict[n]['weight']
+        data[joint_vocab['str2idx_map'][token]] = N_sel
+
+    return data, ignored_tokens
+
+
+def get_new_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
+                             limit_dataset=None, k=15):
+    """ Creates the dataset for pretraining.
+
+    Fetches exclusive pos and neg token set which are present either in pos and neg graph with high freq.
+
+    :param k: Number of neg examples to select
+    :param G:
+    :param G_pos:
+    :param G_neg:
+    :param joint_vocab:
+    :param pos_vocab:
+    :param neg_vocab:
+    :return:
+    """
+    logger.debug(f'Find exclusive pos and neg tokens')
+    Cpos, Cneg = get_xclusive_tokens(pos_vocab, neg_vocab)
+
+    if limit_dataset is not None:
+        Cpos = set(list(Cpos)[:limit_dataset//2])
+        logger.debug(f"Resetting |Cpos|: {len(Cpos)}")
+        Cneg = set(list(Cneg)[:limit_dataset//2])
+        logger.debug(f"Resetting |Cneg|: {len(Cneg)}")
+
+    # extra_tokens = C - set(joint_vocab["str2idx_map"].keys())
+    # assert len(extra_tokens) >= 0, f'C has {len(extra_tokens)} extra tokens which are not in joint_vocab.'
+
+    pos_neg_union = set(pos_vocab['str2idx_map']).union(
+        set(neg_vocab['str2idx_map']))
+    logger.info(f"Union length of pos and neg: {len(pos_neg_union)}")
+    # assert pos_neg_union == set(joint_vocab['str2idx_map'].keys()),\
+    #     f'{len(pos_neg_union)} == {len(joint_vocab["str2idx_map"].keys())} did not match.'
+    logger.info(f"Overlap between selected and total vocab: {(len(Cpos.union(Cneg)) / len(pos_neg_union)) * 100}")
+
+    dataset = []
+    pos_data, pos_ignored = get_sel_samples(Cpos, G, G_pos, pos_vocab, joint_vocab)
+    neg_data, neg_ignored = get_sel_samples(Cneg, G, G_neg, neg_vocab, joint_vocab)
+
+    for node_id in pos_data:
+        N_pos = pos_data[node_id]
+        N_neg = random.sample(list(neg_data), k=len(N_pos))
+        dataset.append((node_id, N_pos, N_neg))
+
+    for node_id in neg_data:
+        N_neg = neg_data[node_id]
+        N_pos = random.sample(list(pos_data), k=len(N_neg))
+        dataset.append((node_id, N_neg, N_pos))
+
+    logger.info(f'Pretraining dataset size: {len(dataset)}; portion of total vocab: {(len(dataset) / len(joint_vocab["idx2str_map"])):2.4}')
+    return dataset, pos_ignored.update(neg_ignored)
+
+
 def get_vocab_data(path=join(pretrain_dir, data_filename + "_multihot.csv"),
-                   name='_joint', glove_embs=None, min_freq=cfg['pretrain']['min_freq']):
+                   name='_joint', glove_embs=None, min_freq=cfg['pretrain']['min_freq'], read_input=False):
+    """ Creates cleaned corpus and finds oov tokens.
+
+    :param path:
+    :param name:
+    :param glove_embs:
+    :param min_freq:
+    :return:
+    """
     if exists(join(pretrain_dir, data_filename + name + '_corpus_toks.json'))\
             and exists(join(pretrain_dir, data_filename + name + '_vocab.json')):
         vocab = read_json(join(pretrain_dir, data_filename + name + '_vocab'))
@@ -333,23 +509,23 @@ def get_graph_and_dataset(limit_dataset=None):
         get_vocab_data(neg_path, name='_neg', glove_embs=glove_embs)
     G_neg = Token_Dataset_nx(neg_corpus_toks, neg_vocab, dataset_name=neg_path[:-4])
 
-    ## Find common nodes (C):
-    C = set(pos_vocab['str2idx_map']).intersection(set(neg_vocab['str2idx_map']))
-    logger.info(f"Intersection length of pos and neg |C|: {len(C)}")
-
-    if limit_dataset is not None:
-        C = set(list(C)[:limit_dataset])
-        logger.debug(f"Resetting |C|: {limit_dataset}")
-
-    extra_tokens = C - set(joint_vocab["str2idx_map"].keys())
-    assert len(extra_tokens) >= 0, f'C has {len(extra_tokens)} extra tokens which are not in joint_vocab.'
-
-    pos_neg_union = set(pos_vocab['str2idx_map']).union(
-        set(neg_vocab['str2idx_map']))
-    logger.info(f"Union length of pos and neg: {len(pos_neg_union)}")
-    # assert pos_neg_union == set(joint_vocab['str2idx_map'].keys()),\
-    #     f'{len(pos_neg_union)} == {len(joint_vocab["str2idx_map"].keys())} did not match.'
-    logger.info(f"IoU percentage between POS and NEG: {(len(C) / len(pos_neg_union)) * 100}")
+    # ## Find common nodes (C):
+    # C = set(pos_vocab['str2idx_map']).intersection(set(neg_vocab['str2idx_map']))
+    # logger.info(f"Intersection length of pos and neg |C|: {len(C)}")
+    #
+    # if limit_dataset is not None:
+    #     C = set(list(C)[:limit_dataset])
+    #     logger.debug(f"Resetting |C|: {limit_dataset}")
+    #
+    # extra_tokens = C - set(joint_vocab["str2idx_map"].keys())
+    # assert len(extra_tokens) >= 0, f'C has {len(extra_tokens)} extra tokens which are not in joint_vocab.'
+    #
+    # pos_neg_union = set(pos_vocab['str2idx_map']).union(
+    #     set(neg_vocab['str2idx_map']))
+    # logger.info(f"Union length of pos and neg: {len(pos_neg_union)}")
+    # # assert pos_neg_union == set(joint_vocab['str2idx_map'].keys()),\
+    # #     f'{len(pos_neg_union)} == {len(joint_vocab["str2idx_map"].keys())} did not match.'
+    # logger.info(f"IoU percentage between POS and NEG: {(len(C) / len(pos_neg_union)) * 100}")
 
     # Check what portion of pos and neg vocab are actual english and OOV.
     # Need to remove OOV tokens from sentences?
@@ -364,7 +540,8 @@ def get_graph_and_dataset(limit_dataset=None):
     neg_node_list = list(G_neg.G.nodes)
     logger.info(f"Number of nodes {len(neg_node_list)} and edges {len(G_neg.G.edges)} in NEG token graph")
 
-    dataset, ignored_tokens = get_pretrain_dataset(C, G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
+    # dataset, ignored_tokens = get_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
+    dataset, ignored_tokens = get_new_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
 
     if ignored_tokens is not None:
         logger.warning(f'Total number of ignored tokens: {len(ignored_tokens)}')
@@ -496,9 +673,9 @@ def get_crisisNLP_embs():
 if __name__ == "__main__":
     # jv, X = get_crisisNLP_embs()
     # jv, X = get_w2v_embs()
-    from Plotter.plot_functions import test_plot_heatmap
-
-    test_plot_heatmap()
+    # from Plotter.plot_functions import test_plot_heatmap
+    #
+    # test_plot_heatmap()
 
     joint_vocab, token2pretrained_embs, X = get_pretrain_artifacts()
     C = set(glove_embs.keys()).intersection(set(token2pretrained_embs.keys()))
