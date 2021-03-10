@@ -3,7 +3,7 @@
 """
 __synopsis__    : MLP model.
 __description__ :
-__project__     : WSCP
+__project__     : GCPD
 __classes__     :
 __variables__   :
 __methods__     :

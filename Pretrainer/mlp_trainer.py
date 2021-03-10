@@ -3,8 +3,8 @@
 """
 __synopsis__    : Code related to applying GNN from DGL library
 __description__ : node and graph classification written in DGL library
-__project__     : WSCP
-__classes__     : WSCP
+__project__     : GCPD
+__classes__     : GCPD
 __variables__   :
 __methods__     :
 __author__      : Samujjwal

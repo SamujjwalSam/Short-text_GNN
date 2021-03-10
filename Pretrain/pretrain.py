@@ -3,8 +3,8 @@
 """
 __synopsis__    : Contrastive pretraining script
 __description__ : Details and usage.
-__project__     : WSCP
-__classes__     : WSCP
+__project__     : GCPD
+__classes__     : GCPD
 __variables__   :
 __methods__     :
 __author__      : Samujjwal

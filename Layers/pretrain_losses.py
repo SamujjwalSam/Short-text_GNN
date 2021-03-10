@@ -3,7 +3,7 @@
 """
 __synopsis__    : Losses for contrastive pretraining.
 __description__ :
-__project__     : WSCP
+__project__     : GCPD
 __classes__     :
 __variables__   :
 __methods__     :

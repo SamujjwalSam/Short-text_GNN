@@ -241,8 +241,8 @@ def dataset2iter(datasets: tuple, batch_size=None, batch_sizes=(128, 256, 256),
 
     # datasets = create_tabular_dataset(save_path, fields)
 
-    if batch_size:
-        iterator = data.Iterator.splits(
+    if batch_size is not None:
+        iterator = data.Iterator(
             datasets, batch_size=batch_size, shuffle=shuffle, sort=False,
             repeat=False, device=device)
         # batch_sizes=batch_sizes,
@@ -251,15 +251,11 @@ def dataset2iter(datasets: tuple, batch_size=None, batch_sizes=(128, 256, 256),
 
     else:
         iterator = data.Iterator.splits(
-            datasets,
-            # batch_size=batch_size,
-            batch_sizes=batch_sizes,
-            shuffle=shuffle,
-            sort=False,
-            repeat=False,
+            datasets, batch_sizes=batch_sizes, shuffle=shuffle, sort=False,
+            repeat=False, device=device)
             # sort_key=lambda x: len(x.text),
             # sort_within_batch=True,
-            device=device)
+
     return iterator
 
 
@@ -271,28 +267,14 @@ def dataset2bucket_iter(datasets: tuple, batch_size=None, batch_sizes: tuple = (
     :param batch_sizes:
     :return:
     """
-    # data_df.to_csv(save_path, header=headers)
-
-    # datasets = create_tabular_dataset(save_path, fields)
-
     if batch_size is not None:
         iterator = data.BucketIterator(
-            datasets,
-            batch_size=batch_size,
-            # batch_sizes=batch_sizes,
-            sort_key=lambda x: len(x.text),
-            sort_within_batch=True,
-            shuffle=True,
-            device=device)
+            datasets, batch_size=batch_size, sort_key=lambda x: len(x.text),
+            sort_within_batch=True, shuffle=True, device=device)
     else:
         iterator = data.BucketIterator.splits(
-            datasets,
-            # batch_size=batch_size,
-            batch_sizes=batch_sizes,
-            sort_key=lambda x: len(x.text),
-            sort_within_batch=True,
-            shuffle=True,
-            device=device)
+            datasets, batch_sizes=batch_sizes, sort_key=lambda x: len(x.text),
+            sort_within_batch=True, shuffle=True, device=device)
     return iterator
 
 

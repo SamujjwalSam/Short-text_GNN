@@ -208,49 +208,64 @@ def prepare_splitted_datasets(
     return train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab
 
 
-def prepare_alltrain_splitted_datasets(
+def prepare_alltrain_datasets(
         stoi=None, vectors=None, dim=cfg['embeddings']['emb_dim'],
-        data_dir=dataset_dir, min_freq=cfg["data"]["min_freq"]):
-    """ Creates train and test dataset from df and returns data loader.
+        data_dir=dataset_dir, min_freq=cfg["data"]["min_freq"],
+        all_train_dataname = "all_training.csv"):
+    """ Creates a dataset by merging all the test files.
 
+    :param all_train_dataname: Merged csv file name
     :param min_freq:
-    :param use_all_data: Uses all disaster data for training if True
     :param stoi:
-    :param val_dataname:
-    :param get_iter: If iterator over the text samples should be returned
-    :param split_test: Splits the testing data
-    :param train_df: Training dataframe
-    :param test_df: Testing dataframe
     :param vectors: Custom Vectors for each token
     :param dim: Embedding dim
     :param data_dir:
-    :param train_dataname:
-    :param test_dataname:
     :return:
     """
     logger.info(f'Prepare labelled TRAIN data from all Pretraining data')
-    all_train_dataname = "all_training.csv"
     alltrain_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
     alltrain_df.to_csv(join(data_dir, all_train_dataname))
+    alltrain_dataset, alltrain_vocab, alltrain_iter = prepare_single_dataset(
+        stoi=stoi, vectors=vectors, dim=dim, data_dir=dataset_dir,
+        min_freq=min_freq, dataname=all_train_dataname)
 
+    return alltrain_dataset, alltrain_vocab, alltrain_iter
+
+
+def prepare_single_dataset(
+        stoi=None, vectors=None, dim=cfg['embeddings']['emb_dim'],
+        data_dir=dataset_dir, min_freq=cfg["data"]["min_freq"],
+        dataname = "all_training.csv"):
+    """ Creates a torchtext dataset
+
+    Passes a csv file for dataset creation and returns dataloader. Sets custom vectors if provided.
+
+    :param min_freq:
+    :param stoi:
+    :param vectors: Custom Vectors for each token
+    :param dim: Embedding dim
+    :param data_dir:
+    :return:
+    """
+    logger.info(f'Prepare labelled TRAIN data from all Pretraining data')
     if stoi is None:
         logger.critical('Setting default GLOVE vectors:')
-        alltrain_dataset, (alltrain_vocab, alltrain_label) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=all_train_dataname, min_freq=min_freq, labelled_data=True)
+        dataset, (vocab, label) = get_dataset_fields(
+            csv_dir=data_dir, csv_file=dataname, min_freq=min_freq, labelled_data=True)
     else:
         logger.critical('Setting custom vectors:')
-        alltrain_dataset, (alltrain_vocab, alltrain_label) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=all_train_dataname, min_freq=min_freq,
+        dataset, (vocab, label) = get_dataset_fields(
+            csv_dir=data_dir, csv_file=dataname, min_freq=min_freq,
             labelled_data=True, embedding_file=None, embedding_dir=None)
-        alltrain_vocab.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
+        vocab.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
 
-    clean_dataset(alltrain_dataset)
+    clean_dataset(dataset)
 
     logger.info('Geting train, val and test iterators')
     train_batch_size = cfg['training']['train_batch_size']
-    alltrain_iter = dataset2bucket_iter(alltrain_dataset, batch_size=train_batch_size)
+    iter = dataset2bucket_iter(dataset, batch_size=train_batch_size)
 
-    return alltrain_dataset, alltrain_vocab, alltrain_iter
+    return dataset, vocab, iter
 
 
 def prepare_BERT_splitted_datasets(

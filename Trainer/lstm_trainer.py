@@ -19,19 +19,20 @@ __license__     : "This source code is licensed under the MIT-style license
 
 import timeit
 from torch import nn, stack, utils, sigmoid, mean, cat, cuda, save, load
-from os import environ, mkdir
-from os.path import join, exists
+# from os import environ, mkdir
+# from os.path import join, exists
 from json import dumps
 from collections import OrderedDict
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from Layers.bilstm_classifiers import BiLSTM_Classifier, BiLSTM_Emb_Classifier
+from Data_Handlers.create_datasets import prepare_single_dataset
+from Layers.bilstm_classifiers import BiLSTM_Emb_Classifier
 from Metrics.metrics import calculate_performance_sk as calculate_performance,\
     calculate_performance_bin_sk
 from Utils.utils import logit2label, count_parameters, save_model_state, load_model_state
 from Logger.logger import logger
-from config import configuration as cfg, platform as plat, username as user, device
+from config import configuration as cfg, platform as plat, username as user, device, pretrain_dir
 
 if cuda.is_available():
     # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
@@ -48,14 +49,14 @@ def train_lstm_classifier(
     logger.info(f"Started training for {epoch} epoch: ")
     train_epoch_losses = []
     train_epoch_dict = OrderedDict()
-    for epoch in range(1, epoch+1):
+    for epoch in range(1, epoch + 1):
         model.train()
         epoch_loss = 0
         preds = []
         trues = []
         start_time = timeit.default_timer()
         for iter, batch in enumerate(dataloader):
-            logger.debug(batch)
+            # logger.debug(batch)
             text, text_lengths = batch.text
             ## Get label based on number of classes:
             if cfg['data']['class_names'] == 1:
@@ -87,24 +88,15 @@ def train_lstm_classifier(
 
         epoch_loss /= (iter + 1)
         train_time = timeit.default_timer() - start_time
-        logger.info(f"Epoch {epoch}, time: {train_time / 60} mins, loss: {epoch_loss}")
-
-        ## Don't save model if name starts with 'no'
-        # if not model_name.startswith('WSCP'):
-        # save_model_state(model, model_name + '_epoch' + str(epoch), optimizer=optimizer)
+        logger.info(f"Epoch {epoch}, Model {model_name}, time: {train_time / 60} mins, Train loss: {epoch_loss}")
 
         if eval_dataloader is not None:
             val_losses, val_output = eval_lstm_classifier(
                 model, loss_func=loss_func, dataloader=eval_dataloader)
+            logger.info(f"Val W-F1 {val_output['result']['f1']['weighted'].item():4.4}")
             # logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
-        test_losses, test_output = eval_lstm_classifier(
-            model, loss_func=loss_func, dataloader=test_dataloader)
-        logger.info(f'test_output: \n{dumps(test_output["result"], indent=4)}')
-        logger.info(f"Epoch {epoch}, "
-                    # f"Train loss {epoch_loss}, val loss {val_losses}, test loss {test_losses}, "
-                    f"Val W-F1 {val_output['result']['f1']['weighted'].item():4.4} "
-                    f"Test W-F1 {test_output['result']['f1']['weighted'].item():4.4} "
-                    f"Model {model_name}")
+        test_output = eval_all(model, loss_func=loss_func)
+        logger.info(f'Result: \n{dumps(test_output, indent=4)}')
         # logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
         #             f"{val_losses}, Val Weighted F1 {val_output['result']['f1']['weighted'].item()}")
         train_epoch_losses.append(epoch_loss)
@@ -181,13 +173,27 @@ def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
     else:
         result_dict = calculate_performance(trues, preds)
     test_output = {
-        'preds':  preds,
-        'trues':  trues,
+        # 'preds':  preds,
+        # 'trues':  trues,
         'result': result_dict
     }
     # logger.info(dumps(result_dict, indent=4))
 
     return losses, test_output
+
+
+def eval_all(model: BiLSTM_Emb_Classifier, loss_func,
+             n_classes=cfg['data']['num_classes'], test_files=cfg['data']['all_test_files']):
+    all_test_output = {}
+    for tfile in test_files:
+        tfile = tfile + ".csv"
+        dataset, vocab, dataloader = prepare_single_dataset(data_dir=pretrain_dir, dataname=tfile)
+
+        test_losses, test_output = eval_lstm_classifier(
+            model, loss_func=loss_func, dataloader=dataloader, n_classes=n_classes)
+        all_test_output[tfile] = test_output
+
+    return all_test_output
 
 
 def LSTM_trainer(
@@ -219,7 +225,7 @@ def LSTM_trainer(
         model, epoch_losses, train_epochs_output_dict = train_lstm_classifier(
             model, pretrain_dataloader, loss_func=loss_func, optimizer=optimizer,
             epoch=epoch, eval_dataloader=val_dataloader,
-            test_dataloader=test_dataloader, model_name=model_name)
+            test_dataloader=test_dataloader, model_name=model_name + '_zeroshot')
 
     train_epochs_output_dict = None
     if not saved_model:

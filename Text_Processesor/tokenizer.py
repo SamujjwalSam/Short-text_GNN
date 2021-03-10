@@ -3,8 +3,8 @@
 """
 __synopsis__    : Tokenize raw text
 __description__ : Train or use a Tokenizer from huggingface tokenizers.
-__project__     : WSCP
-__classes__     : WSCP
+__project__     : GCPD
+__classes__     : GCPD
 __variables__   :
 __methods__     :
 __author__      : Samujjwal
