@@ -193,6 +193,17 @@ def prepare_splitted_datasets(
 
     clean_dataset(test_dataset)
 
+    tr_freq = train_vocab.vocab.freqs.keys()
+    tr_v = train_vocab.vocab.itos
+    ts_freq = test_vocab.vocab.freqs.keys()
+    ts_v = test_vocab.vocab.itos
+    ov_freq = set(tr_freq).intersection(ts_freq)
+    ov_v = set(tr_v).intersection(ts_v)
+    logger.info(
+        f'Vocab train freq: {len(tr_freq)}, itos: {len(tr_v)}, '
+        f'test freq: {len(ts_freq)}, itos: {len(ts_v)} = '
+        f'overlap freq: {len(ov_freq)}, itos: {len(ov_v)}')
+
     if get_iter:
         logger.info('Geting train, val and test iterators')
         train_batch_size = cfg['training']['train_batch_size']

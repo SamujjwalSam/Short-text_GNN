@@ -137,6 +137,30 @@ configuration = {
             'SH12_test',
             'WTE13_test'],
 
+        'name':        'smerp17_fire16',
+        'train':       'smerp17_train',
+        'val':         'fire16_val',
+        'test':        'fire16_test',
+        "source":      {
+            'labelled':   'smerp17_labeled',
+            'unlabelled': 'smerp17_unlabeled'
+        },
+        "target":      {
+            'labelled':   'fire16_labeled',
+            'unlabelled': 'fire16_unlabeled'},
+
+        # 'name':        'NEQ_NEQ',
+        # 'train':       '2015_Nepal_Earthquake_train',
+        # 'val':         '2015_Nepal_Earthquake_dev',
+        # 'test':        '2015_Nepal_Earthquake_test',
+        # "source":      {
+        #     'labelled':   '2015_Nepal_Earthquake_train',
+        #     'unlabelled': 'fire16_unlabeled'
+        # },
+        # "target":      {
+        #     'labelled':   '2015_Nepal_Earthquake_train',
+        #     'unlabelled': 'fire16_unlabeled'},
+
         # 'name':         'disaster_binary_task',
 
         'name':       'AF13',
@@ -276,14 +300,12 @@ configuration = {
     "transformer":  {
         "model_type":                  "bert",
         "model_name":                  "bert-base-uncased",
-        "num_folds":                   5,
-        "max_seq_len":                 64,
+        "max_seq_len":                 50,
         'gradient_accumulation_steps': 1,
         "max_vec_len":                 5000,
         "dropout":                     0.1,
         "dropout_external":            0.0,
         "clipnorm":                    2.0,
-        "data_slice":                  5120,
         "normalize_inputs":            False,
         "kernel_size":                 1,
         "stride":                      1,
@@ -314,7 +336,6 @@ configuration = {
     "model":        {
         'type':                 'LSTM',
         'mittens_iter':         500,
-        "num_folds":            5,
         "max_sequence_length":  200,
         "dropout":              0.2,
         "dropout_external":     0.0,

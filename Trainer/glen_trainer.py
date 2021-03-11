@@ -25,12 +25,13 @@ from collections import OrderedDict
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+from Data_Handlers.create_datasets import prepare_single_dataset
 from Layers.glen_classifier import GLEN_Classifier
 from Metrics.metrics import calculate_performance_sk as calculate_performance,\
     calculate_performance_bin_sk
 from Utils.utils import logit2label, count_parameters
 from Logger.logger import logger
-from config import configuration as cfg, platform as plat, username as user
+from config import configuration as cfg, platform as plat, username as user, dataset_dir, device
 
 if cuda.is_available():
     # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
@@ -38,15 +39,15 @@ if cuda.is_available():
 
 
 def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
-               loss_func: nn.modules.loss.BCEWithLogitsLoss,
-               optimizer, epoch: int = 5,
+               loss_func: nn.modules.loss.BCEWithLogitsLoss, optimizer,
+               epoch: int = cfg['training']['num_epoch'],
                eval_dataloader: utils.data.dataloader.DataLoader = None,
                test_dataloader: utils.data.dataloader.DataLoader = None,
-               n_classes=cfg['data']['num_classes']):
-    logger.info("Started training...")
+        n_classes=cfg['data']['num_classes'], model_name='Glove'):
+    logger.info(f"Started training for {epoch} epoch: ")
     train_epoch_losses = []
     train_epoch_dict = OrderedDict()
-    for epoch in range(epoch):
+    for epoch in range(1, epoch + 1):
         model.train()
         epoch_loss = 0
         preds = []
@@ -88,15 +89,15 @@ def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
 
         epoch_loss /= (iter + 1)
         train_time = timeit.default_timer() - start_time
-        logger.info(f"Epoch {epoch}, time: {train_time / 60} mins, loss: {epoch_loss}")
+        logger.info(f"Epoch {epoch}, Model {model_name}, time: {train_time / 60} mins, Train loss: {epoch_loss}")
         val_losses, val_output = eval_glen(model, G, X, loss_func=loss_func, dataloader=eval_dataloader)
-        logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
+        # logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
         test_losses, test_output = eval_glen(model, G, X, loss_func=loss_func, dataloader=test_dataloader)
         logger.info(f'test_output: \n{dumps(test_output["result"], indent=4)}')
-        logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
-                    f"{val_losses}, test loss {test_losses}, Val Weighted F1 "
-                    f"{val_output['result']['f1']['weighted'].item()} Test Weighted F1"
-                    f" {test_output['result']['f1']['weighted'].item()}")
+        logger.info(f"Epoch {epoch}, Train loss {epoch_loss:1.4}, val loss "
+                    f"{val_losses:1.6}, test loss {test_losses:1.6}, Val W-F1 "
+                    f"{val_output['result']['f1']['weighted'].item():1.4} Test W-F1"
+                    f" {test_output['result']['f1']['weighted'].item():1.4}, Model {model_name}")
         # logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
         #             f"{val_losses}, Val Weighted F1 {val_output['result']['f1']['weighted'].item()}")
         train_epoch_losses.append(epoch_loss)
@@ -120,7 +121,7 @@ def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
         }
         # logger.info(f'Epoch {epoch} result: \n{result_dict}')
 
-    return train_epoch_losses, train_epoch_dict
+    return model, train_epoch_losses, train_epoch_dict
 
 
 def eval_glen(model: GLEN_Classifier, G, X, loss_func,
@@ -186,11 +187,25 @@ def eval_glen(model: GLEN_Classifier, G, X, loss_func,
     return losses, test_output
 
 
+def eval_all(model: GLEN_Classifier, G, X, loss_func,
+             n_classes=cfg['data']['num_classes'], test_files=cfg['data']['all_test_files']):
+    all_test_output = {}
+    for tfile in test_files:
+        tfile = tfile + ".csv"
+        dataset, vocab, dataloader = prepare_single_dataset(data_dir=dataset_dir, dataname=tfile)
+
+        test_losses, test_output = eval_glen(
+            model, G, X, loss_func=loss_func, dataloader=dataloader, n_classes=n_classes)
+        all_test_output[tfile] = test_output
+
+    return all_test_output
+
+
 def GLEN_trainer(
         G, X, train_dataloader, val_dataloader, test_dataloader, in_dim: int = 100,
         hid_dim: int = 50, num_heads: int = 2, epoch=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
-        n_classes=cfg['data']['num_classes'], state=None):
+        n_classes=cfg['data']['num_classes'], state=None, model_name='GLEN'):
     # train_dataloader, test_dataloader = dataloaders
     model = GLEN_Classifier(
         in_dim=in_dim, hid_dim=hid_dim, num_heads=num_heads,
@@ -209,9 +224,9 @@ def GLEN_trainer(
     # if state is not None:
     #     optimizer.load_state_dict(state['optimizer'])
 
-    epoch_losses, train_epochs_output_dict = train_glen(
+    model, epoch_losses, train_epochs_output_dict = train_glen(
         model, G, X, train_dataloader, loss_func=loss_func, optimizer=optimizer,
-        epoch=epoch, eval_dataloader=val_dataloader, test_dataloader=test_dataloader)
+        epoch=epoch, eval_dataloader=val_dataloader, test_dataloader=test_dataloader, model_name=model_name)
 
     start_time = timeit.default_timer()
     losses, test_output = eval_glen(model, G, X, loss_func=loss_func,

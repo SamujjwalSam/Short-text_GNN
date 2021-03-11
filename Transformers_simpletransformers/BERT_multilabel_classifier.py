@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 from os.path import join
 from os import environ
-# from json import dumps, dump
+from json import dumps, dump
 from simpletransformers.classification import MultiLabelClassificationModel, MultiLabelClassificationArgs, ClassificationModel, ClassificationArgs
 # from simpletransformers.language_representation import RepresentationModel
 # from simpletransformers.config.model_args import ModelArgs
@@ -74,19 +74,14 @@ def macro_f1(labels, preds, threshold=0.5):
                     cfg['data']['train'] + "_" +
                     cfg['transformer']['model_type'] + '_preds.txt'),
                preds)
-
-    logger.info("labels:\n[{}]".format(labels))
-    logger.info("preds:\n[{}]".format(preds))
-
     preds[preds > threshold] = 1
     preds[preds <= threshold] = 0
-
-    logger.info("preds with threshold [{}]:\n[{}]".format(threshold, preds))
 
     scores = calculate_performance_bin_sk(labels, preds)
     scores['dataset'] = cfg['data']['name']
     scores['epoch'] = cfg['training']['num_epoch']
-    logger.info(f"Scores: [{threshold}]:\n[{scores}]")
+    logger.info(f"Scores: [{threshold}]:\n[{dumps(scores, indent=4)}]")
+    logger.info(f"Epoch {scores['epoch']} Test W-F1 {scores['f1']['weighted'].item():1.4} Model BERT")
 
     return scores['f1']['weighted']
 
@@ -110,91 +105,7 @@ def replace_bert_init_embs(model: ClassificationModel, embs_dict: dict) -> None:
     # model.model.bert.set_input_embeddings(embs)
 
 
-def BERT_binary_classifier(train_df=None, test_df=None):
-    # Preparing train data
-    # train_data = [
-    #     ["Aragorn was the heir of Isildur", 1],
-    #     ["Frodo was the heir of Isildur", 0],
-    # ]
-    # train_df = pd.DataFrame(train_data)
-    # train_df.columns = ["text", "labels"]
-    #
-    # # Preparing eval data
-    # eval_data = [
-    #     ["Theoden was the king of Rohan", 1],
-    #     ["Merry was the king of Rohan", 0],
-    # ]
-    # test_df = pd.DataFrame(eval_data)
-    # test_df.columns = ["text", "labels"]
-
-    if cfg['data']['use_all_data']:
-        train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
-        train_df = train_df.sample(frac=1)
-        test_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['test'])
-        test_df = test_df.sample(frac=1)
-        test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
-    else:
-        train_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['train'])
-        train_df = train_df.sample(frac=1)
-        train_df["labels"] = pd.to_numeric(train_df["labels"], downcast="float")
-        val_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['val'])
-        val_df["labels"] = pd.to_numeric(val_df["labels"], downcast="float")
-        test_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['test'])
-        test_df = test_df.sample(frac=1)
-        test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
-
-    # Optional model configuration
-    model_args = ClassificationArgs(
-        num_train_epochs=cfg['training']['num_epoch'], train_batch_size=64, eval_batch_size=128,
-        overwrite_output_dir=True, evaluate_during_training=True,
-        evaluate_during_training_verbose=True, evaluate_during_training_silent=False)
-    model_args.overwrite_output_dir = True
-    # model_args.evaluate_during_training = True
-    # model_args.evaluate_during_training_verbose = True
-    model_args.evaluate_during_training_steps = 870
-    model_args.evaluate_each_epoch = True
-    # model_args.early_stopping_consider_epochs = True
-    model_args.use_early_stopping = True
-    model_args.save_model_every_epoch = False
-    model_args.save_eval_checkpoints = False
-    model_args.save_optimizer_and_scheduler = False
-    model_args.train_custom_parameters_only = True
-    model_args.custom_parameter_groups = [
-        {
-            "params": ["classifier.weight"],
-            "lr": 1e-3,
-        },
-        {
-            "params": ["classifier.bias"],
-            "lr": 1e-3,
-            "weight_decay": 0.0,
-        },
-    ]
-
-    # Create a ClassificationModel
-    model = ClassificationModel("bert", "bert-base-uncased", args=model_args)
-
-    replace_bert_init_embs(model, embs=None)
-
-    # Train the model
-    model.train_model(train_df, eval_df=test_df, verbose=True, macro_f1=macro_f1)
-
-    # Evaluate the model
-    if cfg['data']['use_all_data']:
-        for test_data in cfg['data']['all_test']:
-            logger.info(f'TEST data: {test_data}')
-            test_df = read_csv(data_dir=pretrain_dir, data_file=test_data)
-            test_df = test_df.sample(frac=1)
-            test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
-            _, _, _ = model.eval_model(test_df, macro_f1=macro_f1)
-    else:
-        result, model_outputs, wrong_predictions = model.eval_model(test_df, macro_f1=macro_f1)
-
-    # Make predictions with the model
-    # predictions, raw_outputs = model.predict(["Sam was a Wizard"])
-
-
-def BERT_classifier(
+def BERT_multilabel_classifier(
         train_df: pd.core.frame.DataFrame, test_df: pd.core.frame.DataFrame,
         n_classes: int = cfg['data']['num_classes'],
         dataset_name: str = cfg['data']['train'],
@@ -217,11 +128,11 @@ def BERT_classifier(
     :param use_cuda:
     :return:
     """
-    # train_df = format_inputs(train_df)
-    # test_df = format_inputs(test_df)
+    train_df = format_inputs(train_df)
+    test_df = format_inputs(test_df)
 
     ## Add arguments:
-    model_args = MultiLabelClassificationArgs()
+    model_args = MultiLabelClassificationArgs(evaluate_during_training=True)
     model_args.num_labels = n_classes
     model_args.no_cache = True
     model_args.no_save = True
@@ -231,18 +142,19 @@ def BERT_classifier(
     model_args.fp16 = False
     # model_args.fp16_opt_level = 'O1'
     model_args.max_seq_length = cfg['transformer']['max_seq_len']
-    model_args.weight_decay = cfg['transformer']['optimizer']['weight_decay']
-    model_args.learning_rate = cfg['transformer']['optimizer']['lr']
-    model_args.adam_epsilon = cfg['transformer']['optimizer']['adam_epsilon']
-    model_args.warmup_ratio = cfg['transformer']['optimizer']['warmup_ratio']
-    model_args.warmup_steps = cfg['transformer']['optimizer']['warmup_steps']
-    model_args.max_grad_norm = cfg['transformer']['optimizer']['max_grad_norm']
+    # model_args.weight_decay = cfg['transformer']['optimizer']['weight_decay']
+    # model_args.learning_rate = cfg['transformer']['optimizer']['lr']
+    # model_args.adam_epsilon = cfg['transformer']['optimizer']['adam_epsilon']
+    # model_args.warmup_ratio = cfg['transformer']['optimizer']['warmup_ratio']
+    # model_args.warmup_steps = cfg['transformer']['optimizer']['warmup_steps']
+    # model_args.max_grad_norm = cfg['transformer']['optimizer']['max_grad_norm']
     model_args.train_batch_size = cfg['training']['train_batch_size']
     # model_args.gradient_accumulation_steps = cfg['transformer']['gradient_accumulation_steps']
     model_args.overwrite_output_dir = True
     model_args.eval_batch_size = cfg['training']['eval_batch_size']
-    model_args.evaluate_during_training = False
-    model_args.evaluate_during_training_verbose = False
+    # model_args.evaluate_during_training = True
+    # model_args.evaluate_during_training_verbose = True
+    # model_args.evaluate_during_training_silent = False
     model_args.evaluate_each_epoch = True
     model_args.use_early_stopping = True
     model_args.save_model_every_epoch = False
@@ -253,40 +165,18 @@ def BERT_classifier(
     model_args.save_steps = 10000
     model_args.n_gpu = 2
     model_args.threshold = 0.5
-
-    ## Add arguments:
-    model_args = ClassificationArgs()
-    # model_args.num_labels = n_classes
-    # model_args.no_cache = True
-    # model_args.no_save = True
-    model_args.num_train_epochs = num_epoch
-    model_args.output_dir = cfg['paths']['result_dir']
-    # model_args.cache_dir = cfg['paths']['cache_dir']
-    model_args.fp16 = False
-    # model_args.fp16_opt_level = 'O1'
-    model_args.max_seq_length = cfg['transformer']['max_seq_len']
-    model_args.weight_decay = cfg['transformer']['optimizer']['weight_decay']
-    model_args.learning_rate = cfg['transformer']['optimizer']['lr']
-    model_args.adam_epsilon = cfg['transformer']['optimizer']['adam_epsilon']
-    model_args.warmup_ratio = cfg['transformer']['optimizer']['warmup_ratio']
-    model_args.warmup_steps = cfg['transformer']['optimizer']['warmup_steps']
-    model_args.max_grad_norm = cfg['transformer']['optimizer']['max_grad_norm']
-    model_args.train_batch_size = cfg['training']['train_batch_size']
-    # model_args.gradient_accumulation_steps = cfg['transformer']['gradient_accumulation_steps']
-    model_args.overwrite_output_dir = True
-    model_args.eval_batch_size = cfg['training']['eval_batch_size']
-    model_args.evaluate_during_training = False
-    model_args.evaluate_during_training_verbose = False
-    model_args.evaluate_each_epoch = True
-    model_args.use_early_stopping = True
-    model_args.save_model_every_epoch = False
-    model_args.save_eval_checkpoints = False
-    model_args.save_optimizer_and_scheduler = False
-    model_args.reprocess_input_data = True
-    # model_args.evaluate_during_training_steps = 3000
-    model_args.save_steps = 10000
-    model_args.n_gpu = 1
-    model_args.threshold = 0.5
+    # model_args.train_custom_parameters_only = True
+    # model_args.custom_parameter_groups = [
+    #     {
+    #         "params": ["classifier.weight"],
+    #         "lr": 1e-3,
+    #     },
+    #     {
+    #         "params": ["classifier.bias"],
+    #         "lr": 1e-3,
+    #         "weight_decay": 0.0,
+    #     },
+    # ]
 
     """
     You can set config in predict(): 
@@ -298,46 +188,16 @@ def BERT_classifier(
         
         all_layer_hidden_states: Numpy array of shape (num_hidden_layers, batch_size, sequence_length, hid_dim)
     """
-    model_args.output_hidden_states = True
-
-    # args = {
-    #     'output_dir':                     cfg['paths']['result_dir'],
-    #     'cache_dir':                      cfg['paths']['cache_dir'],
-    #     'fp16':                           False,
-    #     'fp16_opt_level':                 'O1',
-    #     'max_seq_length':                 cfg['transformer']['max_seq_len'],
-    #     'weight_decay':                   cfg['transformer']['optimizer']['weight_decay'],
-    #     'learning_rate':                  cfg['transformer']['optimizer']['lr'],
-    #     'adam_epsilon':                   cfg['transformer']['optimizer']['adam_epsilon'],
-    #     'warmup_ratio':                   cfg['transformer']['optimizer']['warmup_ratio'],
-    #     'warmup_steps':                   cfg['transformer']['optimizer']['warmup_steps'],
-    #     'max_grad_norm':                  cfg['transformer']['optimizer']['max_grad_norm'],
-    #     'train_batch_size':               cfg['training']['train_batch_size'],
-    #     'gradient_accumulation_steps':    cfg['transformer']['gradient_accumulation_steps'],
-    #     'eval_batch_size':                cfg['training']['eval_batch_size'],
-    #     'num_train_epochs':               num_epoch,
-    #     'evaluate_during_training':       False,
-    #     'evaluate_during_training_steps': 3000,
-    #     'save_steps':                     10000,
-    #     'overwrite_output_dir':           True,
-    #     'reprocess_input_data':           True,
-    #     'n_gpu':                          2,
-    #     'threshold':                      0.5
-    # }
+    # model_args.output_hidden_states = True
 
     ## Create a MultiLabelClassificationModel
-    # model = MultiLabelClassificationModel(
-    #     model_type=model_type, model_name=model_name, num_labels=n_classes,
-    #     use_cuda=use_cuda and torch.cuda.is_available(), args=args)
-
-    ## Create a MultiLabelClassificationModel
-    model = ClassificationModel(
+    model = MultiLabelClassificationModel(
         model_type=model_type, model_name=model_name, num_labels=n_classes,
         use_cuda=use_cuda and torch.cuda.is_available(), args=model_args)
 
     ## Train the model
     start_time = timeit.default_timer()
-    model.train_model(train_df, eval_df=test_df)
+    model.train_model(train_df, eval_df=test_df, verbose=True, macro_f1=macro_f1)
     train_time = timeit.default_timer() - start_time
 
     ## Evaluate the model
@@ -349,19 +209,19 @@ def BERT_classifier(
     ## Analyze wrong predictions
     logger.info("Wrong prediction count: [{}]".format(len(wrong_predictions)))
     logger.info("Wrong predictions: ")
-    miss_ids = []
-    miss_texts = []
-    # misses = {"ids": miss_ids,"texts":miss_texts}
-    for example in wrong_predictions:
-        # logger.info(f"id: [{example.guid}], text: [{example.text_a}]")
-        miss_ids.append(example.guid)
-        miss_texts.append(example.text_a)
-
-    missed_examples = pd.DataFrame({"ids": miss_ids, "texts": miss_texts})
-    logger.info(f'Misclassified examples: {missed_examples}')
-    missed_examples_path = dataset_name + model_type + str(num_epoch) + "missed_examples.csv"
-    logger.info(f"Saving wrongly classified examples in file: [{missed_examples_path}]")
-    missed_examples.to_csv(missed_examples_path)
+    # miss_ids = []
+    # miss_texts = []
+    # # misses = {"ids": miss_ids,"texts":miss_texts}
+    # for example in wrong_predictions:
+    #     # logger.info(f"id: [{example.guid}], text: [{example.text_a}]")
+    #     miss_ids.append(example.guid)
+    #     miss_texts.append(example.text_a)
+    #
+    # missed_examples = pd.DataFrame({"ids": miss_ids, "texts": miss_texts})
+    # logger.info(f'Misclassified examples: {missed_examples}')
+    # missed_examples_path = dataset_name + model_type + str(num_epoch) + "missed_examples.csv"
+    # logger.info(f"Saving wrongly classified examples in file: [{missed_examples_path}]")
+    # missed_examples.to_csv(missed_examples_path)
 
     # logger.info(dumps(result, indent=4))
     # with open(join(cfg['paths']['dataset_root'][plat][user],

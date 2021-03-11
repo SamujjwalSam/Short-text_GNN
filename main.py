@@ -35,12 +35,13 @@ from typing import Dict
 from Utils.utils import count_parameters, logit2label, sp_coo2torch_coo, get_token2pretrained_embs
 from Layers.bilstm_classifiers import BiLSTM_Classifier
 from Pretrain.pretrain import get_pretrain_artifacts, calculate_vocab_overlap, get_w2v_embs, get_crisisNLP_embs
-# from File_Handlers.csv_handler import read_csv, read_csvs
+from File_Handlers.csv_handler import read_csv, read_csvs
 from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 # from File_Handlers.read_datasets import load_fire16, load_smerp17
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
-from Data_Handlers.create_datasets import create_unlabeled_datasets, prepare_splitted_datasets, prepare_BERT_splitted_datasets, prepare_single_dataset
+from Data_Handlers.create_datasets import create_unlabeled_datasets, prepare_splitted_datasets,\
+    prepare_BERT_splitted_datasets, prepare_single_dataset
 from Text_Processesor.build_corpus_vocab import get_dataset_fields, get_token_embedding
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
 from Data_Handlers.instance_handler_dgl import Instance_Dataset_DGL
@@ -49,6 +50,7 @@ from Trainer.gat_trainer import GAT_BiLSTM_trainer
 from Trainer.gcn_lstm_trainer import GCN_LSTM_trainer
 from Trainer.lstm_trainer import LSTM_trainer
 from Trainer.mlp_trainer import MLP_trainer
+from Transformers_simpletransformers.BERT_multilabel_classifier import BERT_multilabel_classifier
 from Text_Encoder.finetune_static_embeddings import glove2dict, get_oov_vecs,\
     train_mittens, preprocess_and_find_oov2, create_clean_corpus, get_oov_tokens
 from Trainer.trainer import trainer, predict_with_label
@@ -67,8 +69,8 @@ if cuda.is_available() and cfg['cuda']["use_cuda"][plat][user]:
 
     if device.type == 'cuda':
         # logger.info(torch.cuda.get_device_name(cfg['cuda']['use_cuda']))
-        logger.info(f'Allocated: {round(torch.cuda.memory_allocated(0)/1024**3,1)}GB')
-        logger.info(f'Cached: {round(torch.cuda.memory_reserved(0)/1024**3,1)}GB')
+        logger.info(f'Allocated: {round(torch.cuda.memory_allocated(0) / 1024 ** 3, 1)}GB')
+        logger.info(f'Cached: {round(torch.cuda.memory_reserved(0) / 1024 ** 3, 1)}GB')
 
 
 def set_all_seeds(seed=0):
@@ -236,8 +238,52 @@ def main(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name:
     logger.info("Execution complete.")
 
 
+def main_glen(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name: str = cfg['data']['train'],
+              labelled_val_name: str = cfg['data']['val'], labelled_test_name: str = cfg['data']['test']):
+    logger.info('Read and prepare labelled data for Word level')
+    train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+    train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+        get_iter=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+        train_dataname=labelled_source_name, val_dataname=labelled_val_name,
+        test_dataname=labelled_test_name)
+
+    if cfg['data']['use_all_data']:
+        train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
+        train_df = train_df.sample(frac=1)
+        test_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['test'])
+        test_df = test_df.sample(frac=1)
+        # test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
+    else:
+        train_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['train'])
+        train_df = train_df.sample(frac=1)
+        # train_df["labels"] = pd.to_numeric(train_df["labels"], downcast="float")
+        # val_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['val'])
+        # val_df["labels"] = pd.to_numeric(val_df["labels"], downcast="float")
+        test_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['test'])
+        test_df = test_df.sample(frac=1)
+        # test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
+
+    if glove_embs is None:
+        glove_embs = glove2dict()
+
+    logger.info('Run for multiple LR')
+    lrs = [1e-3]
+    for lr in lrs:
+        logger.critical(f'Current Learning Rate: [{lr}]')
+        BERT_multilabel_classifier(
+            train_df=train_df, test_df=test_df)
+
+        model_name = f'{model_type}_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   labelled_source_name, glove_embs, lr, model_name=model_name)
+
+
+    logger.info("Execution complete.")
+
+
 def main_alltrain(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name: str = cfg['data']['train'],
-         labelled_val_name: str = cfg['data']['val'], labelled_test_name: str = cfg['data']['test']):
+                  labelled_val_name: str = cfg['data']['val'], labelled_test_name: str = cfg['data']['test']):
     logger.info('Read and prepare labelled data for Word level')
     train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
@@ -390,7 +436,8 @@ def pretrain(train_dataset, train_vocab: Dict[str, Counter],
 
 def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, train_vocab,
                train_dataset, val_dataset, test_dataset, dataname,
-               glove_embs=None, lr=cfg['model']['optimizer']['lr'], model_name=None, pretrain_dataloader=None, all_test=False):
+               glove_embs=None, lr=cfg['model']['optimizer']['lr'], model_name=None, pretrain_dataloader=None,
+               all_test=False):
     if model_name is None:
         model_name = f'{model_type}_epoch{str(cfg["training"]["num_epoch"])}_lr{str(lr)}'
     logger.info(f'Classifying examples using [{model_type}] model.')
@@ -426,8 +473,8 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, tr
         unlabelled_source_name = cfg["data"]["source"]['unlabelled']
         # labelled_target_name: str = cfg['data']['test'],
         unlabelled_target_name = cfg["data"]["target"]['unlabelled']
-        S_dataname = unlabelled_source_name + "_data.csv"
-        T_dataname = unlabelled_target_name + "_data.csv"
+        # S_dataname = unlabelled_source_name + "_data.csv"
+        # T_dataname = unlabelled_target_name + "_data.csv"
         if glove_embs is None:
             glove_embs = glove2dict()
         if exists(datapath + 'S_vocab.json')\
@@ -445,9 +492,9 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, tr
             labelled_token2vec_map = read_json(datapath + 'labelled_token2vec_map')
 
             S_dataset, (S_fields, LABEL) = get_dataset_fields(
-                csv_dir=data_dir, csv_file=S_dataname)
+                csv_dir=data_dir, csv_file=unlabelled_source_name + ".csv")
             T_dataset, (T_fields, LABEL) = get_dataset_fields(
-                csv_dir=data_dir, csv_file=T_dataname)
+                csv_dir=data_dir, csv_file=unlabelled_target_name + ".csv")
         else:
             C_vocab, C_dataset, S_vocab, S_dataset, S_fields, T_vocab,\
             T_dataset, T_fields, labelled_token2vec_map, s_lab_df =\
@@ -572,6 +619,13 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, tr
         #         lpa_vecs[node_id].tolist()
         # DataFrame.from_dict(node_txt2label_vec, orient='index').to_csv(labelled_source_name +
         # 'node_txt2label_vec.csv')
+
+        logger.info('Get graph dataloader')
+        train_dataloader, val_dataloader, test_dataloader = get_graph_dataloader(
+            model_type, train_dataset, val_dataset, test_dataset, train_vocab,
+            labelled_source_name=cfg['data']['train'], labelled_val_name=cfg['data']['val'],
+            labelled_target_name=cfg['data']['test'])
+
         train_epochs_output_dict, test_output = GLEN_trainer(
             adj, X, train_dataloader, val_dataloader, test_dataloader,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
@@ -813,7 +867,7 @@ if __name__ == "__main__":
     num_seeds = 3
     for seed in range(num_seeds):
         set_all_seeds(seed)
-        # main(glove_embs=glove_embs)
-        main_alltrain(glove_embs=glove_embs)
+        main_glen(glove_embs=glove_embs)
+        # main_alltrain(glove_embs=glove_embs)
         # main_zeroshot(glove_embs=glove_embs)
     logger.info(f"Execution complete for {num_seeds} SEEDs.")
