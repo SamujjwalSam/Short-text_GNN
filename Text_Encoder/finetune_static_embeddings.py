@@ -22,7 +22,7 @@ import pickle
 from os.path import exists, join
 from collections import Counter
 from nltk.corpus import brown
-# from mittens import Mittens
+from mittens import Mittens
 from sklearn.feature_extraction.text import CountVectorizer
 
 from File_Handlers.json_handler import read_json, save_json

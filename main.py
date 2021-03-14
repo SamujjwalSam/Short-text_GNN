@@ -30,9 +30,8 @@ from json import dumps
 from collections import Counter
 from typing import Dict
 
-# from Transformers_simpletransformers.BERT_multilabel_classifier import BERT_binary_classifier
 # from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_propagation
-from Utils.utils import count_parameters, logit2label, sp_coo2torch_coo, get_token2pretrained_embs
+from Utils.utils import count_parameters, logit2label, sp_coo2torch_coo, get_token2pretrained_embs, merge_dicts
 from Layers.bilstm_classifiers import BiLSTM_Classifier
 from Pretrain.pretrain import get_pretrain_artifacts, calculate_vocab_overlap, get_w2v_embs, get_crisisNLP_embs
 from File_Handlers.csv_handler import read_csv, read_csvs
@@ -250,6 +249,8 @@ def main_glen(model_type=cfg['model']['type'], glove_embs=None, labelled_source_
     if cfg['data']['use_all_data']:
         train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
         train_df = train_df.sample(frac=1)
+        val_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['val'])
+        val_df = val_df.sample(frac=1)
         test_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['test'])
         test_df = test_df.sample(frac=1)
         # test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
@@ -257,7 +258,8 @@ def main_glen(model_type=cfg['model']['type'], glove_embs=None, labelled_source_
         train_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['train'])
         train_df = train_df.sample(frac=1)
         # train_df["labels"] = pd.to_numeric(train_df["labels"], downcast="float")
-        # val_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['val'])
+        val_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['val'])
+        val_df = val_df.sample(frac=1)
         # val_df["labels"] = pd.to_numeric(val_df["labels"], downcast="float")
         test_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['test'])
         test_df = test_df.sample(frac=1)
@@ -267,23 +269,25 @@ def main_glen(model_type=cfg['model']['type'], glove_embs=None, labelled_source_
         glove_embs = glove2dict()
 
     logger.info('Run for multiple LR')
-    lrs = [1e-3]
+    lrs = [1e-4]
     for lr in lrs:
         logger.critical(f'Current Learning Rate: [{lr}]')
+
         BERT_multilabel_classifier(
-            train_df=train_df, test_df=test_df)
+            train_df=train_df, val_df=val_df, test_df=test_df)
 
         model_name = f'{model_type}_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
                    labelled_source_name, glove_embs, lr, model_name=model_name)
 
-
     logger.info("Execution complete.")
 
 
-def main_alltrain(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name: str = cfg['data']['train'],
-                  labelled_val_name: str = cfg['data']['val'], labelled_test_name: str = cfg['data']['test']):
+def main_alltrain(model_type=cfg['model']['type'], glove_embs=None,
+                  labelled_source_name: str = cfg['data']['train'],
+                  labelled_val_name: str = cfg['data']['val'],
+                  labelled_test_name: str = cfg['data']['test']):
     logger.info('Read and prepare labelled data for Word level')
     train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
@@ -519,6 +523,8 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, tr
             T_corpus = read_json(datapath + 'T_corpus', convert_ordereddict=False)
             S_corpus_toks = read_json(datapath + 'S_corpus_toks', convert_ordereddict=False)
             T_corpus_toks = read_json(datapath + 'T_corpus_toks', convert_ordereddict=False)
+            S_high_oov = read_json(datapath + 'S_high_oov', convert_ordereddict=False)
+            T_high_oov = read_json(datapath + 'T_high_oov', convert_ordereddict=False)
         else:
             ## Get all OOVs which does not have Glove embedding:
             # high_oov, low_glove, corpus, corpus_toks =\
@@ -552,7 +558,9 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, tr
             oov_embs = load_pickle(filepath=data_dir, filename=oov_emb_filename)
         else:
             logger.info('Create OOV embeddings using Mittens:')
-            high_oov = S_high_oov + T_high_oov
+            # high_oov = S_high_oov + T_high_oov
+            high_oov = merge_dicts(S_high_oov,T_high_oov)
+
             high_oov_tokens_list = list(high_oov.keys())
             c_corpus = S_corpus + T_corpus
             # oov_mat_coo = calculate_cooccurrence_mat(high_oov_tokens_list, c_corpus)
@@ -864,7 +872,7 @@ if __name__ == "__main__":
 
     glove_embs = glove2dict()
     logger.info('Run for multiple SEEDS')
-    num_seeds = 3
+    num_seeds = 5
     for seed in range(num_seeds):
         set_all_seeds(seed)
         main_glen(glove_embs=glove_embs)

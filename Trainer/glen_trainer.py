@@ -96,7 +96,7 @@ def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
         logger.info(f'test_output: \n{dumps(test_output["result"], indent=4)}')
         logger.info(f"Epoch {epoch}, Train loss {epoch_loss:1.4}, val loss "
                     f"{val_losses:1.6}, test loss {test_losses:1.6}, Val W-F1 "
-                    f"{val_output['result']['f1']['weighted'].item():1.4} Test W-F1"
+                    f"{val_output['result']['f1']['weighted'].item():1.4} GLEN Test W-F1"
                     f" {test_output['result']['f1']['weighted'].item():1.4}, Model {model_name}")
         # logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
         #             f"{val_losses}, Val Weighted F1 {val_output['result']['f1']['weighted'].item()}")

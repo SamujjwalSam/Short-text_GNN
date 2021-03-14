@@ -106,12 +106,12 @@ def replace_bert_init_embs(model: ClassificationModel, embs_dict: dict) -> None:
 
 
 def BERT_multilabel_classifier(
-        train_df: pd.core.frame.DataFrame, test_df: pd.core.frame.DataFrame,
-        n_classes: int = cfg['data']['num_classes'],
+        train_df: pd.core.frame.DataFrame, val_df: pd.core.frame.DataFrame,
+        test_df: pd.core.frame.DataFrame, n_classes: int = cfg['data']['num_classes'],
         dataset_name: str = cfg['data']['train'],
         model_name: str = cfg['transformer']['model_name'],
         model_type: str = cfg['transformer']['model_type'],
-        num_epoch: int = cfg['training']['num_epoch'],
+        num_epoch: int = cfg['transformer']['num_epoch'],
         use_cuda: bool = cfg['cuda']['use_cuda']) -> (dict, dict):
     """Train and Evaluation data needs to be in a Pandas Dataframe
 
@@ -129,6 +129,7 @@ def BERT_multilabel_classifier(
     :return:
     """
     train_df = format_inputs(train_df)
+    val_df = format_inputs(val_df)
     test_df = format_inputs(test_df)
 
     ## Add arguments:
@@ -165,6 +166,7 @@ def BERT_multilabel_classifier(
     model_args.save_steps = 10000
     model_args.n_gpu = 2
     model_args.threshold = 0.5
+    model_args.early_stopping_patience = 3
     # model_args.train_custom_parameters_only = True
     # model_args.custom_parameter_groups = [
     #     {
@@ -197,7 +199,7 @@ def BERT_multilabel_classifier(
 
     ## Train the model
     start_time = timeit.default_timer()
-    model.train_model(train_df, eval_df=test_df, verbose=True, macro_f1=macro_f1)
+    model.train_model(train_df, eval_df=val_df, verbose=True, macro_f1=macro_f1)
     train_time = timeit.default_timer() - start_time
 
     ## Evaluate the model
@@ -205,6 +207,7 @@ def BERT_multilabel_classifier(
     result, model_outputs, wrong_predictions = model.eval_model(
         test_df, macro_f1=macro_f1)
     prediction_time = timeit.default_timer() - start_time
+    logger.info(f'BERT Test W-F1: {result}')
 
     ## Analyze wrong predictions
     logger.info("Wrong prediction count: [{}]".format(len(wrong_predictions)))
