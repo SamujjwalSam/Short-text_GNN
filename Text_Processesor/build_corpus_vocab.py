@@ -85,14 +85,12 @@ def get_token_embedding(ordered_tokens: list, oov_embs: dict, default_embs: dict
 
 
 def get_dataset_fields(
-        csv_dir: str, csv_file: str, return_iter: bool = False, tokenizer='spacy',
+        csv_dir: str, csv_file: str, return_iter: bool = False,
+        tokenizer=partial(normalizeTweet, return_tokens=True),
         min_freq: int = 2, text_headers: list = ['text'], batch_size: int = 1,
         init_vocab: bool = True, labelled_data: bool = False, target_train_portion=None,
         embedding_dir: [None, str] = cfg["paths"]["embedding_dir"][plat][user],
         embedding_file: [None, str] = cfg["embeddings"]["embedding_file"]):
-    ## Create tokenizer:
-    tokenizer = partial(normalizeTweet, return_tokens=True)
-
     (TEXT, LABEL), labelled_fields, unlabelled_fields = prepare_fields(
         text_headers=text_headers, tokenizer=tokenizer, n_classes=cfg['data']['num_classes'])
 
@@ -104,8 +102,7 @@ def get_dataset_fields(
 
     if target_train_portion is not None:
         dataset, test = split_dataset(dataset, split_size=0.7)
-        dataset, unused = split_dataset(dataset,
-                                        split_size=target_train_portion)
+        dataset, unused = split_dataset(dataset, split_size=target_train_portion)
         # if exists(join(csv_dir, csv_file + "_examples.pkl")):
         #     dataset = load_dataset(csv_dir, csv_file)
         # else:

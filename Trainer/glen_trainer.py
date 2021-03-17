@@ -43,10 +43,11 @@ def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
                epoch: int = cfg['training']['num_epoch'],
                eval_dataloader: utils.data.dataloader.DataLoader = None,
                test_dataloader: utils.data.dataloader.DataLoader = None,
-        n_classes=cfg['data']['num_classes'], model_name='Glove'):
+               n_classes=cfg['data']['num_classes'], model_name='Glove'):
     logger.info(f"Started training for {epoch} epoch: ")
     train_epoch_losses = []
     train_epoch_dict = OrderedDict()
+    max_result = {'score': 0.0, 'epoch': 0}
     for epoch in range(1, epoch + 1):
         model.train()
         epoch_loss = 0
@@ -89,17 +90,21 @@ def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
 
         epoch_loss /= (iter + 1)
         train_time = timeit.default_timer() - start_time
-        logger.info(f"Epoch {epoch}, Model {model_name}, time: {train_time / 60} mins, Train loss: {epoch_loss}")
         val_losses, val_output = eval_glen(model, G, X, loss_func=loss_func, dataloader=eval_dataloader)
         # logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
         test_losses, test_output = eval_glen(model, G, X, loss_func=loss_func, dataloader=test_dataloader)
-        logger.info(f'test_output: \n{dumps(test_output["result"], indent=4)}')
+        # logger.info(f'test_output: \n{dumps(test_output["result"], indent=4)}')
         logger.info(f"Epoch {epoch}, Train loss {epoch_loss:1.4}, val loss "
                     f"{val_losses:1.6}, test loss {test_losses:1.6}, Val W-F1 "
-                    f"{val_output['result']['f1']['weighted'].item():1.4} GLEN Test W-F1"
-                    f" {test_output['result']['f1']['weighted'].item():1.4}, Model {model_name}")
+                    f"{val_output['result']['f1_weighted'].item():1.4} GLEN Test W-F1"
+                    f" {test_output['result']['f1_weighted'].item():1.4}, Model {model_name} time: "
+                    f"{train_time / 60:3.2} mins")
+        if max_result['score'] < test_output['result']['f1_weighted'].item():
+            max_result['score'] = test_output['result']['f1_weighted'].item()
+            max_result['epoch'] = epoch
+            max_result['result'] = test_output['result']
         # logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
-        #             f"{val_losses}, Val Weighted F1 {val_output['result']['f1']['weighted'].item()}")
+        #             f"{val_losses}, Val Weighted F1 {val_output['result']['f1_weighted'].item()}")
         train_epoch_losses.append(epoch_loss)
         preds = cat(preds)
 
@@ -109,10 +114,7 @@ def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
         ## Converting probabilities to class labels:
         preds = logit2label(preds.detach(), cls_thresh=0.5)
         trues = cat(trues)
-        if n_classes == 1:
-            result_dict = calculate_performance_bin_sk(trues, preds)
-        else:
-            result_dict = calculate_performance(trues, preds)
+        result_dict = calculate_performance(trues, preds)
         # logger.info(dumps(result_dict, indent=4))
         train_epoch_dict[epoch] = {
             'preds':  preds,
@@ -121,7 +123,11 @@ def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
         }
         # logger.info(f'Epoch {epoch} result: \n{result_dict}')
 
-    return model, train_epoch_losses, train_epoch_dict
+    logger.info(
+        f"MAX GLEN Score: Epoch {max_result['epoch']}, Score {max_result['score']:1.4}, Result "
+        f"{dumps(max_result['result'], indent=4)}, Model {model_name}")
+
+    return model, max_result, train_epoch_dict
 
 
 def eval_glen(model: GLEN_Classifier, G, X, loss_func,
@@ -131,7 +137,7 @@ def eval_glen(model: GLEN_Classifier, G, X, loss_func,
     preds = []
     trues = []
     losses = []
-    start_time = timeit.default_timer()
+    # start_time = timeit.default_timer()
     for iter, (graph_batch, local_ids, label, global_ids, node_counts) in enumerate(dataloader):
         ## Store emb in a separate file as self_loop removes emb info:
         emb = graph_batch.ndata['emb']
@@ -162,8 +168,8 @@ def eval_glen(model: GLEN_Classifier, G, X, loss_func,
             preds.append(prediction.detach())
             trues.append(label.detach())
             losses.append(loss.detach())
-    test_time = timeit.default_timer() - start_time
-    logger.info(f"Total test time: [{test_time / 60:2.4} mins]")
+    # test_time = timeit.default_timer() - start_time
+    # logger.info(f"Total test time: [{test_time / 60:2.4} mins]")
     losses = mean(stack(losses))
     preds = cat(preds)
 
@@ -224,7 +230,7 @@ def GLEN_trainer(
     # if state is not None:
     #     optimizer.load_state_dict(state['optimizer'])
 
-    model, epoch_losses, train_epochs_output_dict = train_glen(
+    model, max_result, train_epochs_output_dict = train_glen(
         model, G, X, train_dataloader, loss_func=loss_func, optimizer=optimizer,
         epoch=epoch, eval_dataloader=val_dataloader, test_dataloader=test_dataloader, model_name=model_name)
 

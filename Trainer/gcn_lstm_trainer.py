@@ -93,10 +93,10 @@ def train_GCN_LSTM(model, A, X, dataloader: utils.data.dataloader.DataLoader,
         logger.info(f'test_output: \n{dumps(test_output["result"], indent=4)}')
         logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
                     f"{val_losses}, test loss {test_losses}, Val Weighted F1 "
-                    f"{val_output['result']['f1']['weighted'].item()} Test Weighted F1"
-                    f" {test_output['result']['f1']['weighted'].item()}")
+                    f"{val_output['result']['f1_weighted'].item()} Test Weighted F1"
+                    f" {test_output['result']['f1_weighted'].item()}")
         # logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
-        #             f"{val_losses}, Val Weighted F1 {val_output['result']['f1']['weighted'].item()}")
+        #             f"{val_losses}, Val Weighted F1 {val_output['result']['f1_weighted'].item()}")
         train_epoch_losses.append(epoch_loss)
         preds = cat(preds)
 

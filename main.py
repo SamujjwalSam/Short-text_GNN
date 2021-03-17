@@ -268,18 +268,20 @@ def main_glen(model_type=cfg['model']['type'], glove_embs=None, labelled_source_
     if glove_embs is None:
         glove_embs = glove2dict()
 
-    logger.info('Run for multiple LR')
-    lrs = [1e-4]
+    lrs = [1e-3]
+    logger.info(f'Run for multiple LRs: {lrs}')
     for lr in lrs:
         logger.critical(f'Current Learning Rate: [{lr}]')
 
-        BERT_multilabel_classifier(
-            train_df=train_df, val_df=val_df, test_df=test_df)
-
-        model_name = f'{model_type}_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
+        model_name = f'{model_type}_portion{str(train_portion)}_lr{str(lr)}'
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
                    labelled_source_name, glove_embs, lr, model_name=model_name)
+        model_name = f'BERT_portion{str(train_portion)}'
+        logger.info(f'Running BERT for model {model_name}')
+        BERT_multilabel_classifier(
+            train_df=train_df, val_df=val_df, test_df=test_df,
+            exp_name=model_name)
 
     logger.info("Execution complete.")
 
@@ -559,7 +561,7 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader, tr
         else:
             logger.info('Create OOV embeddings using Mittens:')
             # high_oov = S_high_oov + T_high_oov
-            high_oov = merge_dicts(S_high_oov,T_high_oov)
+            high_oov = merge_dicts(S_high_oov, T_high_oov)
 
             high_oov_tokens_list = list(high_oov.keys())
             c_corpus = S_corpus + T_corpus
@@ -872,10 +874,10 @@ if __name__ == "__main__":
 
     glove_embs = glove2dict()
     logger.info('Run for multiple SEEDS')
-    num_seeds = 5
+    num_seeds = 3
     for seed in range(num_seeds):
         set_all_seeds(seed)
         main_glen(glove_embs=glove_embs)
         # main_alltrain(glove_embs=glove_embs)
-        # main_zeroshot(glove_embs=glove_embs)
+        # main(glove_embs=glove_embs)
     logger.info(f"Execution complete for {num_seeds} SEEDs.")

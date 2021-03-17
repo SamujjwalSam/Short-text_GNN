@@ -93,12 +93,12 @@ def train_lstm_classifier(
         if eval_dataloader is not None:
             val_losses, val_output = eval_lstm_classifier(
                 model, loss_func=loss_func, dataloader=eval_dataloader)
-            logger.info(f"Val W-F1 {val_output['result']['f1']['weighted'].item():4.4}")
+            logger.info(f"Val W-F1 {val_output['result']['f1_weighted'].item():4.4}")
             # logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
         test_output = eval_all(model, loss_func=loss_func)
         logger.info(f'Result: \n{dumps(test_output, indent=4)}')
         # logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
-        #             f"{val_losses}, Val Weighted F1 {val_output['result']['f1']['weighted'].item()}")
+        #             f"{val_losses}, Val Weighted F1 {val_output['result']['f1_weighted'].item()}")
         train_epoch_losses.append(epoch_loss)
         preds = cat(preds)
 
@@ -108,10 +108,7 @@ def train_lstm_classifier(
         ## Converting probabilities to class labels:
         preds = logit2label(preds.detach(), cls_thresh=0.5)
         trues = cat(trues)
-        if n_classes == 1:
-            result_dict = calculate_performance_bin_sk(trues, preds)
-        else:
-            result_dict = calculate_performance(trues, preds)
+        result_dict = calculate_performance(trues, preds)
         # logger.info(dumps(result_dict, indent=4))
         train_epoch_dict[epoch] = {
             'preds':  preds,
@@ -186,12 +183,11 @@ def eval_all(model: BiLSTM_Emb_Classifier, loss_func,
              n_classes=cfg['data']['num_classes'], test_files=cfg['data']['all_test_files']):
     all_test_output = {}
     for tfile in test_files:
-        tfile = tfile + ".csv"
-        dataset, vocab, dataloader = prepare_single_dataset(data_dir=pretrain_dir, dataname=tfile)
+        dataset, vocab, dataloader = prepare_single_dataset(data_dir=pretrain_dir, dataname=tfile + ".csv")
 
         test_losses, test_output = eval_lstm_classifier(
             model, loss_func=loss_func, dataloader=dataloader, n_classes=n_classes)
-        all_test_output[tfile] = test_output
+        all_test_output[tfile] = test_output['result']['f1_weighted']
 
     return all_test_output
 

@@ -79,11 +79,11 @@ def macro_f1(labels, preds, threshold=0.5):
 
     scores = calculate_performance_bin_sk(labels, preds)
     scores['dataset'] = cfg['data']['name']
-    scores['epoch'] = cfg['training']['num_epoch']
+    scores['epoch'] = cfg['transformer']['num_epoch']
     logger.info(f"Scores: [{threshold}]:\n[{dumps(scores, indent=4)}]")
-    logger.info(f"Epoch {scores['epoch']} Test W-F1 {scores['f1']['weighted'].item():1.4} Model BERT")
+    logger.info(f"Epoch {scores['epoch']} Test W-F1 {scores['f1_weighted'].item():1.4} Model BERT")
 
-    return scores['f1']['weighted']
+    return scores['f1_weighted']
 
 
 def replace_bert_init_embs(model: ClassificationModel, embs_dict: dict) -> None:
@@ -112,7 +112,8 @@ def BERT_multilabel_classifier(
         model_name: str = cfg['transformer']['model_name'],
         model_type: str = cfg['transformer']['model_type'],
         num_epoch: int = cfg['transformer']['num_epoch'],
-        use_cuda: bool = cfg['cuda']['use_cuda']) -> (dict, dict):
+        use_cuda: bool = cfg['cuda']['use_cuda'],
+        exp_name='BERT') -> (dict, dict):
     """Train and Evaluation data needs to be in a Pandas Dataframe
 
     containing at least two columns, a 'text' and a 'labels' column. The
@@ -128,6 +129,7 @@ def BERT_multilabel_classifier(
     :param use_cuda:
     :return:
     """
+    logger.info(f'Running BERT for experiment {exp_name} with Train {train_df.shape}, Val {val_df.shape}, Test {test_df.shape}')
     train_df = format_inputs(train_df)
     val_df = format_inputs(val_df)
     test_df = format_inputs(test_df)
@@ -197,6 +199,7 @@ def BERT_multilabel_classifier(
         model_type=model_type, model_name=model_name, num_labels=n_classes,
         use_cuda=use_cuda and torch.cuda.is_available(), args=model_args)
 
+    logger.info(f'BERT Train {train_df.shape}, Val {val_df.shape}, Test {test_df.shape}')
     ## Train the model
     start_time = timeit.default_timer()
     model.train_model(train_df, eval_df=val_df, verbose=True, macro_f1=macro_f1)
@@ -207,7 +210,8 @@ def BERT_multilabel_classifier(
     result, model_outputs, wrong_predictions = model.eval_model(
         test_df, macro_f1=macro_f1)
     prediction_time = timeit.default_timer() - start_time
-    logger.info(f'BERT Test W-F1: {result}')
+    logger.info(f'BERT Test W-F1: {result["macro_f1"]:1.4}')
+    logger.info(f'Running BERT for experiment {exp_name} with Train {train_df.shape}, Val {val_df.shape}, Test {test_df.shape}')
 
     ## Analyze wrong predictions
     logger.info("Wrong prediction count: [{}]".format(len(wrong_predictions)))
