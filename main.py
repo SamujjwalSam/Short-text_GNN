@@ -31,7 +31,7 @@ from collections import Counter
 from typing import Dict
 
 # from Label_Propagation_PyTorch.label_propagation import fetch_all_nodes, label_propagation
-from Utils.utils import count_parameters, logit2label, sp_coo2torch_coo, get_token2pretrained_embs, merge_dicts
+from Utils.utils import count_parameters, logit2label, sp_coo2torch_coo, get_token2pretrained_embs, merge_dicts, clean_dataset_dir
 from Layers.bilstm_classifiers import BiLSTM_Classifier
 from Pretrain.pretrain import get_pretrain_artifacts, calculate_vocab_overlap, get_w2v_embs, get_crisisNLP_embs
 from File_Handlers.csv_handler import read_csv, read_csvs
@@ -40,7 +40,7 @@ from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
 from Data_Handlers.create_datasets import create_unlabeled_datasets, prepare_splitted_datasets,\
-    prepare_BERT_splitted_datasets, prepare_single_dataset
+    prepare_BERT_splitted_datasets, prepare_single_dataset, split_csv_train_data
 from Text_Processesor.build_corpus_vocab import get_dataset_fields, get_token_embedding
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
 from Data_Handlers.instance_handler_dgl import Instance_Dataset_DGL
@@ -162,7 +162,7 @@ def main(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name:
     #                 labelled_source_name, epoch=cfg['pretrain']['epoch'])
 
     logger.info('Run for multiple LR')
-    lrs = [1e-3]
+    lrs = [1e-3, 1e-4]
     for lr in lrs:
         logger.critical(f'Current Learning Rate: [{lr}]')
         model_name = f'Glove_{model_type}_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
@@ -287,11 +287,6 @@ def main_glen(model_type=cfg['model']['type'], glove_embs=None, labelled_source_
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
                    labelled_source_name, glove_embs, lr, model_name=model_name)
-        model_name = f'BERT_portion{str(train_portion)}'
-        logger.info(f'Running BERT for model {model_name}')
-        BERT_multilabel_classifier(
-            train_df=train_df, val_df=val_df, test_df=test_df,
-            exp_name=model_name)
 
     logger.info("Execution complete.")
 

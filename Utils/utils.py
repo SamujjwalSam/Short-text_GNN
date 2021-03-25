@@ -22,7 +22,7 @@ import pandas as pd
 import numpy as np
 import scipy.sparse as sp
 from functools import partial
-from os import mkdir, makedirs
+from os import mkdir, makedirs, remove
 from os.path import join, exists
 from collections import OrderedDict, Counter
 from sklearn.model_selection import train_test_split
@@ -589,6 +589,20 @@ def load_token2pretrained_embs(
     logger.info(f'Loaded token2pretrained from [{token2pretrained_path}]')
 
     return X, token2pretrained_embs
+
+
+def clean_dataset_dir(dataset_dir=dataset_dir, dataset_name=cfg['data']['train']):
+    extra_filenames = ['_token_nx.bin', 'C_vocab.json', 'labelled_token2vec_map.json',
+                       'T_vocab.json', 'T_corpus.json', 'T_corpus_toks.json', 'T_high_oov.json',
+                       'S_vocab.json', 'S_corpus.json', 'S_corpus_toks.json', 'S_high_oov.json',
+                       '_emb.pt', 'instance_graph_local_node_ids.pkl', '_instance_graph_global_node_ids.pkl'
+                       ]
+
+    for filename in extra_filenames:
+        try:
+            remove(join(dataset_dir, dataset_name + filename))
+        except OSError as e:
+            logger.fatal(f'Could not remove file [{join(dataset_dir, dataset_name + filename)}] for {e}')
 
 
 def main():

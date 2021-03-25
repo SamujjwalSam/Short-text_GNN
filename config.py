@@ -122,12 +122,16 @@ configuration = {
 
         # 'num_classes': 4,
         # 'class_names': ('0', '1', '2', '3'),
-        'min_freq':     3,
+        'min_freq':     2,
+        'train_portions': [0.5, 0.25],
+
+        # 'num_classes':  4,
+        # 'class_names':  ('0', '1', '2', '3'),
         'num_classes':  1,
-        # 'class_names':  ('0', '1', '2', '3', '4'),
         'class_names':  ('0'),
-        'use_all_data': False,
-        'all_test': [
+
+        'use_all_data': True,
+        'all_test_files': [
             'AF13_test',
             'BB13_test',
             'Kaggle_test',
@@ -137,32 +141,98 @@ configuration = {
             'SH12_test',
             'WTE13_test'],
 
-        'name':        'smerp17_fire16',
-        'train':       'smerp17_train',
-        'val':         'fire16_val',
-        'test':        'fire16_test',
-        "source":      {
-            'labelled':   'smerp17_labeled',
-            'unlabelled': 'smerp17_unlabeled'
-        },
-        "target":      {
-            'labelled':   'fire16_labeled',
-            'unlabelled': 'fire16_unlabeled'},
+        ## GLEN Configs:
+        # 'name':        'smerp17_fire16',
+        # 'train':       'smerp17_train',
+        # 'val':         'smerp17_val',
+        # 'test':        'fire16_test',
+        # "source":      {
+        #     'labelled':   'smerp17_labeled',
+        #     'unlabelled': 'smerp17_unlabeled'
+        # },
+        # "target":      {
+        #     'labelled':   'fire16_labeled',
+        #     'unlabelled': 'fire16_unlabeled'},
+
+        # 'name':        'fire16_smerp17',
+        # 'train':       'fire16_train',
+        # 'val':         'fire16_val',
+        # 'test':        'smerp17_test',
+        # "source":      {
+        #     'labelled':   'fire16_labeled',
+        #     'unlabelled': 'fire16_unlabeled'
+        # },
+        # "target":      {
+        #     'labelled':   'smerp17_labeled',
+        #     'unlabelled': 'smerp17_unlabeled'},
+
+        # 'name':        'fire16_fire16',
+        # 'train':       'fire16_train',
+        # 'val':         'fire16_val',
+        # 'test':        'fire16_test',
+        # "source":      {
+        #     'labelled':   'fire16_labeled',
+        #     'unlabelled': 'fire16_unlabeled'
+        # },
+        # "target":      {
+        #     'labelled':   'fire16_labeled',
+        #     'unlabelled': 'fire16_unlabeled'},
+
+        # 'name':        'smerp17_smerp17',
+        # 'train':       'smerp17_train',
+        # 'val':         'smerp17_val',
+        # 'test':        'smerp17_test',
+        # "source":      {
+        #     'labelled':   'smerp17_labeled',
+        #     'unlabelled': 'smerp17_unlabeled'
+        # },
+        # "target":      {
+        #     'labelled':   'smerp17_labeled',
+        #     'unlabelled': 'smerp17_unlabeled'},
 
         # 'name':        'NEQ_NEQ',
         # 'train':       '2015_Nepal_Earthquake_train',
         # 'val':         '2015_Nepal_Earthquake_dev',
         # 'test':        '2015_Nepal_Earthquake_test',
         # "source":      {
-        #     'labelled':   '2015_Nepal_Earthquake_train',
         #     'unlabelled': 'fire16_unlabeled'
         # },
         # "target":      {
-        #     'labelled':   '2015_Nepal_Earthquake_train',
+        #     'unlabelled': 'fire16_unlabeled'},
+
+        # 'name':        'QFL_QFL',
+        # 'train':       '2013_Queensland_Floods_train',
+        # 'val':         '2013_Queensland_Floods_dev',
+        # 'test':        '2013_Queensland_Floods_test',
+        # "source":      {
+        #     'unlabelled': 'queensland_unlabeled'
+        # },
+        # "target":      {
+        #     'unlabelled': 'queensland_unlabeled'},
+
+        # 'name':        'NEQ_QFL',
+        # 'train':       '2015_Nepal_Earthquake_train',
+        # 'val':         '2015_Nepal_Earthquake_dev',
+        # 'test':        '2013_Queensland_Floods_test',
+        # "source":      {
+        #     'unlabelled': 'fire16_unlabeled'
+        # },
+        # "target":      {
+        #     'unlabelled': 'queensland_unlabeled'},
+
+        # 'name':        'QFL_NEQ',
+        # 'train':       '2013_Queensland_Floods_train',
+        # 'val':         '2013_Queensland_Floods_dev',
+        # 'test':        '2015_Nepal_Earthquake_test',
+        # "source":      {
+        #     'unlabelled': 'queensland_unlabeled'
+        # },
+        # "target":      {
         #     'unlabelled': 'fire16_unlabeled'},
 
         # 'name':         'disaster_binary_task',
 
+        ## GCPD Configs:
         'name':       'AF13',
         'train':      'AF13_train',
         'val':        'AF13_val',
@@ -204,7 +274,7 @@ configuration = {
         # 'test':       'WTE13_test',
     },
     'pretrain':     {
-        'epoch':       1,
+        'epoch':       80,
         'model_type':  'GCN',
         'save_epochs': [80, 60, 40, 25, 15, 1],
         'min_freq':    2,
@@ -213,8 +283,8 @@ configuration = {
         'name':        'pretrain_disaster',
         'files':       [
 
-            'AF13_train',
-            'AF13_val',
+            # 'AF13_train',
+            # 'AF13_val',
 
             'BB13_train',
             'BB13_val',
@@ -228,8 +298,8 @@ configuration = {
             'OT13_train',
             'OT13_val',
 
-            # 'QFL13_train',
-            # 'QFL13_val',
+            'QFL13_train',
+            'QFL13_val',
 
             'SH12_train',
             'SH12_val',
@@ -298,6 +368,7 @@ configuration = {
     },
 
     "transformer":  {
+        "num_epoch":                   30,
         "model_type":                  "bert",
         "model_name":                  "bert-base-uncased",
         "max_seq_len":                 50,
@@ -335,8 +406,8 @@ configuration = {
 
     "model":        {
         'type':                 'LSTM',
-        'mittens_iter':         500,
-        "max_sequence_length":  200,
+        'mittens_iter':         300,
+        "max_sequence_length":  128,
         "dropout":              0.2,
         "dropout_external":     0.0,
         "clipnorm":             1.0,
@@ -363,7 +434,6 @@ configuration = {
 
     "embeddings":   {
         'embedding_file': 'glove.6B.300d',
-        'saved_emb_file': 'merged_300d',
         'emb_dim':        300,
     },
 
@@ -385,7 +455,7 @@ configuration = {
     },
 
     "training":     {
-        "num_epoch":        1,
+        "num_epoch":        10,
         "train_batch_size": 128,
         "eval_batch_size":  256,
     },
@@ -397,9 +467,6 @@ configuration = {
         "min_freq":           1,
         "negative":           10,
         "num_chunks":         10,
-        "vectorizer":         "doc2vec",
-        "sample_repeat_mode": "append",
-        "tfidf_avg":          False,
         "idf":                True
     },
 
