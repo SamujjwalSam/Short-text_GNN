@@ -17,6 +17,7 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
+import pandas as pd
 from os.path import join, exists
 
 from Text_Processesor.tokenizer import BERT_tokenizer
@@ -24,7 +25,7 @@ from File_Handlers.csv_handler import read_csv, read_csvs
 from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 from File_Handlers.read_datasets import load_fire16, load_smerp17
-from Utils.utils import freq_tokens_per_class, split_target
+from Utils.utils import freq_tokens_per_class, split_target, split_df
 from Data_Handlers.torchtext_handler import dataset2bucket_iter
 from config import configuration as cfg, dataset_dir, pretrain_dir
 from Logger.logger import logger
@@ -125,9 +126,11 @@ def prepare_splitted_datasets(
         stoi=None, vectors=None, get_iter=False, dim=cfg['embeddings']['emb_dim'],
         data_dir=dataset_dir, train_dataname=cfg["data"]["train"],
         val_dataname=cfg["data"]["val"], test_dataname=cfg["data"]["test"],
-        use_all_data=False, min_freq=cfg["data"]["min_freq"]):
+        use_all_data=False, min_freq=cfg["data"]["min_freq"], train_portion=None):
     """ Creates train and test dataset from df and returns data loader.
 
+    :param train_portion: Reduces training data size
+    :param min_freq:
     :param use_all_data: Uses all disaster data for training if True
     :param stoi:
     :param val_dataname:
@@ -142,25 +145,33 @@ def prepare_splitted_datasets(
     :param test_dataname:
     :return:
     """
-    logger.info(f'Prepare labelled TRAINING (source) data: {train_dataname}')
+    logger.info(f'Prepare labelled TRAINING data: {train_dataname}')
     # train_df, val_df, test_df = read_csvs(data_dir=data_dir, filenames=(
     #     train_dataname, val_dataname, test_dataname))
     # logger.info(f"Train {train_df.shape}, Val {test_df.shape}, Test {val_df.shape}.")
-    train_dataname = train_dataname + ".csv"
+    # assert use_all_data and train_portion is not None, 'Either use_all_data or train_portion should be provided'
+    train_datafile = train_dataname + ".csv"
+    if train_portion is not None:
+        train_df = read_csv(data_dir=dataset_dir, data_file=train_dataname)
+        df, train_df = split_df(train_df, test_size=train_portion, stratified=False)
+        train_datafile = train_dataname+str(train_portion)+".csv"
+        logger.warning(f'New train data size {train_df.shape} for train_portion {train_portion}')
+        train_df.to_csv(join(data_dir, train_datafile))
+
     if use_all_data:
-        train_dataname = "all_training.csv"
+        train_datafile = "training"+str(len(cfg['pretrain']['files']))+".csv"
         # if not exists(join(dataset_dir, train_dataname)):
         train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
-        train_df.to_csv(join(data_dir, train_dataname))
+        train_df.to_csv(join(data_dir, train_datafile))
 
     if stoi is None:
         logger.critical('Setting default GLOVE vectors:')
         train_dataset, (train_vocab, train_label) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=train_dataname, min_freq=min_freq, labelled_data=True)
+            csv_dir=data_dir, csv_file=train_datafile, min_freq=min_freq, labelled_data=True)
     else:
         logger.critical('Setting custom vectors:')
         train_dataset, (train_vocab, train_label) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=train_dataname, min_freq=min_freq,
+            csv_dir=data_dir, csv_file=train_datafile, min_freq=min_freq,
             labelled_data=True, embedding_file=None, embedding_dir=None)
         train_vocab.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
 
@@ -445,8 +456,8 @@ def create_unlabeled_datasets(
     T_dataname = unlabelled_target_name + "_data.csv"
     t_unlab_df.to_csv(join(data_dir, T_dataname))
 
-    T_dataset, (T_fields, LABEL) = get_dataset_fields(csv_dir=data_dir,
-                                                      csv_file=T_dataname)
+    T_dataset, (T_fields, LABEL) = get_dataset_fields(
+        csv_dir=data_dir, csv_file=T_dataname)
     logger.info("Target vocab size: [{}]".format(len(T_fields.vocab)))
 
     T_vocab = {
@@ -482,3 +493,59 @@ def create_unlabeled_datasets(
 
     return C_vocab, C_dataset, S_vocab, S_dataset, S_fields, T_vocab,\
            T_dataset, T_fields, token2label_vec_map, s_lab_df
+
+
+def split_csv_dataset(dataset_name="smerp17", dataset_dir=dataset_dir, frac=0.565):
+    logger.warning('Creating')
+    smerp = pd.read_csv(join(dataset_dir, dataset_name+'.csv'), header=0, index_col=0)
+    smerp = smerp.sample(frac=1.)
+    smerp_sel = smerp.sample(frac=frac, random_state=677)
+
+    smerp_train = smerp_sel.sample(frac=0.6)
+    logger.info(smerp_train.shape)
+    smerp_sel = smerp_sel.drop(smerp_train.index)
+    smerp_val = smerp_sel.sample(frac=0.1)
+    logger.info(smerp_val.shape)
+    smerp_sel = smerp_sel.drop(smerp_val.index)
+    smerp_test = smerp_sel
+    logger.info(smerp_test.shape)
+
+    smerp_train.to_csv(join(dataset_dir, dataset_name+'_train.csv'), header=True)
+    smerp_val.to_csv(join(dataset_dir, dataset_name+'_val.csv'), header=True)
+    smerp_test.to_csv(join(dataset_dir, dataset_name+'_test.csv'), header=True)
+
+    return smerp_train, smerp_val, smerp_test
+
+
+def split_csv_train_data(dataset_name="smerp17", dataset_dir=dataset_dir, frac=0.565, dataset_save_name=None, random_state=677):
+    """ Reads and saves frac portion of the csv file [dataset_name].
+
+    NOTE: saves original file as [_orig] for later use. Reads [_orig] first if found.
+
+    :param dataset_name:
+    :param dataset_dir:
+    :param frac:
+    :param dataset_save_name:
+    :param random_state:
+    :return:
+    """
+    logger.warning(f'Splitting {dataset_name} to {frac}')
+    if exists(join(dataset_dir, dataset_name+'_orig.csv')):
+        df = pd.read_csv(join(dataset_dir, dataset_name+'_orig.csv'), header=0, index_col=0)
+    elif exists(join(dataset_dir, dataset_name+'.csv')):
+        df = pd.read_csv(join(dataset_dir, dataset_name+'.csv'), header=0, index_col=0)
+        df.to_csv(join(dataset_dir, dataset_name+'_orig.csv'), header=True)
+    else:
+        raise FileNotFoundError(f'File {join(dataset_dir, dataset_name+".csv")}'
+                                f' or {join(dataset_dir, dataset_name+"_orig.csv")} not found.')
+
+    df = df.sample(frac=1.)
+    df_train = df.sample(frac=frac, random_state=random_state)
+
+    if dataset_save_name is None:
+        dataset_save_name = dataset_name+'_train.csv'
+    df_train.to_csv(join(dataset_dir, dataset_save_name), header=True)
+    logger.info(f'New train data size [{df_train.shape}]')
+    logger.info(f'Saved train data at [{join(dataset_dir, dataset_save_name)}]')
+
+    return df_train

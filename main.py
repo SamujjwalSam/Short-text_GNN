@@ -149,7 +149,6 @@ def main(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name:
         f'test freq: {len(ts_freq)}, itos: {len(ts_v)} = '
         f'overlap freq: {len(ov_freq)}, itos: {len(ov_v)}')
 
-    # train_vocab_mod = train_vocab.copy()
     train_vocab_mod = {
         'freqs':       train_vocab.vocab.freqs.copy(),
         'str2idx_map': dict(train_vocab.vocab.stoi.copy()),
@@ -238,7 +237,12 @@ def main(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name:
 
 
 def main_glen(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name: str = cfg['data']['train'],
-              labelled_val_name: str = cfg['data']['val'], labelled_test_name: str = cfg['data']['test']):
+              labelled_val_name: str = cfg['data']['val'], labelled_test_name: str = cfg['data']['test'], train_portion=None):
+    logger.info('running MAIN_GLEN')
+    if train_portion is not None:
+        split_csv_train_data(dataset_name=labelled_source_name,
+                             dataset_dir=dataset_dir, frac=train_portion,
+                             dataset_save_name=labelled_source_name+'.csv')
     logger.info('Read and prepare labelled data for Word level')
     train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
@@ -268,7 +272,13 @@ def main_glen(model_type=cfg['model']['type'], glove_embs=None, labelled_source_
     if glove_embs is None:
         glove_embs = glove2dict()
 
-    lrs = [1e-3]
+    model_name = f'BERT_portion{str(train_portion)}'
+    logger.info(f'Running BERT for model {model_name}')
+    BERT_multilabel_classifier(
+        train_df=train_df, val_df=val_df, test_df=test_df,
+        exp_name=model_name)
+
+    lrs = [1e-3, 1e-4]
     logger.info(f'Run for multiple LRs: {lrs}')
     for lr in lrs:
         logger.critical(f'Current Learning Rate: [{lr}]')
@@ -851,33 +861,28 @@ if __name__ == "__main__":
 
     data_dir = dataset_dir
 
-    # from File_Handlers.read_datasets import load_fire16, load_smerp17
-
-    # from File_Handlers.read_datasets import load_fire16, load_smerp17
-    #
-    # if args.dataset_name.startswith('fire16'):
-    #     train_df = load_fire16()
-    #
-    # if cfg['data']['target']['labelled'].startswith('smerp17'):
-    #     target_df = load_smerp17()
-    #     target_train_df, test_df = split_target(df=target_df, test_size=0.999)
-
-    # result, model_outputs = BERT_classifier(
-    #     train_df=train_df, test_df=test_df, dataset_name=args.dataset_name,
-    #     model_name=args.model_name, model_type=args.model_type,
-    #     num_epoch=args.num_train_epochs, use_cuda=True)
-
-    # glove_embs = glove2dict()
-
-    # train, test = split_target(test_df, test_size=0.3,
-    #                            train_size=.6, stratified=False)
-
     glove_embs = glove2dict()
-    logger.info('Run for multiple SEEDS')
-    num_seeds = 3
-    for seed in range(num_seeds):
+
+    # logger.info('Running GLEN.')
+    # train_portions = cfg['data']['train_portions']
+    # seed_num = 2
+    # seed_start = 4
+    # logger.info(f'Run for [{seed_num}] SEEDS')
+    # for train_portion in train_portions:
+    #     clean_dataset_dir()
+    #     logger.info(f'Run for train_portion: [{train_portion}]')
+    #     for seed in range(seed_start, seed_start+seed_num+1):
+    #         logger.info(f'Setting SEED [{seed}]')
+    #         set_all_seeds(seed)
+    #         main_glen(glove_embs=glove_embs, train_portion=train_portion)
+
+    logger.info('Running GCPD.')
+    seed_num = 3
+    seed_start = 0
+    logger.info(f'Run for [{seed_num}] SEEDS')
+    for seed in range(seed_start, seed_start+seed_num+1):
+        logger.info(f'Setting SEED [{seed}]')
         set_all_seeds(seed)
-        main_glen(glove_embs=glove_embs)
         # main_alltrain(glove_embs=glove_embs)
-        # main(glove_embs=glove_embs)
-    logger.info(f"Execution complete for {num_seeds} SEEDs.")
+        main(glove_embs=glove_embs)
+    logger.info(f"Execution complete for {seed_num} SEEDs.")

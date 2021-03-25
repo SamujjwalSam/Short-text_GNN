@@ -38,7 +38,7 @@ from Logger.logger import logger
 
 if torch.cuda.is_available():
     # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
-    environ["CUDA_VISIBLE_DEVICES"] = '1'
+    environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
     torch.cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
 
 
@@ -129,7 +129,7 @@ def BERT_multilabel_classifier(
     :param use_cuda:
     :return:
     """
-    logger.info(f'Running BERT for experiment {exp_name} with Train {train_df.shape}, Val {val_df.shape}, Test {test_df.shape}')
+    # logger.info(f'Running BERT for experiment {exp_name} with Train {train_df.shape}, Val {val_df.shape}, Test {test_df.shape}')
     train_df = format_inputs(train_df)
     val_df = format_inputs(val_df)
     test_df = format_inputs(test_df)
@@ -166,7 +166,8 @@ def BERT_multilabel_classifier(
     model_args.reprocess_input_data = True
     # model_args.evaluate_during_training_steps = 3000
     model_args.save_steps = 10000
-    model_args.n_gpu = 2
+    model_args.n_gpu = 1
+    # model_args.
     model_args.threshold = 0.5
     model_args.early_stopping_patience = 3
     # model_args.train_custom_parameters_only = True
@@ -197,7 +198,8 @@ def BERT_multilabel_classifier(
     ## Create a MultiLabelClassificationModel
     model = MultiLabelClassificationModel(
         model_type=model_type, model_name=model_name, num_labels=n_classes,
-        use_cuda=use_cuda and torch.cuda.is_available(), args=model_args)
+        use_cuda=use_cuda and torch.cuda.is_available(), args=model_args,
+        cuda_device=cfg['cuda']['cuda_devices'][plat][user])
 
     logger.info(f'BERT Train {train_df.shape}, Val {val_df.shape}, Test {test_df.shape}')
     ## Train the model

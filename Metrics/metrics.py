@@ -39,25 +39,25 @@ def calculate_performance_sk(true: (np.ndarray, torch.tensor), pred: (np.ndarray
     scores = {}
 
     # scores["f1"] = {}
-    scores["f1_weighted"] = f1_score(true, pred, average='weighted')
-    scores["f1_macro"] = f1_score(true, pred, average='macro')
-    scores["f1_micro"] = f1_score(true, pred, average='micro')
-    # scores["f1_samples"] = f1_score(true, pred, average='samples')
-    scores["f1_classes"] = f1_score(true, pred, average=None).tolist()
+    scores["f1_weighted"] = f1_score(true, pred, average='weighted', zero_division=0)
+    scores["f1_macro"] = f1_score(true, pred, average='macro', zero_division=0)
+    scores["f1_micro"] = f1_score(true, pred, average='micro', zero_division=0)
+    # scores["f1_samples"] = f1_score(true, pred, average='samples', zero_division=0)
+    scores["f1_classes"] = f1_score(true, pred, average=None, zero_division=0).tolist()
 
     # scores["precision"] = {}
-    scores["precision_weighted"] = precision_score(true, pred, average='weighted')
-    scores["precision_macro"] = precision_score(true, pred, average='macro')
-    scores["precision_micro"] = precision_score(true, pred, average='micro')
-    # scores["precision_samples"] = precision_score(true, pred, average='samples')
-    scores["precision_classes"] = precision_score(true, pred, average=None).tolist()
+    scores["precision_weighted"] = precision_score(true, pred, average='weighted', zero_division=0)
+    scores["precision_macro"] = precision_score(true, pred, average='macro', zero_division=0)
+    scores["precision_micro"] = precision_score(true, pred, average='micro', zero_division=0)
+    # scores["precision_samples"] = precision_score(true, pred, average='samples', zero_division=0)
+    scores["precision_classes"] = precision_score(true, pred, average=None, zero_division=0).tolist()
 
     # scores["recall"] = {}
-    scores["recall_weighted"] = recall_score(true, pred, average='weighted')
-    scores["recall_macro"] = recall_score(true, pred, average='macro')
-    scores["recall_micro"] = recall_score(true, pred, average='micro')
+    scores["recall_weighted"] = recall_score(true, pred, average='weighted', zero_division=0)
+    scores["recall_macro"] = recall_score(true, pred, average='macro', zero_division=0)
+    scores["recall_micro"] = recall_score(true, pred, average='micro', zero_division=0)
     # scores["recall_samples"] = recall_score(true, pred, average='samples')
-    scores["recall_classes"] = recall_score(true, pred, average=None).tolist()
+    scores["recall_classes"] = recall_score(true, pred, average=None, zero_division=0).tolist()
 
     scores["accuracy_unnormalize"] = accuracy_score(true, pred)
     scores["accuracy_normalize"] = accuracy_score(true, pred, normalize=True)
@@ -77,25 +77,25 @@ def calculate_performance_bin_sk(true: (np.ndarray, torch.tensor), pred: (np.nda
     """
     scores = {}
     # scores["f1"] = {}
-    scores["f1_weighted"] = f1_score(true, pred, average='weighted')
-    scores["f1_macro"] = f1_score(true, pred, average='macro')
-    scores["f1_micro"] = f1_score(true, pred, average='micro')
-    # scores["f1_samples"] = f1_score(true, pred, average='samples')
-    scores["f1_classes"] = f1_score(true, pred, average=None).tolist()
+    scores["f1_weighted"] = f1_score(true, pred, average='weighted', zero_division=0)
+    scores["f1_macro"] = f1_score(true, pred, average='macro', zero_division=0)
+    scores["f1_micro"] = f1_score(true, pred, average='micro', zero_division=0)
+    # scores["f1_samples"] = f1_score(true, pred, average='samples', zero_division=0)
+    scores["f1_classes"] = f1_score(true, pred, average=None, zero_division=0).tolist()
 
     # scores["precision"] = {}
-    scores["precision_weighted"] = precision_score(true, pred, average='weighted')
-    scores["precision_macro"] = precision_score(true, pred, average='macro')
-    scores["precision_micro"] = precision_score(true, pred, average='micro')
-    # scores["precision_samples"] = precision_score(true, pred, average='samples')
-    scores["precision_classes"] = precision_score(true, pred, average=None).tolist()
+    scores["precision_weighted"] = precision_score(true, pred, average='weighted', zero_division=0)
+    scores["precision_macro"] = precision_score(true, pred, average='macro', zero_division=0)
+    scores["precision_micro"] = precision_score(true, pred, average='micro', zero_division=0)
+    # scores["precision_samples"] = precision_score(true, pred, average='samples', zero_division=0)
+    scores["precision_classes"] = precision_score(true, pred, average=None, zero_division=0).tolist()
 
     # scores["recall"] = {}
-    scores["recall_weighted"] = recall_score(true, pred, average='weighted')
-    scores["recall_macro"] = recall_score(true, pred, average='macro')
-    scores["recall_micro"] = recall_score(true, pred, average='micro')
-    # scores["recall_samples"] = recall_score(true, pred, average='samples')
-    scores["recall_classes"] = recall_score(true, pred, average=None).tolist()
+    scores["recall_weighted"] = recall_score(true, pred, average='weighted', zero_division=0)
+    scores["recall_macro"] = recall_score(true, pred, average='macro', zero_division=0)
+    scores["recall_micro"] = recall_score(true, pred, average='micro', zero_division=0)
+    # scores["recall_samples"] = recall_score(true, pred, average='samples', zero_division=0)
+    scores["recall_classes"] = recall_score(true, pred, average=None, zero_division=0).tolist()
 
     scores["accuracy_unnormalize"] = accuracy_score(true, pred)
     scores["accuracy_normalize"] = accuracy_score(true, pred, normalize=True)

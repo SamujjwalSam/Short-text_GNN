@@ -66,8 +66,10 @@ class Instance_Dataset_DGL(DGLDataset):
         self.dataset_name = dataset_name
         if graph_path is None:
             self.graph_path = join(self.data_dir, dataset_name + '_instance_dgl.bin')
+            self.other_paths = [join(self.data_dir, self.dataset_name + '_instance_graph_global_node_ids.pkl'), join(self.data_dir, self.dataset_name + 'instance_graph_local_node_ids.pkl')]
         else:
             self.graph_path = graph_path
+            self.other_paths = [join(self.data_dir, self.dataset_name + '_instance_graph_global_node_ids.pkl'), join(self.data_dir, self.dataset_name + 'instance_graph_local_node_ids.pkl')]
         self.info_path = join(self.data_dir, dataset_name + '_info.bin')
         super(Instance_Dataset_DGL, self).__init__(
             name='Instance_DGL_Dataset', url=url, raw_dir=self.data_dir, save_dir=data_dir,
@@ -78,7 +80,8 @@ class Instance_Dataset_DGL(DGLDataset):
     def process(self):
         ## Load or create graphs, labels, local and global ids:
         logger.info("Load or create graphs, labels, local and global ids.")
-        if exists(self.graph_path):
+
+        if exists(self.graph_path) and exists(self.other_paths[0]) and exists(self.other_paths[1]):
             self.graphs, self.instance_graph_local_node_ids, self.labels, \
             self.instance_graph_global_node_ids = self.load_instance_dgl(self.graph_path)
         else:

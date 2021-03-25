@@ -88,7 +88,6 @@ def train_lstm_classifier(
 
         epoch_loss /= (iter + 1)
         train_time = timeit.default_timer() - start_time
-        logger.info(f"Epoch {epoch}, Model {model_name}, time: {train_time / 60} mins, Train loss: {epoch_loss}")
 
         if eval_dataloader is not None:
             val_losses, val_output = eval_lstm_classifier(
@@ -96,7 +95,9 @@ def train_lstm_classifier(
             logger.info(f"Val W-F1 {val_output['result']['f1_weighted'].item():4.4}")
             # logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
         test_output = eval_all(model, loss_func=loss_func)
-        logger.info(f'Result: \n{dumps(test_output, indent=4)}')
+        logger.info(f"Epoch {epoch}, time: {train_time / 60:1.4} mins, Train "
+                    f"loss: {epoch_loss} Result: \n{dumps(test_output, indent=4)}"
+                    f" Model {model_name}")
         # logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
         #             f"{val_losses}, Val Weighted F1 {val_output['result']['f1_weighted'].item()}")
         train_epoch_losses.append(epoch_loss)
@@ -130,7 +131,7 @@ def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
     preds = []
     trues = []
     losses = []
-    start_time = timeit.default_timer()
+    # start_time = timeit.default_timer()
     for iter, batch in enumerate(dataloader):
         text, text_lengths = batch.text
         ## Get label based on number of classes:
@@ -154,8 +155,8 @@ def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
             preds.append(prediction.detach())
             trues.append(label.detach())
             losses.append(loss.detach())
-    test_time = timeit.default_timer() - start_time
-    logger.info(f"Total test time: [{test_time / 60:2.4} mins]")
+    # test_time = timeit.default_timer() - start_time
+    # logger.info(f"Total test time: [{test_time / 60:2.4} mins]")
     losses = mean(stack(losses))
     preds = cat(preds)
 
