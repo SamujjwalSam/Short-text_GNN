@@ -31,7 +31,7 @@ from simpletransformers.classification import MultiLabelClassificationModel, Mul
 
 from File_Handlers.csv_handler import read_csv, read_csvs
 from Text_Processesor.build_corpus_vocab import get_token_embedding
-from config import configuration as cfg, platform as plat, username as user, dataset_dir, pretrain_dir
+from config import configuration as cfg, platform as plat, username as user, dataset_dir, pretrain_dir, device_id
 from Metrics.metrics import calculate_performance_bin_sk
 from Logger.logger import logger
 
@@ -151,10 +151,10 @@ def BERT_multilabel_classifier(
     # model_args.warmup_ratio = cfg['transformer']['optimizer']['warmup_ratio']
     # model_args.warmup_steps = cfg['transformer']['optimizer']['warmup_steps']
     # model_args.max_grad_norm = cfg['transformer']['optimizer']['max_grad_norm']
-    model_args.train_batch_size = cfg['training']['train_batch_size']
+    model_args.train_batch_size = cfg['transformer']['train_batch_size']
     # model_args.gradient_accumulation_steps = cfg['transformer']['gradient_accumulation_steps']
     model_args.overwrite_output_dir = True
-    model_args.eval_batch_size = cfg['training']['eval_batch_size']
+    model_args.eval_batch_size = cfg['transformer']['eval_batch_size']
     # model_args.evaluate_during_training = True
     # model_args.evaluate_during_training_verbose = True
     # model_args.evaluate_during_training_silent = False
@@ -199,25 +199,40 @@ def BERT_multilabel_classifier(
     model = MultiLabelClassificationModel(
         model_type=model_type, model_name=model_name, num_labels=n_classes,
         use_cuda=use_cuda and torch.cuda.is_available(), args=model_args,
-        cuda_device=cfg['cuda']['cuda_devices'][plat][user])
+        cuda_device=device_id)
 
-    logger.info(f'BERT Train {train_df.shape}, Val {val_df.shape}, Test {test_df.shape}')
+    # logger.info(f'BERT Train {train_df.shape}, Val {val_df.shape}, Test {test_df.shape}')
     ## Train the model
     start_time = timeit.default_timer()
     model.train_model(train_df, eval_df=val_df, verbose=True, macro_f1=macro_f1)
     train_time = timeit.default_timer() - start_time
 
-    ## Evaluate the model
-    start_time = timeit.default_timer()
-    result, model_outputs, wrong_predictions = model.eval_model(
-        test_df, macro_f1=macro_f1)
-    prediction_time = timeit.default_timer() - start_time
+    # Evaluate the model
+    result, _, _ = model.eval_model(test_df, macro_f1=macro_f1)
     logger.info(f'BERT Test W-F1: {result["macro_f1"]:1.4}')
     logger.info(f'Running BERT for experiment {exp_name} with Train {train_df.shape}, Val {val_df.shape}, Test {test_df.shape}')
+    for test_data in cfg['data']['all_test_files']:
+        logger.info(f'TEST data: {test_data}')
+        test_df = read_csv(data_dir=pretrain_dir, data_file=test_data)
+        test_df = test_df.sample(frac=1)
+        # test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
+        test_df = format_inputs(test_df)
+        r, _, _ = model.eval_model(test_df, macro_f1=macro_f1)
+        logger.info(f'BERT Cross W-F1: {r["macro_f1"]:1.4} Data: {test_data}')
+        logger.info(f'Testing BERT for experiment {exp_name} with Test data '
+                    f'[{test_data}] size {test_df.shape}')
+
+    # ## Evaluate the model
+    # start_time = timeit.default_timer()
+    # result, model_outputs, wrong_predictions = model.eval_model(
+    #     test_df, macro_f1=macro_f1)
+    # prediction_time = timeit.default_timer() - start_time
+    # logger.info(f'BERT Test W-F1: {result["macro_f1"]:1.4}')
+    # logger.info(f'Running BERT for experiment {exp_name} with Train {train_df.shape}, Val {val_df.shape}, Test {test_df.shape}')
 
     ## Analyze wrong predictions
-    logger.info("Wrong prediction count: [{}]".format(len(wrong_predictions)))
-    logger.info("Wrong predictions: ")
+    # logger.info("Wrong prediction count: [{}]".format(len(wrong_predictions)))
+    # logger.info("Wrong predictions: ")
     # miss_ids = []
     # miss_texts = []
     # # misses = {"ids": miss_ids,"texts":miss_texts}
@@ -241,8 +256,8 @@ def BERT_multilabel_classifier(
     logger.info(f"Total training time for [{num_epoch}] with [{train_df.shape[0]}] examples: [{train_time} sec]"
                 f"\nPer example: [{train_time / train_df.shape[0]} sec] for model: [{model_type}]")
 
-    logger.info(f"Total prediction time for [{test_df.shape[0]}] examples: [{prediction_time} sec]"
-                f"\nPer example: [{prediction_time / test_df.shape[0]} sec] for model: [{model_type}]")
+    # logger.info(f"Total prediction time for [{test_df.shape[0]}] examples: [{prediction_time} sec]"
+    #             f"\nPer example: [{prediction_time / test_df.shape[0]} sec] for model: [{model_type}]")
 
     ## For prediction just pass a list of texts.
     # predictions, raw_outputs = model.predict(
@@ -251,7 +266,7 @@ def BERT_multilabel_classifier(
     # logger.debug(predictions)
     # logger.debug(raw_outputs)
 
-    return result, model_outputs
+    # return result, model_outputs
 
 
 if __name__ == "__main__":

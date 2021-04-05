@@ -25,6 +25,7 @@ from collections import OrderedDict
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+from Data_Handlers.instance_handler_dgl import Instance_Dataset_DGL
 from Data_Handlers.create_datasets import prepare_single_dataset
 from Layers.glen_classifier import GLEN_Classifier
 from Metrics.metrics import calculate_performance_sk as calculate_performance,\
@@ -90,19 +91,42 @@ def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
 
         epoch_loss /= (iter + 1)
         train_time = timeit.default_timer() - start_time
-        val_losses, val_output = eval_glen(model, G, X, loss_func=loss_func, dataloader=eval_dataloader)
-        # logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
-        test_losses, test_output = eval_glen(model, G, X, loss_func=loss_func, dataloader=test_dataloader)
-        # logger.info(f'test_output: \n{dumps(test_output["result"], indent=4)}')
-        logger.info(f"Epoch {epoch}, Train loss {epoch_loss:1.4}, val loss "
-                    f"{val_losses:1.6}, test loss {test_losses:1.6}, Val W-F1 "
-                    f"{val_output['result']['f1_weighted'].item():1.4} GLEN Test W-F1"
-                    f" {test_output['result']['f1_weighted'].item():1.4}, Model {model_name} time: "
-                    f"{train_time / 60:3.2} mins")
-        if max_result['score'] < test_output['result']['f1_weighted'].item():
-            max_result['score'] = test_output['result']['f1_weighted'].item()
+        test_output = eval_all(model, G, X, loss_func=loss_func)
+        # logger.info(test_output)
+        if eval_dataloader is not None:
+            val_losses, val_output = eval_glen(model, G, X, loss_func=loss_func,
+                                               dataloader=eval_dataloader)
+            logger.info(
+                f"Epoch {epoch}, time: {train_time / 60:1.4} mins, Train loss: "
+                f"{epoch_loss:1.6} Val W-F1 {val_output['result']['f1_weighted'].item():4.4}"
+                f" TEST W-F1: {test_output[cfg['data']['test']]:4.4} Dataset "
+                f"{cfg['data']['test']} \n{dumps(test_output, indent=4)} Model {model_name}")
+        else:
+            logger.info(
+                f"Epoch {epoch}, time: {train_time / 60:1.4} mins, Train loss: "
+                f"{epoch_loss} TEST W-F1: {test_output[cfg['data']['test']]:4.4}"
+                f" Dataset {cfg['data']['test']} \n{dumps(test_output, indent=4)}"
+                f" Model {model_name}")
+
+        if max_result['score'] < test_output[cfg['data']['test']]:
+            max_result['score'] = test_output[cfg['data']['test']]
             max_result['epoch'] = epoch
-            max_result['result'] = test_output['result']
+            # max_result['result'] = test_output['result']
+
+        # test_output = eval_all(model, G, X, loss_func=loss_func)
+        # val_losses, val_output = eval_glen(model, G, X, loss_func=loss_func, dataloader=eval_dataloader)
+        # logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
+        # test_losses, test_output = eval_glen(model, G, X, loss_func=loss_func, dataloader=test_dataloader)
+        # logger.info(f'test_output: \n{dumps(test_output["result"], indent=4)}')
+        # logger.info(f"Epoch {epoch}, Train loss {epoch_loss:1.4}, val loss "
+        #             f"{val_losses:1.6}, test loss {test_losses:1.6}, Val W-F1 "
+        #             f"{val_output['result']['f1_weighted'].item():1.4} GLEN Test W-F1"
+        #             f" {test_output['result']['f1_weighted'].item():1.4}, Model {model_name} time: "
+        #             f"{train_time / 60:3.2} mins")
+        # if max_result['score'] < test_output['result']['f1_weighted'].item():
+        #     max_result['score'] = test_output['result']['f1_weighted'].item()
+        #     max_result['epoch'] = epoch
+        #     max_result['result'] = test_output['result']
         # logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
         #             f"{val_losses}, Val Weighted F1 {val_output['result']['f1_weighted'].item()}")
         train_epoch_losses.append(epoch_loss)
@@ -124,10 +148,44 @@ def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
         # logger.info(f'Epoch {epoch} result: \n{result_dict}')
 
     logger.info(
-        f"MAX GLEN Score: Epoch {max_result['epoch']}, Score {max_result['score']:1.4}, Result "
-        f"{dumps(max_result['result'], indent=4)}, Model {model_name}")
+        f"MAX GLEN: Epoch {max_result['epoch']}, Score {max_result['score']:1.4},"
+        f" Result {dumps(max_result, indent=4)}, Model {model_name}")
 
     return model, max_result, train_epoch_dict
+
+
+all_test_dataloaders = None
+
+
+def eval_all(
+        model: GLEN_Classifier, G, X, loss_func, n_classes=cfg['data']['num_classes'],
+        test_files=cfg['data']['all_test_files']):
+
+    global all_test_dataloaders
+
+    if all_test_dataloaders is None:
+        all_test_dataloaders = {}
+        for tfile in test_files:
+            # tfile = tfile + ".csv"
+            dataset, vocab, dataloader = prepare_single_dataset(
+                data_dir=dataset_dir, dataname=tfile+'.csv')
+
+            val_instance_graphs = Instance_Dataset_DGL(
+                dataset, vocab, tfile, class_names=cfg['data']['class_names'])
+
+            dataloader = DataLoader(
+                val_instance_graphs, batch_size=cfg['training']['eval_batch_size'],
+                shuffle=True, collate_fn=val_instance_graphs.batch_graphs)
+            all_test_dataloaders[tfile] = dataloader
+
+    all_test_output = {}
+    for tfile in test_files:
+        test_losses, test_output = eval_glen(
+            model, G, X, loss_func=loss_func,
+            dataloader=all_test_dataloaders[tfile], n_classes=n_classes)
+        all_test_output[tfile] = test_output['result']['accuracy_normalize']
+
+    return all_test_output
 
 
 def eval_glen(model: GLEN_Classifier, G, X, loss_func,
@@ -184,27 +242,13 @@ def eval_glen(model: GLEN_Classifier, G, X, loss_func,
     else:
         result_dict = calculate_performance(trues, preds)
     test_output = {
-        'preds':  preds,
-        'trues':  trues,
+        # 'preds':  preds,
+        # 'trues':  trues,
         'result': result_dict
     }
     # logger.info(dumps(result_dict, indent=4))
 
     return losses, test_output
-
-
-def eval_all(model: GLEN_Classifier, G, X, loss_func,
-             n_classes=cfg['data']['num_classes'], test_files=cfg['data']['all_test_files']):
-    all_test_output = {}
-    for tfile in test_files:
-        tfile = tfile + ".csv"
-        dataset, vocab, dataloader = prepare_single_dataset(data_dir=dataset_dir, dataname=tfile)
-
-        test_losses, test_output = eval_glen(
-            model, G, X, loss_func=loss_func, dataloader=dataloader, n_classes=n_classes)
-        all_test_output[tfile] = test_output
-
-    return all_test_output
 
 
 def GLEN_trainer(

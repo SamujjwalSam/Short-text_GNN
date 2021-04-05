@@ -47,6 +47,7 @@ def train_lstm_classifier(
         test_dataloader: utils.data.dataloader.DataLoader = None,
         n_classes=cfg['data']['num_classes'], model_name='Glove'):
     logger.info(f"Started training for {epoch} epoch: ")
+    max_result = {'score': 0.0, 'epoch': 0}
     train_epoch_losses = []
     train_epoch_dict = OrderedDict()
     for epoch in range(1, epoch + 1):
@@ -88,18 +89,27 @@ def train_lstm_classifier(
 
         epoch_loss /= (iter + 1)
         train_time = timeit.default_timer() - start_time
-
+        test_output = eval_all(model, loss_func=loss_func)
         if eval_dataloader is not None:
             val_losses, val_output = eval_lstm_classifier(
                 model, loss_func=loss_func, dataloader=eval_dataloader)
-            logger.info(f"Val W-F1 {val_output['result']['f1_weighted'].item():4.4}")
-            # logger.info(f'val_output: \n{dumps(val_output["result"], indent=4)}')
-        test_output = eval_all(model, loss_func=loss_func)
-        logger.info(f"Epoch {epoch}, time: {train_time / 60:1.4} mins, Train "
-                    f"loss: {epoch_loss} Result: \n{dumps(test_output, indent=4)}"
-                    f" Model {model_name}")
-        # logger.info(f"Epoch {epoch}, Train loss {epoch_loss}, val loss "
-        #             f"{val_losses}, Val Weighted F1 {val_output['result']['f1_weighted'].item()}")
+            logger.info(
+                f"Epoch {epoch}, time: {train_time / 60:1.4} mins, Train loss: "
+                f"{epoch_loss:0.6} Val W-F1 {val_output['result']['f1_weighted'].item():4.4}"
+                f" TEST W-F1: {test_output[cfg['data']['test']]} Dataset "
+                f"{cfg['data']['test']} \n{dumps(test_output, indent=4)} Model {model_name}")
+        else:
+            logger.info(
+                f"Epoch {epoch}, time: {train_time / 60:1.4} mins, Train loss: "
+                f"{epoch_loss} TEST W-F1: {test_output[cfg['data']['test']]}"
+                f" Dataset {cfg['data']['test']} \n{dumps(test_output, indent=4)}"
+                f" Model {model_name}")
+
+        if max_result['score'] < test_output[cfg['data']['test']]:
+            max_result['score'] = test_output[cfg['data']['test']]
+            max_result['epoch'] = epoch
+            # max_result['result'] = test_output['result']
+
         train_epoch_losses.append(epoch_loss)
         preds = cat(preds)
 
@@ -118,6 +128,8 @@ def train_lstm_classifier(
         }
         # logger.info(f'Epoch {epoch} result: \n{result_dict}')
 
+    logger.info(
+        f"MAX Score: Epoch {max_result['epoch']}, Score {max_result['score']:1.4}, Model {model_name}")
     return model, train_epoch_losses, train_epoch_dict
 
 
@@ -180,14 +192,24 @@ def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
     return losses, test_output
 
 
+all_test_dataloaders = None
+
+
 def eval_all(model: BiLSTM_Emb_Classifier, loss_func,
              n_classes=cfg['data']['num_classes'], test_files=cfg['data']['all_test_files']):
+
+    global all_test_dataloaders
+
+    if all_test_dataloaders is None:
+        all_test_dataloaders = {}
+        for tfile in test_files:
+            dataset, vocab, dataloader = prepare_single_dataset(data_dir=pretrain_dir, dataname=tfile + ".csv")
+            all_test_dataloaders[tfile] = dataloader
+
     all_test_output = {}
     for tfile in test_files:
-        dataset, vocab, dataloader = prepare_single_dataset(data_dir=pretrain_dir, dataname=tfile + ".csv")
-
         test_losses, test_output = eval_lstm_classifier(
-            model, loss_func=loss_func, dataloader=dataloader, n_classes=n_classes)
+            model, loss_func=loss_func, dataloader=all_test_dataloaders[tfile], n_classes=n_classes)
         all_test_output[tfile] = test_output['result']['f1_weighted']
 
     return all_test_output

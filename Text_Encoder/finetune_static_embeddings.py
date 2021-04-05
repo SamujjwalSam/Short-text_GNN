@@ -157,7 +157,8 @@ def preprocess_and_find_oov(datasets: tuple, common_vocab: dict = None,
 
 def preprocess_and_find_oov2(
         vocab: dict = None, glove_embs: dict = None, labelled_vocab_set: set = None,
-        special_tokens={'<unk>', '<pad>'}, add_glove_tokens_back=True):
+        special_tokens={'<unk>', '<pad>'}, add_glove_tokens_back=True,
+limit_oov=2000):
     """ Process and prepare data by removing stopwords, finding oovs and
      creating corpus.
 
@@ -230,6 +231,7 @@ def preprocess_and_find_oov2(
 
     ## High freq but glove OOV except special tokens:
     high_oov = vocab_s2i_set - glove_set - special_tokens
+    high_oov = set(list(high_oov)[:limit_oov])
 
     ## Add labelled oov tokens which does not have embedding:
     high_oov.update(labelled_oov - low_glove)
