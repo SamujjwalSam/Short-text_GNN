@@ -24,6 +24,7 @@ __last_modified__:
 """
 
 import json
+import subprocess as sp
 from os.path import join
 from torch import cuda, device
 
@@ -132,14 +133,20 @@ configuration = {
 
         'use_all_data': True,
         'all_test_files': [
-            'AF13_test',
-            'BB13_test',
-            'Kaggle_test',
-            'NEQ15_test',
-            'OT13_test',
-            'QFL13_test',
-            'SH12_test',
-            'WTE13_test'],
+            # 'AF13_test',
+            # 'BB13_test',
+            # 'Kaggle_test',
+            # 'NEQ15_test',
+            # 'OT13_test',
+            # 'QFL13_test',
+            # 'SH12_test',
+            # 'WTE13_test'
+            'books_test',
+            'dvd_test',
+            'kitchen_test',
+            'electronics_test',
+            'video_test',
+        ],
 
         ## GLEN Configs:
         # 'name':        'smerp17_fire16',
@@ -368,7 +375,9 @@ configuration = {
     },
 
     "transformer":  {
-        "num_epoch":                   30,
+        "num_epoch":                   20,
+        "train_batch_size": 32,
+        "eval_batch_size":  64,
         "model_type":                  "bert",
         "model_name":                  "bert-base-uncased",
         "max_seq_len":                 50,
@@ -405,8 +414,9 @@ configuration = {
     },
 
     "model":        {
-        'type':                 'LSTM',
-        'mittens_iter':         300,
+        'type':                 'GLEN',
+        'lrs':                  [1e-4],
+        'mittens_iter':         100,
         "max_sequence_length":  128,
         "dropout":              0.2,
         "dropout_external":     0.0,
@@ -461,13 +471,13 @@ configuration = {
     },
 
     "prep_vecs":    {
-        "max_nb_words":       20000,
-        "min_word_count":     1,
-        "window":             7,
-        "min_freq":           1,
-        "negative":           10,
-        "num_chunks":         10,
-        "idf":                True
+        "max_nb_words":   20000,
+        "min_word_count": 1,
+        "window":         7,
+        "min_freq":       1,
+        "negative":       10,
+        "num_chunks":     10,
+        "idf":            True
     },
 
     "text_process": {
@@ -554,10 +564,26 @@ pretrain_dir = join(configuration['paths']['dataset_root'][platform][username],
 global emb_dir
 emb_dir = configuration['paths']['embedding_dir'][platform][username]
 
+
+def get_gpu_details():
+    _output_to_list = lambda x: x.decode('ascii').split('\n')[:-1]
+
+    COMMAND = "nvidia-smi --query-gpu=memory.free --format=csv"
+    memory_free_info = _output_to_list(sp.check_output(COMMAND.split()))[1:]
+    memory_free_values = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
+    device_id = memory_free_values.index(max(memory_free_values))
+    print(f'Selected GPU: [{device_id}] as available RAM: {memory_free_values}')
+    return device_id
+
+
 global device
-device = device(f'cuda:'+str(configuration['cuda']['cuda_devices'][platform][
-                                 username]) if
-                cuda.is_available() else 'cpu')
+global device_id
+# device = device(f'cuda:' + str(configuration['cuda']['cuda_devices'][platform][
+#                                    username]) if
+#                 cuda.is_available() else 'cpu')
+device_id = get_gpu_details()
+device = device(f'cuda:' + str(device_id) if cuda.is_available() else 'cpu')
+
 
 
 def main():

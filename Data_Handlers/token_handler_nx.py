@@ -108,8 +108,10 @@ class Token_Dataset_nx(Dataset):
                     node_emb = pretrain_embs[node_txt]
                 elif node_txt in oov_embs:
                     node_emb = oov_embs[node_txt]
-                else:
+                elif node_txt in embs:
                     node_emb = embs[node_txt]
+                else:
+                    node_emb = embs['<unk>']
                 X.append(node_emb)
         else:
             X = []
@@ -120,8 +122,11 @@ class Token_Dataset_nx(Dataset):
                 # node_emb = oov_embs.get(node_txt, embs[node_txt])
                 if node_txt in oov_embs:
                     node_emb = oov_embs[node_txt]
-                else:
+                elif node_txt in embs:
                     node_emb = embs[node_txt]
+                else:
+                    node_emb = embs['<unk>']
+
                 X.append(node_emb)
 
         X = np.stack(X)

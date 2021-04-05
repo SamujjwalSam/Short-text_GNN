@@ -38,7 +38,7 @@ from File_Handlers.csv_handler import read_csv, read_csvs
 from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 # from File_Handlers.read_datasets import load_fire16, load_smerp17
 from File_Handlers.pkl_handler import save_pickle, load_pickle
-from Data_Handlers.torchtext_handler import dataset2bucket_iter
+from Data_Handlers.torchtext_handler import dataset2bucket_dataloader
 from Data_Handlers.create_datasets import create_unlabeled_datasets, prepare_splitted_datasets,\
     prepare_BERT_splitted_datasets, prepare_single_dataset, split_csv_train_data
 from Text_Processesor.build_corpus_vocab import get_dataset_fields, get_token_embedding
@@ -126,7 +126,7 @@ def main(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name:
     #     logger.info('Read and prepare labelled data for BERT')
     #     train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
     #     train_dataloader, val_dataloader, test_dataloader = prepare_BERT_splitted_datasets(
-    #         get_iter=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+    #         get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
     #         train_dataname=labelled_source_name, val_dataname=labelled_val_name,
     #         test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
     #     BERT_binary_classifier()
@@ -134,7 +134,7 @@ def main(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name:
     logger.info('Read and prepare labelled data for Word level')
     train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
-        get_iter=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+        get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         train_dataname=labelled_source_name, val_dataname=labelled_val_name,
         test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
 
@@ -162,7 +162,7 @@ def main(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name:
     #                 labelled_source_name, epoch=cfg['pretrain']['epoch'])
 
     logger.info('Run for multiple LR')
-    lrs = [1e-3, 1e-4]
+    lrs = [1e-4]
     for lr in lrs:
         logger.critical(f'Current Learning Rate: [{lr}]')
         model_name = f'Glove_{model_type}_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
@@ -186,7 +186,7 @@ def main(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name:
 
         train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
-            stoi=token2idx_map, vectors=X, get_iter=True,
+            stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=labelled_source_name, val_dataname=labelled_val_name,
             test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
@@ -197,7 +197,7 @@ def main(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name:
             train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
 
         model_name = f'GCPD_{model_type}_freq{cfg["data"]["min_freq"]}'\
-                     f'_lr{str(lr)}_Pepoch{str(60)}_Pmodel{pmodel_type}'
+                     f'_lr{str(lr)}_Pepoch{str(cfg["pretrain"]["epoch"])}_Pmodel{pmodel_type}'
         logger.critical(f'GCPD ********** {model_name}')
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
@@ -208,7 +208,7 @@ def main(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name:
         token2idx_map, X = get_w2v_embs()
         train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
-            stoi=token2idx_map, vectors=X, get_iter=True,
+            stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=labelled_source_name, val_dataname=labelled_val_name,
             test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
@@ -223,7 +223,7 @@ def main(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name:
         token2idx_map, X = get_crisisNLP_embs()
         train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
-            stoi=token2idx_map, vectors=X, get_iter=True,
+            stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=labelled_source_name, val_dataname=labelled_val_name,
             test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
@@ -246,7 +246,7 @@ def main_glen(model_type=cfg['model']['type'], glove_embs=None, labelled_source_
     logger.info('Read and prepare labelled data for Word level')
     train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
-        get_iter=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+        get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         train_dataname=labelled_source_name, val_dataname=labelled_val_name,
         test_dataname=labelled_test_name)
 
@@ -272,13 +272,7 @@ def main_glen(model_type=cfg['model']['type'], glove_embs=None, labelled_source_
     if glove_embs is None:
         glove_embs = glove2dict()
 
-    model_name = f'BERT_portion{str(train_portion)}'
-    logger.info(f'Running BERT for model {model_name}')
-    BERT_multilabel_classifier(
-        train_df=train_df, val_df=val_df, test_df=test_df,
-        exp_name=model_name)
-
-    lrs = [1e-3, 1e-4]
+    lrs = cfg['model']['lrs']
     logger.info(f'Run for multiple LRs: {lrs}')
     for lr in lrs:
         logger.critical(f'Current Learning Rate: [{lr}]')
@@ -287,6 +281,17 @@ def main_glen(model_type=cfg['model']['type'], glove_embs=None, labelled_source_
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
                    labelled_source_name, glove_embs, lr, model_name=model_name)
+
+        model_name = f'LSTM_portion{str(train_portion)}_lr{str(lr)}'
+        classifier('LSTM', train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   labelled_source_name, glove_embs, lr, model_name=model_name)
+
+    model_name = f'BERT_portion{str(train_portion)}'
+    logger.info(f'Running BERT for model {model_name}')
+    BERT_multilabel_classifier(
+        train_df=train_df, val_df=val_df, test_df=test_df,
+        exp_name=model_name)
 
     logger.info("Execution complete.")
 
@@ -298,7 +303,7 @@ def main_alltrain(model_type=cfg['model']['type'], glove_embs=None,
     logger.info('Read and prepare labelled data for Word level')
     train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
-        get_iter=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+        get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         train_dataname=labelled_source_name, val_dataname=labelled_val_name,
         test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
 
@@ -358,7 +363,7 @@ def main_alltrain(model_type=cfg['model']['type'], glove_embs=None,
             epoch=cfg['pretrain']['epoch'], model_type=pmodel_type)
         train_dataset, val_dataset, test_dataset, _, val_vocab, test_vocab,\
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
-            stoi=token2idx_map, vectors=X, get_iter=True,
+            stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=labelled_source_name, val_dataname=labelled_val_name,
             test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
@@ -387,7 +392,7 @@ def main_alltrain(model_type=cfg['model']['type'], glove_embs=None,
         token2idx_map, X = get_w2v_embs()
         train_dataset, val_dataset, test_dataset, _, val_vocab, test_vocab,\
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
-            stoi=token2idx_map, vectors=X, get_iter=True,
+            stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=labelled_source_name, val_dataname=labelled_val_name,
             test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
@@ -407,7 +412,7 @@ def main_alltrain(model_type=cfg['model']['type'], glove_embs=None,
         token2idx_map, X = get_crisisNLP_embs()
         train_dataset, val_dataset, test_dataset, _, val_vocab, test_vocab,\
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
-            stoi=token2idx_map, vectors=X, get_iter=True,
+            stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=labelled_source_name, val_dataname=labelled_val_name,
             test_dataname=labelled_test_name, use_all_data=cfg['data']['use_all_data'])
@@ -753,7 +758,7 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
         labelled_data=True)
 
     logger.info('Get iterator')
-    train_iter, val_iter = dataset2bucket_iter(
+    train_dataloader, val_dataloader = dataset2bucket_dataloader(
         (train_dataset, test_dataset), batch_sizes=(train_batch_size, test_batch_size))
 
     size_of_vocab = len(train_vocab.vocab)
@@ -782,7 +787,7 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
 
     logger.info('Training model')
     model_best, val_preds_trues_best, val_preds_trues_all, losses = trainer(
-        model, train_iter, val_iter, N_EPOCHS=epoch, lr=lr)
+        model, train_dataloader, val_dataloader, N_EPOCHS=epoch, lr=lr)
 
     # plot_training_loss(losses['train'], losses['val'],
     #                    plot_name='loss' + str(epoch) + str(lr))
@@ -858,26 +863,26 @@ if __name__ == "__main__":
 
     glove_embs = glove2dict()
 
-    # logger.info('Running GLEN.')
-    # train_portions = cfg['data']['train_portions']
-    # seed_num = 2
-    # seed_start = 4
-    # logger.info(f'Run for [{seed_num}] SEEDS')
-    # for train_portion in train_portions:
-    #     clean_dataset_dir()
-    #     logger.info(f'Run for train_portion: [{train_portion}]')
-    #     for seed in range(seed_start, seed_start+seed_num+1):
-    #         logger.info(f'Setting SEED [{seed}]')
-    #         set_all_seeds(seed)
-    #         main_glen(glove_embs=glove_embs, train_portion=train_portion)
-
-    logger.info('Running GCPD.')
+    logger.info('Running GLEN.')
+    train_portions = cfg['data']['train_portions']
     seed_num = 3
     seed_start = 0
     logger.info(f'Run for [{seed_num}] SEEDS')
-    for seed in range(seed_start, seed_start+seed_num+1):
-        logger.info(f'Setting SEED [{seed}]')
-        set_all_seeds(seed)
-        # main_alltrain(glove_embs=glove_embs)
-        main(glove_embs=glove_embs)
+    for train_portion in train_portions:
+        clean_dataset_dir()
+        logger.info(f'Run for train_portion: [{train_portion}]')
+        for seed in range(seed_start, seed_start+seed_num+1):
+            logger.info(f'Setting SEED [{seed}]')
+            set_all_seeds(seed)
+            main_glen(glove_embs=glove_embs, train_portion=train_portion)
+
+    # logger.info('Running GCPD.')
+    # seed_num = 3
+    # seed_start = 0
+    # logger.info(f'Run for [{seed_num}] SEEDS')
+    # for seed in range(seed_start, seed_start+seed_num+1):
+    #     logger.info(f'Setting SEED [{seed}]')
+    #     set_all_seeds(seed)
+    #     # main_alltrain(glove_embs=glove_embs)
+    #     main(glove_embs=glove_embs)
     logger.info(f"Execution complete for {seed_num} SEEDs.")

@@ -100,7 +100,7 @@ def create_logger(logger_name: str = 'root',
 
 from config import configuration as cfg
 
-logger_name = f"_[{cfg['data']['name']}]_[{cfg['data']['test']}]_[{cfg['pretrain']['name']}]"
+logger_name = f"_[{cfg['data']['name']}]_[{cfg['data']['train']}]_[{cfg['data']['test']}]"
 logger = create_logger(logger_name=logger_name, log_time=timestamp)
 logger.info(dumps(cfg, indent=4))
 logger.info("Logger created succesfully.")

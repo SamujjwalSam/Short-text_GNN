@@ -26,19 +26,19 @@ from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 from File_Handlers.read_datasets import load_fire16, load_smerp17
 from Utils.utils import freq_tokens_per_class, split_target, split_df
-from Data_Handlers.torchtext_handler import dataset2bucket_iter
+from Data_Handlers.torchtext_handler import dataset2bucket_dataloader
 from config import configuration as cfg, dataset_dir, pretrain_dir
 from Logger.logger import logger
 
 
 def prepare_datasets(
         train_df=None, test_df=None, stoi=None, vectors=None,
-        dim=cfg['embeddings']['emb_dim'], split_test=False, get_iter=False,
+        dim=cfg['embeddings']['emb_dim'], split_test=False, get_dataloader=False,
         data_dir=dataset_dir, train_filename=cfg['data']['train'],
         test_filename=cfg['data']['test']):
     """ Creates train and test dataset from df and returns data loader.
 
-    :param get_iter: If iterator over the text samples should be returned
+    :param get_dataloader: If iterator over the text samples should be returned
     :param split_test: Splits the testing data
     :param train_df: Training dataframe
     :param test_df: Testing dataframe
@@ -104,13 +104,13 @@ def prepare_datasets(
     # }
 
     logger.info('Get iterator')
-    if get_iter:
+    if get_dataloader:
         train_batch_size = cfg['training']['train_batch_size']
         test_batch_size = cfg['training']['eval_batch_size']
-        train_iter, val_iter = dataset2bucket_iter(
+        train_dataloader, val_dataloader = dataset2bucket_dataloader(
             (train_dataset, test_dataset), batch_sizes=(train_batch_size, test_batch_size))
 
-        return train_dataset, test_dataset, train_vocab, test_vocab, train_iter, val_iter
+        return train_dataset, test_dataset, train_vocab, test_vocab, train_dataloader, val_dataloader
 
     return train_dataset, test_dataset, train_vocab, test_vocab
 
@@ -123,7 +123,7 @@ def clean_dataset(dataset):
 
 
 def prepare_splitted_datasets(
-        stoi=None, vectors=None, get_iter=False, dim=cfg['embeddings']['emb_dim'],
+        stoi=None, vectors=None, get_dataloader=False, dim=cfg['embeddings']['emb_dim'],
         data_dir=dataset_dir, train_dataname=cfg["data"]["train"],
         val_dataname=cfg["data"]["val"], test_dataname=cfg["data"]["test"],
         use_all_data=False, min_freq=cfg["data"]["min_freq"], train_portion=None):
@@ -134,7 +134,7 @@ def prepare_splitted_datasets(
     :param use_all_data: Uses all disaster data for training if True
     :param stoi:
     :param val_dataname:
-    :param get_iter: If iterator over the text samples should be returned
+    :param get_dataloader: If iterator over the text samples should be returned
     :param split_test: Splits the testing data
     :param train_df: Training dataframe
     :param test_df: Testing dataframe
@@ -215,17 +215,17 @@ def prepare_splitted_datasets(
         f'test freq: {len(ts_freq)}, itos: {len(ts_v)} = '
         f'overlap freq: {len(ov_freq)}, itos: {len(ov_v)}')
 
-    if get_iter:
+    if get_dataloader:
         logger.info('Geting train, val and test iterators')
         train_batch_size = cfg['training']['train_batch_size']
         val_batch_size = cfg['training']['eval_batch_size']
         test_batch_size = cfg['training']['eval_batch_size']
-        train_iter, val_iter, test_iter = dataset2bucket_iter(
+        train_dataloader, val_dataloader, test_dataloader = dataset2bucket_dataloader(
             (train_dataset, val_dataset, test_dataset), batch_sizes=(
                 train_batch_size, val_batch_size, test_batch_size))
 
         return train_dataset, val_dataset, test_dataset, train_vocab,\
-               val_vocab, test_vocab, train_iter, val_iter, test_iter
+               val_vocab, test_vocab, train_dataloader, val_dataloader, test_dataloader
 
     return train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab
 
@@ -247,11 +247,11 @@ def prepare_alltrain_datasets(
     logger.info(f'Prepare labelled TRAIN data from all Pretraining data')
     alltrain_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
     alltrain_df.to_csv(join(data_dir, all_train_dataname))
-    alltrain_dataset, alltrain_vocab, alltrain_iter = prepare_single_dataset(
+    alltrain_dataset, alltrain_vocab, alltrain_dataloader = prepare_single_dataset(
         stoi=stoi, vectors=vectors, dim=dim, data_dir=dataset_dir,
         min_freq=min_freq, dataname=all_train_dataname)
 
-    return alltrain_dataset, alltrain_vocab, alltrain_iter
+    return alltrain_dataset, alltrain_vocab, alltrain_dataloader
 
 
 def prepare_single_dataset(
@@ -285,13 +285,13 @@ def prepare_single_dataset(
 
     logger.info('Geting train, val and test iterators')
     train_batch_size = cfg['training']['train_batch_size']
-    iter = dataset2bucket_iter(dataset, batch_size=train_batch_size)
+    iter = dataset2bucket_dataloader(dataset, batch_size=train_batch_size)
 
     return dataset, vocab, iter
 
 
 def prepare_BERT_splitted_datasets(
-        stoi=None, vectors=None, get_iter=False, dim=cfg['embeddings']['emb_dim'],
+        stoi=None, vectors=None, get_dataloader=False, dim=cfg['embeddings']['emb_dim'],
         data_dir=dataset_dir, train_dataname=cfg["data"]["train"],
         val_dataname=cfg["data"]["val"], test_dataname=cfg["data"]["test"],
         use_all_data=False, min_freq=cfg["data"]["min_freq"]):
@@ -300,7 +300,7 @@ def prepare_BERT_splitted_datasets(
     :param use_all_data: Uses all disaster data for training if True
     :param stoi:
     :param val_dataname:
-    :param get_iter: If iterator over the text samples should be returned
+    :param get_dataloader: If iterator over the text samples should be returned
     :param split_test: Splits the testing data
     :param train_df: Training dataframe
     :param test_df: Testing dataframe
@@ -367,17 +367,17 @@ def prepare_BERT_splitted_datasets(
 
     clean_dataset(test_dataset)
 
-    if get_iter:
+    if get_dataloader:
         logger.info('Geting train, val and test iterators')
         train_batch_size = cfg['training']['train_batch_size']
         val_batch_size = cfg['training']['eval_batch_size']
         test_batch_size = cfg['training']['eval_batch_size']
-        train_iter, val_iter, test_iter = dataset2bucket_iter(
+        train_dataloader, val_dataloader, test_dataloader = dataset2bucket_dataloader(
             (train_dataset, val_dataset, test_dataset), batch_sizes=(
                 train_batch_size, val_batch_size, test_batch_size))
 
         return train_dataset, val_dataset, test_dataset, train_vocab,\
-               val_vocab, test_vocab, train_iter, val_iter, test_iter
+               val_vocab, test_vocab, train_dataloader, val_dataloader, test_dataloader
 
     return train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab
 
@@ -487,8 +487,8 @@ def create_unlabeled_datasets(
 
     ## Combine S and T vocabs:
     # C_vocab = get_c_vocab(S_vocab, T_vocab)
-    # S_iter, T_iter = dataset2iter((S_dataset, T_dataset), batch_size=1)
-    # c_iter = MultiIterator([S_iter, T_iter])
+    # S_dataloader, T_dataloader = dataset2iter((S_dataset, T_dataset), batch_size=1)
+    # c_dataloader = MultiIterator([S_dataloader, T_dataloader])
     logger.info("Combined vocab size: [{}]".format(len(C_vocab['str2idx_map'])))
 
     return C_vocab, C_dataset, S_vocab, S_dataset, S_fields, T_vocab,\

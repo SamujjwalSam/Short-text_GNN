@@ -259,7 +259,7 @@ def dataset2iter(datasets: tuple, batch_size=None, batch_sizes=(128, 256, 256),
     return iterator
 
 
-def dataset2bucket_iter(datasets: tuple, batch_size=None, batch_sizes: tuple = (32, 64, 64)):
+def dataset2bucket_dataloader(datasets: tuple, batch_size=None, batch_sizes: tuple = (32, 64, 64)):
     """ Converts dataset (DataFrame) to TorchText iterator.
 
     :param datasets:
