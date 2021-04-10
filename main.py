@@ -209,7 +209,7 @@ def main(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name:
 
         # ======================================================================
 
-        token2idx_map, X = get_w2v_embs()
+        token2idx_map, X = get_w2v_embs(glove_embs)
         train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
             stoi=token2idx_map, vectors=X, get_dataloader=True,
@@ -224,7 +224,7 @@ def main(model_type=cfg['model']['type'], glove_embs=None, labelled_source_name:
 
         # ======================================================================
 
-        token2idx_map, X = get_crisisNLP_embs()
+        token2idx_map, X = get_crisisNLP_embs(glove_embs)
         train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
             stoi=token2idx_map, vectors=X, get_dataloader=True,
@@ -393,8 +393,8 @@ def main_alltrain(model_type=cfg['model']['type'], glove_embs=None,
 
         # ======================================================================
 
-        token2idx_map, X = get_w2v_embs()
-        train_dataset, val_dataset, test_dataset, _, val_vocab, test_vocab,\
+        token2idx_map, X = get_w2v_embs(glove_embs)
+        train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
             stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
@@ -404,17 +404,13 @@ def main_alltrain(model_type=cfg['model']['type'], glove_embs=None,
         logger.critical(f'WORD2VEC @@@@@@@@@@ {model_name}')
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
-                   labelled_source_name, glove_embs, lr, model_name=model_name)
-        model_name = f'W2V_alltrain_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
-        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
-                   train_vocab, train_dataset, val_dataset, test_dataset,
-                   labelled_source_name, glove_embs, lr, model_name=model_name,
+                   train_name, glove_embs, lr, model_name=model_name,
                    pretrain_dataloader=alltrain_dataloader)
 
         # ======================================================================
 
-        token2idx_map, X = get_crisisNLP_embs()
-        train_dataset, val_dataset, test_dataset, _, val_vocab, test_vocab,\
+        token2idx_map, X = get_crisisNLP_embs(glove_embs)
+        train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
             stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
@@ -428,7 +424,7 @@ def main_alltrain(model_type=cfg['model']['type'], glove_embs=None,
         model_name = f'crisisNLP_alltrain_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
-                   labelled_source_name, glove_embs, lr, model_name=model_name,
+                   train_name, glove_embs, lr, model_name=model_name,
                    pretrain_dataloader=alltrain_dataloader)
 
     logger.info("Execution complete.")

@@ -72,8 +72,6 @@ joint_path = join(pretrain_dir, data_filename + "_multihot.csv")
 pos_path = join(pretrain_dir, data_filename + "_pos.csv")
 neg_path = join(pretrain_dir, data_filename + "_neg.csv")
 
-glove_embs = glove2dict()
-
 
 def read_dataset(dataname, data_dir=pretrain_dir):
     ## TODO: Read all binary disaster datasets:
@@ -617,9 +615,9 @@ def get_pretrain_artifacts(
     return vocab, token2pretrained_embs, X
 
 
-def get_w2v_embs():
+def get_w2v_embs(glove_embs):
     joint_vocab, joint_corpus_toks, joint_corpus_strs, joint_oov_high_freqs =\
-        get_vocab_data(joint_path, name='_joint', glove_embs=glove_embs)
+        get_vocab_data(joint_path, name='_joint', glove_embs=glove_embs, read_input=True)
 
     X = train_w2v(joint_corpus_toks, list(joint_vocab['str2idx_map'].keys()),
                   in_dim=cfg['embeddings']['emb_dim'],
@@ -656,9 +654,9 @@ def get_w2v_embs():
 #     return str2idx, X
 
 
-def get_crisisNLP_embs():
+def get_crisisNLP_embs(glove_embs):
     joint_vocab, joint_corpus_toks, joint_corpus_strs, joint_oov_high_freqs =\
-        get_vocab_data(joint_path, name='_joint', glove_embs=glove_embs)
+        get_vocab_data(joint_path, name='_joint', glove_embs=glove_embs, read_input=True)
 
     crisisnlp_model = load_word2vec(model_file_name='crisisNLP_word_vector_w2v.bin')
     ordered_tokens = list(joint_vocab['str2idx_map'].keys())
