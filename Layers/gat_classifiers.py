@@ -24,7 +24,6 @@ from dgl import DGLGraph
 from dgl.nn.pytorch.conv import GATConv, GraphConv
 
 from Layers.bilstm_classifiers import BiLSTM_Classifier
-from config import configuration as cfg, device
 
 
 class Instance_GAT_dgl(torch.nn.Module, ABC):

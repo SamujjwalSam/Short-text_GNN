@@ -20,16 +20,15 @@ __license__     : "This source code is licensed under the MIT-style license
 import timeit
 from os.path import join
 import torch.optim as optim
-from torch import utils, cuda, save, device, stack
+from torch import utils, cuda, save, stack
 from torch.utils.data import DataLoader
 
 from Layers.pretrain_losses import supervised_contrastive_loss
 from Layers.mlp_classifier import MLP_Model
 from Utils.utils import count_parameters, save_token2pretrained_embs
-from config import configuration as cfg, platform as plat, username as user, pretrain_dir, device
+from config import configuration as cfg, platform as plat, username as user, \
+    pretrain_dir, cuda_device
 from Logger.logger import logger
-
-## Enable multi GPU cuda environment:
 
 if cuda.is_available():
     # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
@@ -124,8 +123,8 @@ def mlp_trainer(X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
     logger.info(model)
     count_parameters(model)
 
-    model.to(device)
-    X = X.to(device)
+    model.to(cuda_device)
+    X = X.to(cuda_device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
 

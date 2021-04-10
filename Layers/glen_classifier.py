@@ -25,8 +25,6 @@ from Layers.gcn_classifiers import GCN
 from Layers.gat_classifiers import Instance_GAT_dgl
 from Layers.bilstm_classifiers import BiLSTM_Classifier
 
-from config import configuration as cfg, device
-
 
 class GLEN_Classifier(torch.nn.Module):
     def __init__(self, in_dim, hid_dim, num_heads, out_dim, num_classes,

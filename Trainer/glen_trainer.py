@@ -32,11 +32,12 @@ from Metrics.metrics import calculate_performance_sk as calculate_performance,\
     calculate_performance_bin_sk
 from Utils.utils import logit2label, count_parameters
 from Logger.logger import logger
-from config import configuration as cfg, platform as plat, username as user, dataset_dir, device
+from config import configuration as cfg, platform as plat, username as user, dataset_dir, cuda_device
 
 if cuda.is_available():
     # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
     cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
+# device_id, cuda_device = set_cuda_device()
 
 
 def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
@@ -60,16 +61,16 @@ def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
             emb = graph_batch.ndata['emb']
             # graph_batch = dgl.add_self_loop(graph_batch)
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-                graph_batch = graph_batch.to(device)
-                emb = emb.to(device)
+                graph_batch = graph_batch.to(cuda_device)
+                emb = emb.to(cuda_device)
             prediction = model(graph_batch, emb, local_ids, node_counts, global_ids, G, X)
             # if epoch == 30:
             #     from evaluations import get_freq_disjoint_token_vecs, plot
             #     glove_vecs = get_freq_disjoint_token_vecs(S_vocab, T_vocab, X)
             #     plot(glove_vecs)
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-                prediction = prediction.to(device)
-                label = label.to(device)
+                prediction = prediction.to(cuda_device)
+                label = label.to(cuda_device)
             if prediction.dim() == 1:
                 prediction = prediction.unsqueeze(1)
             loss = loss_func(prediction, label)
@@ -201,13 +202,13 @@ def eval_glen(model: GLEN_Classifier, G, X, loss_func,
         emb = graph_batch.ndata['emb']
         # graph_batch = dgl.add_self_loop(graph_batch)
         if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-            graph_batch = graph_batch.to(device)
-            emb = emb.to(device)
-            # local_ids = local_ids.to(device)
-            # node_counts = node_counts.to(device)
-            # global_ids = global_ids.to(device)
-            G = G.to(device)
-            X = X.to(device)
+            graph_batch = graph_batch.to(cuda_device)
+            emb = emb.to(cuda_device)
+            # local_ids = local_ids.to(cuda_device)
+            # node_counts = node_counts.to(cuda_device)
+            # global_ids = global_ids.to(cuda_device)
+            G = G.to(cuda_device)
+            X = X.to(cuda_device)
         if save_gcn_embs:
             save(X, 'X_glove.pt')
         prediction = model(graph_batch, emb, local_ids, node_counts, global_ids, G, X, save_gcn_embs)
@@ -215,8 +216,8 @@ def eval_glen(model: GLEN_Classifier, G, X, loss_func,
         if prediction.dim() == 1:
             prediction = prediction.unsqueeze(1)
         if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-            prediction = prediction.to(device)
-            label = label.to(device)
+            prediction = prediction.to(cuda_device)
+            label = label.to(cuda_device)
         loss = loss_func(prediction, label)
         if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
             preds.append(prediction.detach().cpu())
@@ -264,9 +265,9 @@ def GLEN_trainer(
     logger.info(model)
     count_parameters(model)
     if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-        model.to(device)
-        G = G.to(device)
-        X = X.to(device)
+        model.to(cuda_device)
+        G = G.to(cuda_device)
+        X = X.to(cuda_device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
 

@@ -32,11 +32,12 @@ from Metrics.metrics import calculate_performance_sk as calculate_performance,\
     calculate_performance_bin_sk
 from Utils.utils import logit2label, count_parameters, save_model_state, load_model_state
 from Logger.logger import logger
-from config import configuration as cfg, platform as plat, username as user, device, pretrain_dir
+from config import configuration as cfg, platform as plat, username as user, pretrain_dir, cuda_device
 
 if cuda.is_available():
     # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
     cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
+# device_id, cuda_device = set_cuda_device()
 
 
 def train_lstm_classifier(
@@ -66,8 +67,8 @@ def train_lstm_classifier(
                 label = stack([batch.__getattribute__(cls) for cls in cfg['data']['class_names']]).T
             prediction = model(text, text_lengths.long().cpu()).squeeze()
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-                prediction = prediction.to(device)
-                label = label.to(device)
+                prediction = prediction.to(cuda_device)
+                label = label.to(cuda_device)
             if prediction.dim() == 1:
                 prediction = prediction.unsqueeze(1)
             loss = loss_func(prediction, label)
@@ -156,8 +157,8 @@ def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
         if prediction.dim() == 1:
             prediction = prediction.unsqueeze(1)
         if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-            prediction = prediction.to(device)
-            label = label.to(device)
+            prediction = prediction.to(cuda_device)
+            label = label.to(cuda_device)
         loss = loss_func(prediction, label)
         if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
             preds.append(prediction.detach().cpu())
@@ -197,7 +198,6 @@ all_test_dataloaders = None
 
 def eval_all(model: BiLSTM_Emb_Classifier, loss_func,
              n_classes=cfg['data']['num_classes'], test_files=cfg['data']['all_test_files']):
-
     global all_test_dataloaders
 
     if all_test_dataloaders is None:
@@ -216,7 +216,7 @@ def eval_all(model: BiLSTM_Emb_Classifier, loss_func,
 
 
 def LSTM_trainer(
-        train_dataloader, val_dataloader, test_dataloader, vectors, in_dim: int = 100,
+        train_dataloader, val_dataloader, test_dataloader, vectors, in_dim=100,
         hid_dim: int = 50, epoch=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
         model_name='Glove', pretrain_dataloader=None):
@@ -231,7 +231,7 @@ def LSTM_trainer(
     model.embedding.weight.data.copy_(vectors)
 
     if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-        model.to(device)
+        model.to(cuda_device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
 

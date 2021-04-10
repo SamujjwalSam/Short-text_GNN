@@ -18,7 +18,7 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import timeit
-from torch import nn, stack, utils, sigmoid, mean, cat, device, cuda
+from torch import nn, stack, utils, sigmoid, mean, cat,  cuda
 from os import environ
 from json import dumps
 from collections import OrderedDict
@@ -30,13 +30,12 @@ from Metrics.metrics import calculate_performance_sk as calculate_performance,\
     calculate_performance_bin_sk
 from Utils.utils import logit2label, count_parameters
 from Logger.logger import logger
-from config import configuration as cfg, platform as plat, username as user
-
-## Enable multi GPU cuda environment:
+from config import configuration as cfg, platform as plat, username as user, cuda_device
 
 if cuda.is_available():
     # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
     cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
+# device_id, cuda_device = set_cuda_device()
 
 
 def train_GAT_BiLSTM(
@@ -58,15 +57,15 @@ def train_GAT_BiLSTM(
             emb = graph_batch.ndata['emb']
             # graph_batch = dgl.add_self_loop(graph_batch)
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-                graph_batch = graph_batch.to(device)
-                emb = emb.to(device)
-                # local_ids = local_ids.to(device)
-                # node_counts = node_counts.to(device)
-                # global_ids = global_ids.to(device)
+                graph_batch = graph_batch.to(cuda_device)
+                emb = emb.to(cuda_device)
+                # local_ids = local_ids.to(cuda_device)
+                # node_counts = node_counts.to(cuda_device)
+                # global_ids = global_ids.to(cuda_device)
             start_time = timeit.default_timer()
             prediction = model(graph_batch, emb, local_ids, node_counts)
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-                prediction = prediction.to(device)
+                prediction = prediction.to(cuda_device)
             if prediction.dim() == 1:
                 prediction = prediction.unsqueeze(1)
             loss = loss_func(prediction, label)
@@ -127,11 +126,11 @@ def eval_GAT_BiLSTM(
         emb = graph_batch.ndata['emb']
         # graph_batch = dgl.add_self_loop(graph_batch)
         if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-            graph_batch = graph_batch.to(device)
-            emb = emb.to(device)
-            # local_ids = local_ids.to(device)
-            # node_counts = node_counts.to(device)
-            # global_ids = global_ids.to(device)
+            graph_batch = graph_batch.to(cuda_device)
+            emb = emb.to(cuda_device)
+            # local_ids = local_ids.to(cuda_device)
+            # node_counts = node_counts.to(cuda_device)
+            # global_ids = global_ids.to(cuda_device)
         start_time = timeit.default_timer()
         prediction = model(graph_batch, emb, local_ids, node_counts)
         test_time = timeit.default_timer() - start_time
@@ -140,7 +139,7 @@ def eval_GAT_BiLSTM(
         if prediction.dim() == 1:
             prediction = prediction.unsqueeze(1)
         if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-            prediction = prediction.to(device)
+            prediction = prediction.to(cuda_device)
         loss = loss_func(prediction, label)
         preds.append(prediction.detach())
         trues.append(label.detach())
@@ -179,7 +178,7 @@ def GAT_BiLSTM_trainer(
     logger.info(model)
     count_parameters(model)
     if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-        model.to(device)
+        model.to(cuda_device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
 

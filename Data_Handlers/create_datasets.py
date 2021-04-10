@@ -154,12 +154,12 @@ def prepare_splitted_datasets(
     if train_portion is not None:
         train_df = read_csv(data_dir=dataset_dir, data_file=train_dataname)
         df, train_df = split_df(train_df, test_size=train_portion, stratified=False)
-        train_datafile = train_dataname+str(train_portion)+".csv"
+        train_datafile = train_dataname + str(train_portion) + ".csv"
         logger.warning(f'New train data size {train_df.shape} for train_portion {train_portion}')
         train_df.to_csv(join(data_dir, train_datafile))
 
     if use_all_data:
-        train_datafile = "training"+str(len(cfg['pretrain']['files']))+".csv"
+        train_datafile = "training_" + str(len(cfg['pretrain']['files'])) + ".csv"
         # if not exists(join(dataset_dir, train_dataname)):
         train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
         train_df.to_csv(join(data_dir, train_datafile))
@@ -233,7 +233,7 @@ def prepare_splitted_datasets(
 def prepare_alltrain_datasets(
         stoi=None, vectors=None, dim=cfg['embeddings']['emb_dim'],
         data_dir=dataset_dir, min_freq=cfg["data"]["min_freq"],
-        all_train_dataname = "all_training.csv"):
+        all_train_dataname="all_training.csv"):
     """ Creates a dataset by merging all the test files.
 
     :param all_train_dataname: Merged csv file name
@@ -257,11 +257,12 @@ def prepare_alltrain_datasets(
 def prepare_single_dataset(
         stoi=None, vectors=None, dim=cfg['embeddings']['emb_dim'],
         data_dir=dataset_dir, min_freq=cfg["data"]["min_freq"],
-        dataname = "all_training.csv"):
+        dataname="training_" + str(len(cfg['pretrain']['files'])) + ".csv"):
     """ Creates a torchtext dataset
 
     Passes a csv file for dataset creation and returns dataloader. Sets custom vectors if provided.
 
+    :param dataname:
     :param min_freq:
     :param stoi:
     :param vectors: Custom Vectors for each token
@@ -297,6 +298,7 @@ def prepare_BERT_splitted_datasets(
         use_all_data=False, min_freq=cfg["data"]["min_freq"]):
     """ Creates train and test dataset from df and returns data loader.
 
+    :param min_freq:
     :param use_all_data: Uses all disaster data for training if True
     :param stoi:
     :param val_dataname:
@@ -497,7 +499,7 @@ def create_unlabeled_datasets(
 
 def split_csv_dataset(dataset_name="smerp17", dataset_dir=dataset_dir, frac=0.565):
     logger.warning('Creating')
-    smerp = pd.read_csv(join(dataset_dir, dataset_name+'.csv'), header=0, index_col=0)
+    smerp = pd.read_csv(join(dataset_dir, dataset_name + '.csv'), header=0, index_col=0)
     smerp = smerp.sample(frac=1.)
     smerp_sel = smerp.sample(frac=frac, random_state=677)
 
@@ -510,14 +512,15 @@ def split_csv_dataset(dataset_name="smerp17", dataset_dir=dataset_dir, frac=0.56
     smerp_test = smerp_sel
     logger.info(smerp_test.shape)
 
-    smerp_train.to_csv(join(dataset_dir, dataset_name+'_train.csv'), header=True)
-    smerp_val.to_csv(join(dataset_dir, dataset_name+'_val.csv'), header=True)
-    smerp_test.to_csv(join(dataset_dir, dataset_name+'_test.csv'), header=True)
+    smerp_train.to_csv(join(dataset_dir, dataset_name + '_train.csv'), header=True)
+    smerp_val.to_csv(join(dataset_dir, dataset_name + '_val.csv'), header=True)
+    smerp_test.to_csv(join(dataset_dir, dataset_name + '_test.csv'), header=True)
 
     return smerp_train, smerp_val, smerp_test
 
 
-def split_csv_train_data(dataset_name="smerp17", dataset_dir=dataset_dir, frac=0.565, dataset_save_name=None, random_state=677):
+def split_csv_train_data(dataset_name="smerp17", dataset_dir=dataset_dir, frac=0.565, dataset_save_name=None,
+                         random_state=677):
     """ Reads and saves frac portion of the csv file [dataset_name].
 
     NOTE: saves original file as [_orig] for later use. Reads [_orig] first if found.
@@ -530,20 +533,20 @@ def split_csv_train_data(dataset_name="smerp17", dataset_dir=dataset_dir, frac=0
     :return:
     """
     logger.warning(f'Splitting {dataset_name} to {frac}')
-    if exists(join(dataset_dir, dataset_name+'_orig.csv')):
-        df = pd.read_csv(join(dataset_dir, dataset_name+'_orig.csv'), header=0, index_col=0)
-    elif exists(join(dataset_dir, dataset_name+'.csv')):
-        df = pd.read_csv(join(dataset_dir, dataset_name+'.csv'), header=0, index_col=0)
-        df.to_csv(join(dataset_dir, dataset_name+'_orig.csv'), header=True)
+    if exists(join(dataset_dir, dataset_name + '_orig.csv')):
+        df = pd.read_csv(join(dataset_dir, dataset_name + '_orig.csv'), header=0, index_col=0)
+    elif exists(join(dataset_dir, dataset_name + '.csv')):
+        df = pd.read_csv(join(dataset_dir, dataset_name + '.csv'), header=0, index_col=0)
+        df.to_csv(join(dataset_dir, dataset_name + '_orig.csv'), header=True)
     else:
-        raise FileNotFoundError(f'File {join(dataset_dir, dataset_name+".csv")}'
-                                f' or {join(dataset_dir, dataset_name+"_orig.csv")} not found.')
+        raise FileNotFoundError(f'File {join(dataset_dir, dataset_name + ".csv")}'
+                                f' or {join(dataset_dir, dataset_name + "_orig.csv")} not found.')
 
     df = df.sample(frac=1.)
     df_train = df.sample(frac=frac, random_state=random_state)
 
     if dataset_save_name is None:
-        dataset_save_name = dataset_name+'_train.csv'
+        dataset_save_name = dataset_name + '_train.csv'
     df_train.to_csv(join(dataset_dir, dataset_save_name), header=True)
     logger.info(f'New train data size [{df_train.shape}]')
     logger.info(f'Saved train data at [{join(dataset_dir, dataset_save_name)}]')

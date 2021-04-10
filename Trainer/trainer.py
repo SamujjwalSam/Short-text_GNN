@@ -17,7 +17,7 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
-from torch import cuda, load, sigmoid, cat, optim, save, device, no_grad
+from torch import cuda, load, sigmoid, cat, optim, save, no_grad
 # import torch.optim as optim
 import torch.nn as nn
 from os.path import join
@@ -26,14 +26,16 @@ from collections import OrderedDict
 from Logger.logger import logger
 from Utils.utils import save_model, load_model, logit2label
 from Metrics.metrics import calculate_performance_sk as calculate_performance
-from config import configuration as cfg, platform as plat, username as user, dataset_dir
+from config import configuration as cfg, platform as plat, username as user, \
+    dataset_dir, cuda_device
 
 if cuda.is_available():
     # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
     cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
+# device_id, cuda_device = set_cuda_device()
 
 
-def torchtext_batch2multilabel(batch, label_cols=None):
+def torchtext_batch2multilabel(batch, label_cols=None, n_classes=cfg['data']['num_classes']):
     """ Returns labels for a TorchText batch.
 
     Args:
@@ -41,6 +43,9 @@ def torchtext_batch2multilabel(batch, label_cols=None):
         label_cols:
 
     Returns:
+    :param batch:
+    :param label_cols:
+    :param n_classes:
 
     """
     if label_cols is None:
@@ -181,11 +186,11 @@ def trainer(model, train_iterator, val_iterator, N_EPOCHS=5, optimizer=None,
         optimizer = optim.Adam(model.parameters(), lr=lr)
 
     if criterion is None:
-        criterion = nn.BCEWithLogitsLoss().to(device)
+        criterion = nn.BCEWithLogitsLoss().to(cuda_device)
 
     # push to cuda if available
-    model = model.to(device)
-    criterion = criterion.to(device)
+    model = model.to(cuda_device)
+    criterion = criterion.to(cuda_device)
 
     sigmoid = nn.Sigmoid()
     val_preds_trues_all = OrderedDict()

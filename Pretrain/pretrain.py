@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 from functools import partial
 from scipy.special import softmax
-from torch import cuda, save, load, device, manual_seed, backends, from_numpy
+from torch import cuda, save, load, manual_seed, backends, from_numpy
 from torch.utils.data import Dataset
 from networkx import adjacency_matrix
 from os import environ
@@ -43,7 +43,8 @@ from Text_Processesor.tweet_normalizer import normalizeTweet
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
 from Text_Encoder.finetune_static_embeddings import glove2dict, train_mittens,\
     calculate_cooccurrence_mat, preprocess_and_find_oov2, create_clean_corpus
-from config import configuration as cfg, platform as plat, username as user, pretrain_dir, emb_dir, device
+from config import configuration as cfg, platform as plat, username as user, \
+    pretrain_dir, emb_dir
 from Logger.logger import logger
 
 if cuda.is_available():
@@ -609,7 +610,7 @@ def get_pretrain_artifacts(
             token2pretrained_embs = get_token2pretrained_embs(
                 X, list(vocab['str2idx_map'].keys()), vocab['idx2str_map'])
     else:
-        logger.info('Pretraining')
+        logger.info(f'[{vocab_path + ".json"}] or [{pretrainedX_path}] NOT found.')
         _, vocab, token2pretrained_embs, X = prepare_pretraining(
             model_type=model_type)
 

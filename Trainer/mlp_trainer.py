@@ -18,7 +18,7 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import timeit
-from torch import nn, stack, utils, sigmoid, mean, cat, device, cuda, save
+from torch import nn, stack, utils, sigmoid, mean, cat, cuda, save
 from os import environ
 from json import dumps
 from collections import OrderedDict

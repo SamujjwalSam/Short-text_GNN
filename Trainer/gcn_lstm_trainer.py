@@ -18,7 +18,7 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import timeit
-from torch import nn, stack, utils, sigmoid, mean, cat, device, cuda, save
+from torch import nn, stack, utils, sigmoid, mean, cat, cuda, save
 from os import environ
 from json import dumps
 from collections import OrderedDict
@@ -30,11 +30,12 @@ from Metrics.metrics import calculate_performance_sk as calculate_performance,\
     calculate_performance_bin_sk
 from Utils.utils import logit2label, count_parameters
 from Logger.logger import logger
-from config import configuration as cfg, platform as plat, username as user
+from config import configuration as cfg, platform as plat, username as user, cuda_device
 
 if cuda.is_available():
     # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
     cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
+# device_id, cuda_device = set_cuda_device()
 
 
 def train_GCN_LSTM(model, A, X, dataloader: utils.data.dataloader.DataLoader,
@@ -56,12 +57,12 @@ def train_GCN_LSTM(model, A, X, dataloader: utils.data.dataloader.DataLoader,
             # emb = graph_batch.ndata['emb']
             # graph_batch = dgl.add_self_loop(graph_batch)
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-                A = A.to(device)
-                X = X.to(device)
+                A = A.to(cuda_device)
+                X = X.to(cuda_device)
             prediction = model(A, X, global_ids)
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-                prediction = prediction.to(device)
-                label = label.to(device)
+                prediction = prediction.to(cuda_device)
+                label = label.to(cuda_device)
             if prediction.dim() == 1:
                 prediction = prediction.unsqueeze(1)
             loss = loss_func(prediction, label)
@@ -135,20 +136,20 @@ def eval_GCN_LSTM(model: GCN_BiLSTM_Classifier, A, X, loss_func,
         # emb = graph_batch.ndata['emb']
         # graph_batch = dgl.add_self_loop(graph_batch)
         if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-            # graph_batch = graph_batch.to(device)
-            # emb = emb.to(device)
-            # local_ids = local_ids.to(device)
-            # node_counts = node_counts.to(device)
-            # global_ids = global_ids.to(device)
-            A = A.to(device)
-            X = X.to(device)
+            # graph_batch = graph_batch.to(cuda_device)
+            # emb = emb.to(cuda_device)
+            # local_ids = local_ids.to(cuda_device)
+            # node_counts = node_counts.to(cuda_device)
+            # global_ids = global_ids.to(cuda_device)
+            A = A.to(cuda_device)
+            X = X.to(cuda_device)
         if save_gcn_embs:
             save(X, 'X_glove.pt')
         prediction = model(A, X, global_ids, save_gcn_embs)
         # test_count = label.shape[0]
         if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-            prediction = prediction.to(device)
-            label = label.to(device)
+            prediction = prediction.to(cuda_device)
+            label = label.to(cuda_device)
         if prediction.dim() == 1:
             prediction = prediction.unsqueeze(1)
         loss = loss_func(prediction, label)
@@ -196,7 +197,7 @@ def GCN_LSTM_trainer(
     logger.info(model)
     count_parameters(model)
     if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-        model.to(device)
+        model.to(cuda_device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
 

@@ -37,7 +37,7 @@ from File_Handlers.json_handler import read_labelled_json
 from Transformers_simpletransformers.BERT_multilabel_classifier import format_inputs
 
 ## Setting up the device for GPU usage
-from torch import cuda, device
+from torch import cuda
 
 if cuda.is_available():
     # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])

@@ -40,6 +40,10 @@ if torch.cuda.is_available():
     # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
     environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
     torch.cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
+else:
+    device_id = -1
+# device_id, cuda_device = set_cuda_device()
+device_id = cfg['cuda']['cuda_devices'][plat][user]
 
 
 def format_inputs(df: pd.core.frame.DataFrame):
@@ -270,7 +274,7 @@ def BERT_multilabel_classifier(
 
 
 if __name__ == "__main__":
-    BERT_binary_classifier()
+    BERT_multilabel_classifier()
 
     # parser = argparse.ArgumentParser()
     #

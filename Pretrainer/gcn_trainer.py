@@ -20,14 +20,16 @@ __license__     : "This source code is licensed under the MIT-style license
 import timeit
 # import numpy as np
 from os.path import join
-from torch import utils, cuda, save, load, device
+from torch import utils, cuda, save, load
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from Layers.pretrain_losses import supervised_contrastive_loss
 from Layers.gcn_classifiers import GCN
-from Utils.utils import count_parameters, save_model_state, load_model_state, save_token2pretrained_embs
-from config import configuration as cfg, platform as plat, username as user, dataset_dir, device
+from Utils.utils import count_parameters, save_model_state, load_model_state, \
+    save_token2pretrained_embs
+from config import configuration as cfg, platform as plat, username as user,\
+    dataset_dir, cuda_device
 from Logger.logger import logger
 
 if cuda.is_available():
@@ -88,9 +90,9 @@ def gcn_trainer(A, X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
     count_parameters(model)
 
     if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-        model.to(device)
-        A = A.to(device)
-        X = X.to(device)
+        model.to(cuda_device)
+        A = A.to(cuda_device)
+        X = X.to(cuda_device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
 

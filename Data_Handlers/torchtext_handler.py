@@ -24,7 +24,7 @@ from pathlib import Path
 from os.path import join
 from torchtext import data
 
-from config import configuration as cfg, device
+from config import configuration as cfg, cuda_device
 from Logger.logger import logger
 
 
@@ -244,7 +244,7 @@ def dataset2iter(datasets: tuple, batch_size=None, batch_sizes=(128, 256, 256),
     if batch_size is not None:
         iterator = data.Iterator(
             datasets, batch_size=batch_size, shuffle=shuffle, sort=False,
-            repeat=False, device=device)
+            repeat=False, device=cuda_device)
         # batch_sizes=batch_sizes,
         # sort_key=lambda x: len(x.text),
         # sort_within_batch=True,
@@ -252,7 +252,7 @@ def dataset2iter(datasets: tuple, batch_size=None, batch_sizes=(128, 256, 256),
     else:
         iterator = data.Iterator.splits(
             datasets, batch_sizes=batch_sizes, shuffle=shuffle, sort=False,
-            repeat=False, device=device)
+            repeat=False, device=cuda_device)
             # sort_key=lambda x: len(x.text),
             # sort_within_batch=True,
 
@@ -270,11 +270,11 @@ def dataset2bucket_dataloader(datasets: tuple, batch_size=None, batch_sizes: tup
     if batch_size is not None:
         iterator = data.BucketIterator(
             datasets, batch_size=batch_size, sort_key=lambda x: len(x.text),
-            sort_within_batch=True, shuffle=True, device=device)
+            sort_within_batch=True, shuffle=True, device=cuda_device)
     else:
         iterator = data.BucketIterator.splits(
             datasets, batch_sizes=batch_sizes, sort_key=lambda x: len(x.text),
-            sort_within_batch=True, shuffle=True, device=device)
+            sort_within_batch=True, shuffle=True, device=cuda_device)
     return iterator
 
 
