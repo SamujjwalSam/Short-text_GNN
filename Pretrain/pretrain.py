@@ -654,7 +654,7 @@ def get_w2v_embs(glove_embs):
 #     return str2idx, X
 
 
-def get_crisisNLP_embs(glove_embs):
+def get_cnlp_embs(glove_embs):
     joint_vocab, joint_corpus_toks, joint_corpus_strs, joint_oov_high_freqs =\
         get_vocab_data(joint_path, name='_joint', glove_embs=glove_embs, read_input=True)
 

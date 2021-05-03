@@ -465,7 +465,10 @@ configuration = {
     },
 
     "training":     {
-        "num_epoch":        10,
+        "seed_count":       3,
+        "seed_start":       0,
+        "num_epoch":        15,
+        "cls_pretrain_epochs": [1, 3],
         "train_batch_size": 128,
         "eval_batch_size":  256,
     },

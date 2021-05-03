@@ -149,7 +149,7 @@ def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
         # logger.info(f'Epoch {epoch} result: \n{result_dict}')
 
     logger.info(
-        f"MAX GLEN: Epoch {max_result['epoch']}, Score {max_result['score']:1.4},"
+        f"GLEN: Epoch {max_result['epoch']}, MAX Score {max_result['score']:1.4},"
         f" Result {dumps(max_result, indent=4)}, Model {model_name}")
 
     return model, max_result, train_epoch_dict
@@ -279,16 +279,16 @@ def GLEN_trainer(
         model, G, X, train_dataloader, loss_func=loss_func, optimizer=optimizer,
         epoch=epoch, eval_dataloader=val_dataloader, test_dataloader=test_dataloader, model_name=model_name)
 
-    start_time = timeit.default_timer()
-    losses, test_output = eval_glen(model, G, X, loss_func=loss_func,
-                                    dataloader=test_dataloader, save_gcn_embs=True)
-    test_time = timeit.default_timer() - start_time
-    test_count = test_dataloader.dataset.__len__()
-    logger.info(f"Total inference time for [{test_count}] examples: [{test_time:2.4} sec]"
-                f"\nPer example: [{test_time / test_count} sec]")
-    logger.info(dumps(test_output['result'], indent=4))
+    # start_time = timeit.default_timer()
+    # losses, test_output = eval_glen(model, G, X, loss_func=loss_func,
+    #                                 dataloader=test_dataloader, save_gcn_embs=True)
+    # test_time = timeit.default_timer() - start_time
+    # test_count = test_dataloader.dataset.__len__()
+    # logger.info(f"Total inference time for [{test_count}] examples: [{test_time:2.4} sec]"
+    #             f"\nPer example: [{test_time / test_count} sec]")
+    # logger.info(dumps(test_output['result'], indent=4))
 
-    return train_epochs_output_dict, test_output
+    return train_epochs_output_dict
 
 
 def main():

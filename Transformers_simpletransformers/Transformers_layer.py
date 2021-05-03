@@ -34,7 +34,7 @@ from config import configuration as cfg, platform as plat, username as user, dat
 from Metrics.metrics import calculate_performance_pl
 from Logger.logger import logger
 from File_Handlers.json_handler import read_labelled_json
-from Transformers_simpletransformers.BERT_multilabel_classifier import format_inputs
+from Transformers_simpletransformers.BERT_multilabel_classifier import format_df_cls
 
 ## Setting up the device for GPU usage
 from torch import cuda
@@ -451,7 +451,7 @@ class TransformerPretrain():
 
     def read_data(self, data_dir=dataset_dir, filename=cfg['data']['train']):
         new_df = read_labelled_json(data_dir, filename)
-        new_df = format_inputs(new_df)
+        new_df = format_df_cls(new_df)
         return new_df
 
     def split_data(self, df, train_size=0.8):

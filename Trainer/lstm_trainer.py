@@ -130,7 +130,7 @@ def train_lstm_classifier(
         # logger.info(f'Epoch {epoch} result: \n{result_dict}')
 
     logger.info(
-        f"MAX Score: Epoch {max_result['epoch']}, Score {max_result['score']:1.4}, Model {model_name}")
+        f"LSTM Epoch {max_result['epoch']}, MAX Score {max_result['score']:1.4}, Model {model_name}")
     return model, train_epoch_losses, train_epoch_dict
 
 
@@ -219,11 +219,10 @@ def LSTM_trainer(
         train_dataloader, val_dataloader, test_dataloader, vectors, in_dim=100,
         hid_dim: int = 50, epoch=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
-        model_name='Glove', pretrain_dataloader=None):
+        model_name='Glove', pretrain_dataloader=None, pretrain_epoch=cfg['training']['num_epoch']):
     # train_dataloader, test_dataloader = dataloaders
-    model = BiLSTM_Emb_Classifier(
-        vocab_size=vectors.shape[0], in_dim=in_dim, hid_dim=hid_dim, out_dim=cfg["data"]["num_classes"])
-    # in_dim=in_dim, out_dim=cfg["data"]["num_classes"], hid_dim=hid_dim)
+    model = BiLSTM_Emb_Classifier(vocab_size=vectors.shape[0], in_dim=in_dim,
+                                  hid_dim=hid_dim, out_dim=cfg["data"]["num_classes"])
     logger.info(model)
     count_parameters(model)
 
@@ -237,10 +236,12 @@ def LSTM_trainer(
 
     # model_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
     # model_name = model_name + '_epoch' + str(epoch)
-    saved_model = load_model_state(model, model_name=model_name + '_epoch' + str(epoch), optimizer=optimizer)
+    # saved_model = load_model_state(model, model_name=model_name + '_epoch' + str(epoch), optimizer=optimizer)
 
     if pretrain_dataloader is not None:
-        logger.info(f'Training classifier with all pretraining data with classification task')
+        model_name = model_name + '_preepoch_' + str(pretrain_epoch)
+        logger.info(f'Training classifier with all pretraining data with '
+                    f'classification task for pretrain_epoch {pretrain_epoch}')
         model, epoch_losses, train_epochs_output_dict = train_lstm_classifier(
             model, pretrain_dataloader, loss_func=loss_func, optimizer=optimizer,
             epoch=epoch, eval_dataloader=val_dataloader,

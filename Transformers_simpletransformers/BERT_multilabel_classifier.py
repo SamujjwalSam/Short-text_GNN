@@ -31,12 +31,12 @@ from simpletransformers.classification import MultiLabelClassificationModel, Mul
 
 from File_Handlers.csv_handler import read_csv, read_csvs
 from Text_Processesor.build_corpus_vocab import get_token_embedding
-from config import configuration as cfg, platform as plat, username as user, dataset_dir, pretrain_dir, device_id
+from config import configuration as cfg, platform as plat, username as user, \
+    dataset_dir, pretrain_dir, device_id
 from Metrics.metrics import calculate_performance_bin_sk
 from Logger.logger import logger
 
-
-if torch.cuda.is_available():
+if torch.cuda.is_available() and cfg['cuda']['cuda_devices'][plat][user]:
     # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
     environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
     torch.cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
@@ -46,7 +46,7 @@ else:
 device_id = cfg['cuda']['cuda_devices'][plat][user]
 
 
-def format_inputs(df: pd.core.frame.DataFrame):
+def format_df_cls(df: pd.core.frame.DataFrame):
     """ Converts the input to proper format for simpletransformer.
 
     """
@@ -117,7 +117,7 @@ def BERT_multilabel_classifier(
         model_type: str = cfg['transformer']['model_type'],
         num_epoch: int = cfg['transformer']['num_epoch'],
         use_cuda: bool = cfg['cuda']['use_cuda'],
-        exp_name='BERT') -> (dict, dict):
+        exp_name='BERT', train_all_bert=False, format_input=True) -> (dict, dict):
     """Train and Evaluation data needs to be in a Pandas Dataframe
 
     containing at least two columns, a 'text' and a 'labels' column. The
@@ -133,10 +133,10 @@ def BERT_multilabel_classifier(
     :param use_cuda:
     :return:
     """
-    # logger.info(f'Running BERT for experiment {exp_name} with Train {train_df.shape}, Val {val_df.shape}, Test {test_df.shape}')
-    train_df = format_inputs(train_df)
-    val_df = format_inputs(val_df)
-    test_df = format_inputs(test_df)
+    if format_input:
+        train_df = format_df_cls(train_df)
+        val_df = format_df_cls(val_df)
+        test_df = format_df_cls(test_df)
 
     ## Add arguments:
     model_args = MultiLabelClassificationArgs(evaluate_during_training=True)
@@ -174,18 +174,20 @@ def BERT_multilabel_classifier(
     # model_args.
     model_args.threshold = 0.5
     model_args.early_stopping_patience = 3
-    # model_args.train_custom_parameters_only = True
-    # model_args.custom_parameter_groups = [
-    #     {
-    #         "params": ["classifier.weight"],
-    #         "lr": 1e-3,
-    #     },
-    #     {
-    #         "params": ["classifier.bias"],
-    #         "lr": 1e-3,
-    #         "weight_decay": 0.0,
-    #     },
-    # ]
+    if not train_all_bert:
+        logger.warning(f'Training classifier only.')
+        model_args.train_custom_parameters_only = True
+        model_args.custom_parameter_groups = [
+            {
+                "params": ["classifier.weight"],
+                "lr": 1e-3,
+            },
+            {
+                "params": ["classifier.bias"],
+                "lr": 1e-3,
+                "weight_decay": 0.0,
+            },
+        ]
 
     """
     You can set config in predict(): 
@@ -200,10 +202,15 @@ def BERT_multilabel_classifier(
     # model_args.output_hidden_states = True
 
     ## Create a MultiLabelClassificationModel
-    model = MultiLabelClassificationModel(
-        model_type=model_type, model_name=model_name, num_labels=n_classes,
-        use_cuda=use_cuda and torch.cuda.is_available(), args=model_args,
-        cuda_device=device_id)
+    if torch.cuda.is_available() and cfg['cuda']['cuda_devices'][plat][user]:
+        model = MultiLabelClassificationModel(
+            model_type=model_type, model_name=model_name, num_labels=n_classes,
+            use_cuda=use_cuda and torch.cuda.is_available(), args=model_args,
+            cuda_device=device_id)
+    else:
+        model = MultiLabelClassificationModel(
+            model_type=model_type, model_name=model_name, num_labels=n_classes,
+            use_cuda=use_cuda and torch.cuda.is_available(), args=model_args)
 
     # logger.info(f'BERT Train {train_df.shape}, Val {val_df.shape}, Test {test_df.shape}')
     ## Train the model
@@ -220,7 +227,7 @@ def BERT_multilabel_classifier(
         test_df = read_csv(data_dir=pretrain_dir, data_file=test_data)
         test_df = test_df.sample(frac=1)
         # test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
-        test_df = format_inputs(test_df)
+        test_df = format_df_cls(test_df)
         r, _, _ = model.eval_model(test_df, macro_f1=macro_f1)
         logger.info(f'BERT Cross W-F1: {r["macro_f1"]:1.4} Data: {test_data}')
         logger.info(f'Testing BERT for experiment {exp_name} with Test data '
