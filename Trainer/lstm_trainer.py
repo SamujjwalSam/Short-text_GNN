@@ -18,26 +18,26 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import timeit
-from torch import nn, stack, utils, sigmoid, mean, cat, cuda, save, load
-# from os import environ, mkdir
-# from os.path import join, exists
+from os.path import join
+from torch import nn, stack, utils, sigmoid, mean, cat, cuda
 from json import dumps
 from collections import OrderedDict
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+from Layers.pretrain_losses import supervised_contrastive_loss
 from Data_Handlers.create_datasets import prepare_single_dataset
-from Layers.bilstm_classifiers import BiLSTM_Emb_Classifier
+from Layers.bilstm_classifiers import BiLSTM_Emb_Classifier, BiLSTM_Emb_repr
 from Metrics.metrics import calculate_performance_sk as calculate_performance,\
     calculate_performance_bin_sk
 from Utils.utils import logit2label, count_parameters, save_model_state, load_model_state
 from Logger.logger import logger
-from config import configuration as cfg, platform as plat, username as user, pretrain_dir, cuda_device
+from config import configuration as cfg, platform as plat, username as user,\
+    dataset_dir, pretrain_dir, cuda_device
 
 if cuda.is_available():
     # environ["CUDA_VISIBLE_DEVICES"] = str(cfg['cuda']['cuda_devices'][plat][user])
     cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
-# device_id, cuda_device = set_cuda_device()
 
 
 def train_lstm_classifier(
@@ -134,6 +134,50 @@ def train_lstm_classifier(
     return model, train_epoch_losses, train_epoch_dict
 
 
+def train_lstm_examplecon(model, optimizer, neighbors_dataset,
+                          example_dataloader: utils.data.dataloader.DataLoader,
+                          epochs: int = 5, model_name='examplecon_lstm',
+                          save_epochs=cfg['pretrain']['save_epochs']):
+    logger.info(f"Started [{model_name}] training for {epochs} epochs: ")
+    train_epoch_losses = []
+    for epoch in range(1, epochs + 1):
+        model.train()
+        epoch_loss = 0
+        epoch_start_time = timeit.default_timer()
+        X_hat = []
+        for iter, batch in enumerate(example_dataloader):
+            text, text_lengths = batch.text
+            X_hat.append(model(text, text_lengths.long().cpu()))
+        X_hat = cat(X_hat)
+        loss = 0
+        for iter, (x_idx, x_pos_idx, x_neg_idx) in enumerate(neighbors_dataset):
+            x = X_hat[x_idx]
+            x_pos = X_hat[x_pos_idx]
+            x_neg = X_hat[x_neg_idx]
+            if x.dim() == 1:
+                x = x.unsqueeze(1).T
+            if iter == 0:
+                loss = supervised_contrastive_loss(x, x_pos, x_neg)
+            else:
+                loss += supervised_contrastive_loss(x, x_pos, x_neg)
+            epoch_loss += loss.detach().item()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        epoch_train_time = timeit.default_timer() - epoch_start_time
+        epoch_loss = loss.detach().item() / (iter + 1)
+        logger.info(f'Epoch {epoch}, Time: {epoch_train_time / 60:6.3} mins, '
+                    f'Loss: {epoch_loss} Model {model_name}')
+        train_epoch_losses.append(epoch_loss)
+
+        if epoch in save_epochs:
+            # model.save(join(pretrain_dir, cfg['pretrain']['name'] +model_name))
+            save_model_state(model, 'lstm_examplecon_' + str(epoch), optimizer)
+            logger.info(f'Saved model for epoch {epoch}')
+
+    return model
+
+
 def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
                          dataloader: utils.data.dataloader.DataLoader,
                          n_classes=cfg['data']['num_classes']):
@@ -219,7 +263,8 @@ def LSTM_trainer(
         train_dataloader, val_dataloader, test_dataloader, vectors, in_dim=100,
         hid_dim: int = 50, epoch=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
-        model_name='Glove', pretrain_dataloader=None, pretrain_epoch=cfg['training']['num_epoch']):
+        model_name='Glove', pretrain_dataloader=None,
+        pretrain_epoch=cfg['pretrain']['epoch'], examcon_pretrain=True):
     # train_dataloader, test_dataloader = dataloaders
     model = BiLSTM_Emb_Classifier(vocab_size=vectors.shape[0], in_dim=in_dim,
                                   hid_dim=hid_dim, out_dim=cfg["data"]["num_classes"])
@@ -227,7 +272,7 @@ def LSTM_trainer(
     count_parameters(model)
 
     logger.info('Initialize the pretrained embedding')
-    model.embedding.weight.data.copy_(vectors)
+    model.bilstm_embedding.embedding.weight.data.copy_(vectors)
 
     if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
         model.to(cuda_device)
@@ -239,39 +284,57 @@ def LSTM_trainer(
     # saved_model = load_model_state(model, model_name=model_name + '_epoch' + str(epoch), optimizer=optimizer)
 
     if pretrain_dataloader is not None:
-        model_name = model_name + '_preepoch_' + str(pretrain_epoch)
-        logger.info(f'Training classifier with all pretraining data with '
-                    f'classification task for pretrain_epoch {pretrain_epoch}')
-        model, epoch_losses, train_epochs_output_dict = train_lstm_classifier(
-            model, pretrain_dataloader, loss_func=loss_func, optimizer=optimizer,
-            epoch=epoch, eval_dataloader=val_dataloader,
-            test_dataloader=test_dataloader, model_name=model_name + '_zeroshot')
+        if examcon_pretrain:
+            examcon_pretrain_epoch = cfg['pretrain']['epoch']
+            examcon_model = BiLSTM_Emb_repr(vocab_size=vectors.shape[0], in_dim=in_dim,
+                                    out_dim=hid_dim)
+            if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
+                examcon_model.to(cuda_device)
+            model_name = model_name + '_examcon_preepoch_' + str(examcon_pretrain_epoch)
+            # loss_func = nn.BCEWithLogitsLoss() examcon_pretrain
+            logger.info(f'Training classifier with all pretraining data with '
+                        f'contrastive task for pretrain_epoch {examcon_pretrain_epoch}')
+            examcon_model = train_lstm_examplecon(
+                examcon_model, optimizer, pretrain_dataloader[0], pretrain_dataloader[1],
+                epochs=pretrain_epoch, model_name=model_name)
+            ## Load pretrained state_dict to train model:
+            model.bilstm_embedding.load_state_dict(examcon_model.state_dict())
+        else:
+            model_name = model_name + '_cls_preepoch_' + str(pretrain_epoch)
+            logger.info(f'Training classifier with all pretraining data with '
+                        f'classification task for pretrain_epoch {pretrain_epoch}')
+            model, epoch_losses, train_epochs_output_dict = train_lstm_classifier(
+                model, pretrain_dataloader, loss_func=loss_func, optimizer=optimizer,
+                epoch=pretrain_epoch, eval_dataloader=val_dataloader,
+                test_dataloader=test_dataloader, model_name=model_name)
+
+    model_name = model_name + '_epoch_' + str(epoch)
 
     train_epochs_output_dict = None
-    if not saved_model:
-        logger.info(f'Model name: {model_name}')
-        model, epoch_losses, train_epochs_output_dict = train_lstm_classifier(
-            model, train_dataloader, loss_func=loss_func, optimizer=optimizer,
-            epoch=epoch, eval_dataloader=val_dataloader,
-            test_dataloader=test_dataloader, model_name=model_name)
+    # if not saved_model:
+    logger.info(f'Model name: {model_name}')
+    model, epoch_losses, train_epochs_output_dict = train_lstm_classifier(
+        model, train_dataloader, loss_func=loss_func, optimizer=optimizer,
+        epoch=epoch, eval_dataloader=val_dataloader,
+        test_dataloader=test_dataloader, model_name=model_name)
 
-    if saved_model:
-        start_time = timeit.default_timer()
-        losses, test_output = eval_lstm_classifier(
-            saved_model, loss_func=loss_func, dataloader=test_dataloader)
-        test_time = timeit.default_timer() - start_time
-    else:
-        start_time = timeit.default_timer()
-        losses, test_output = eval_lstm_classifier(
-            model, loss_func=loss_func, dataloader=test_dataloader)
-        test_time = timeit.default_timer() - start_time
+    # if saved_model:
+    #     start_time = timeit.default_timer()
+    #     losses, test_output = eval_lstm_classifier(
+    #         saved_model, loss_func=loss_func, dataloader=test_dataloader)
+    #     test_time = timeit.default_timer() - start_time
+    # else:
+    #     start_time = timeit.default_timer()
+    #     losses, test_output = eval_lstm_classifier(
+    #         model, loss_func=loss_func, dataloader=test_dataloader)
+    #     test_time = timeit.default_timer() - start_time
 
-    test_count = test_dataloader.dataset.__len__()
-    logger.info(f"Total inference time for [{test_count}] examples: [{test_time:2.4} sec]"
-                f"\nPer example: [{test_time / test_count} sec]")
-    logger.info(dumps(test_output['result'], indent=4))
+    # test_count = test_dataloader.dataset.__len__()
+    # logger.info(f"Total inference time for [{test_count}] examples: [{test_time:2.4} sec]"
+    #             f"\nPer example: [{test_time / test_count} sec]")
+    # logger.info(dumps(test_output['result'], indent=4))
 
-    return train_epochs_output_dict, test_output
+    return train_epochs_output_dict
 
 
 def main():
