@@ -25,6 +25,7 @@ __last_modified__:
 
 import json
 import subprocess as sp
+from os import environ
 from os.path import join
 from torch import cuda, device
 
@@ -131,35 +132,98 @@ configuration = {
         'num_classes':    1,
         'class_names':    ('0'),
 
-        'use_all_data': True,
+        'use_all_data':   False,
         'all_test_files': [
-            # 'AF13_test',
-            # 'BB13_test',
-            # 'Kaggle_test',
-            # 'NEQ15_test',
-            # 'OT13_test',
-            # 'QFL13_test',
-            # 'SH12_test',
-            # 'WTE13_test'
-            'books_test',
-            'dvd_test',
-            'kitchen_test',
-            'electronics_test',
-            'video_test',
+            'AF13_test',
+            'BB13_test',
+            'Kaggle_test',
+            'NEQ15_test',
+            'OT13_test',
+            'QFL13_test',
+            'SH12_test',
+            'WTE13_test'
+
+            # 'books_test',
+            # 'dvd_test',
+            # 'kitchen_test',
+            # 'electronics_test',
+            # 'video_test',
         ],
 
         ## GLEN Configs:
-        # 'name':        'smerp17_fire16',
-        # 'train':       'smerp17_train',
-        # 'val':         'smerp17_val',
-        # 'test':        'fire16_test',
+        # 'name':           'Amazon_Reviews_Sentiment',
+
+        # 'train':          'electronics_train',
+        # 'val':            'dvd_val',
+        # 'test':           'dvd_test',
+        # "source":         {
+        #     'unlabelled': 'electronics_unlabeled'
+        # },
+        # "target":         {
+        #     'unlabelled': 'dvd_unlabeled'},
+
+        # 'train':          'kitchen_train',
+        # 'val':            'electronics_val',
+        # 'test':           'electronics_test',
+        # "source":         {
+        #     'unlabelled': 'kitchen_unlabeled'
+        # },
+        # "target":         {
+        #     'unlabelled': 'electronics_unlabeled'},
+
+        # 'train':       'dvd_train',
+        # 'val':         'electronics_val',
+        # 'test':        'electronics_test',
         # "source":      {
-        #     'labelled':   'smerp17_labeled',
-        #     'unlabelled': 'smerp17_unlabeled'
+        #     'unlabelled': 'dvd_unlabeled'
         # },
         # "target":      {
-        #     'labelled':   'fire16_labeled',
-        #     'unlabelled': 'fire16_unlabeled'},
+        #     'unlabelled': 'electronics_unlabeled'},
+
+        # 'train':       'dvd_train',
+        # 'val':         'books_val',
+        # 'test':        'books_test',
+        # "source":      {
+        #     'unlabelled': 'dvd_unlabeled'
+        # },
+        # "target":      {
+        #     'unlabelled': 'books_unlabeled'},
+
+        # 'train':       'kitchen_train',
+        # 'val':         'books_val',
+        # 'test':        'books_test',
+        # "source":      {
+        #     'unlabelled': 'kitchen_unlabeled'
+        # },
+        # "target":      {
+        #     'unlabelled': 'books_unlabeled'},
+
+        # 'train':       'electronics_train',
+        # 'val':         'books_val',
+        # 'test':        'books_test',
+        # "source":      {
+        #     'unlabelled': 'electronics_unlabeled'
+        # },
+        # "target":      {
+        #     'unlabelled': 'books_unlabeled'},
+
+        # 'train':       'electronics_train',
+        # 'val':         'dvd_val',
+        # 'test':        'dvd_test',
+        # "source":      {
+        #     'unlabelled': 'electronics_unlabeled'
+        # },
+        # "target":      {
+        #     'unlabelled': 'dvd_unlabeled'},
+
+        # 'train':       'electronics_train',
+        # 'val':         'kitchen_val',
+        # 'test':        'kitchen_test',
+        # "source":      {
+        #     'unlabelled': 'electronics_unlabeled'
+        # },
+        # "target":      {
+        #     'unlabelled': 'kitchen_unlabeled'},
 
         # 'name':        'fire16_smerp17',
         # 'train':       'fire16_train',
@@ -240,10 +304,10 @@ configuration = {
         # 'name':         'disaster_binary_task',
 
         ## GCPD Configs:
-        'name':       'AF13',
-        'train':      'AF13_train',
-        'val':        'AF13_val',
-        'test':       'AF13_test',
+        # 'name':       'AF13',
+        # 'train':      'AF13_train',
+        # 'val':        'AF13_val',
+        # 'test':       'AF13_test',
 
         # 'name':       'BB13',
         # 'train':      'BB13_train',
@@ -260,10 +324,10 @@ configuration = {
         # 'val':        'NEQ15_val',
         # 'test':       'NEQ15_test',
 
-        # 'name':       'OT13',
-        # 'train':      'OT13_train',
-        # 'val':        'OT13_val',
-        # 'test':       'OT13_test',
+        'name':       'OT13',
+        'train':      'OT13_train',
+        'val':        'OT13_val',
+        'test':       'OT13_test',
 
         # 'name':       'QFL13',
         # 'train':      'QFL13_train',
@@ -274,7 +338,7 @@ configuration = {
         # 'train':      'SH12_train',
         # 'val':        'SH12_val',
         # 'test':       'SH12_test',
-
+        #
         # 'name':       'WTE13',
         # 'train':      'WTE13_train',
         # 'val':        'WTE13_val',
@@ -309,15 +373,27 @@ configuration = {
     'pretrain':     {
         'epoch':       80,
         'model_type':  'GCN',
-        'save_epochs': [80, 60, 40, 25, 15, 1],
+        'save_epochs': [60, 80],
         'min_freq':    2,
         'lr':          0.005,
         # 'name':        'disaster_binary_pretrain',
-        'name':        'pretrain_disaster',
+        # 'name':        'Amazon_Reviews_Sentiment_books',
+        # 'name':        'Amazon_Reviews_Sentiment_dvd',
+        # 'name':        'Amazon_Reviews_Sentiment_kitchen',
+        # 'name':        'Amazon_Reviews_Sentiment_electronics',
+        # 'name':        'Amazon_Reviews_Sentiment_video',
+        # 'name':        'pretrain_AF',
+        # 'name':        'pretrain_BB',
+        # 'name':        'pretrain_KL',
+        # 'name':        'pretrain_NE',
+        'name':        'pretrain_OT',
+        # 'name':        'pretrain_QF',
+        # 'name':        'pretrain_SH',
+        # 'name':        'pretrain_WE',
         'files':       [
 
-            # 'AF13_train',
-            # 'AF13_val',
+            'AF13_train',
+            'AF13_val',
 
             'BB13_train',
             'BB13_val',
@@ -328,8 +404,8 @@ configuration = {
             'NEQ15_train',
             'NEQ15_val',
 
-            'OT13_train',
-            'OT13_val',
+            # 'OT13_train',
+            # 'OT13_val',
 
             'QFL13_train',
             'QFL13_val',
@@ -358,6 +434,11 @@ configuration = {
             # 'video_val',
         ],
     },
+    'examcon_pretrain':     {
+        'epoch':       50,
+        'save_epochs': [1, 3, 5, 10, 50],
+        'lr':          0.005,
+    },
 
     "paths":        {
         "result_dir":    "results",
@@ -369,7 +450,7 @@ configuration = {
             "OSX":     "/home/cs16resch01001/datasets/Extreme Classification",
             "Linux":   {
                 "sam":            "/home/sam/Embeddings",
-                "root":            "/home/sam/Embeddings",
+                "root":           "/home/sam/Embeddings",
                 "cs14mtech11017": "/home/cs14mtech11017/Embeddings",
                 "cs16resch01001": "/raid/cs16resch01001/Embeddings",
                 ## Code path: /home/cs14resch11001/codes/MNXC
@@ -382,7 +463,7 @@ configuration = {
             "OSX":     "/home/cs16resch01001/datasets/Extreme Classification",
             "Linux":   {
                 "sam":            "/home/sam/Datasets",
-                "root":            "/home/sam/Datasets",
+                "root":           "/home/sam/Datasets",
                 "cs14mtech11017": "/home/cs14mtech11017/Datasets",
                 "cs16resch01001": "/raid/cs16resch01001/datasets",
                 "cs14resch11001": "/raid/ravi/Datasets/Extreme Classification"
@@ -409,7 +490,7 @@ configuration = {
                 "sam":            False,
                 "root":           False,
                 "cs14mtech11017": 0,
-                "cs16resch01001": 5,
+                "cs16resch01001": 6,
                 "cs14resch11001": 7
             },
         },
@@ -421,7 +502,7 @@ configuration = {
         "eval_batch_size":             256,
         "model_type":                  "bert",
         "model_name":                  "bert-base-uncased",
-        "max_seq_len":                 50,
+        "max_seq_len":                 100,
         'gradient_accumulation_steps': 1,
         "max_vec_len":                 5000,
         "dropout":                     0.1,
@@ -608,6 +689,51 @@ pretrain_dir = join(configuration['paths']['dataset_root'][platform][username],
 global emb_dir
 emb_dir = configuration['paths']['embedding_dir'][platform][username]
 
+
+# def get_gpu_details():
+#     if cuda.is_available() and configuration['cuda']["use_cuda"][platform][username]:
+#         _output_to_list = lambda x: x.decode('ascii').split('\n')[:-1]
+#
+#         COMMAND = "nvidia-smi --query-gpu=memory.free --format=csv"
+#         memory_free_info = _output_to_list(sp.check_output(COMMAND.split()))[1:]
+#         memory_free_values = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
+#         device_id = memory_free_values.index(max(memory_free_values))
+#
+#         print(f'Allocated: {round(cuda.memory_allocated(0) / 1024 ** 3, 1)}GB')
+#         print(f'Cached: {round(cuda.memory_reserved(0) / 1024 ** 3, 1)}GB')
+#         print(f'Selected GPU: [{device_id}] as available RAM: {memory_free_values}')
+#         return device_id
+#
+#
+# def set_cuda_device(device_id=None):
+#     if cuda.is_available() and configuration['cuda']["use_cuda"][platform][username]:
+#         if device_id is None:
+#             device_id = get_gpu_details()
+#         environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
+#         cuda.set_device(device_id)
+#         cuda_device = device(f'cuda:' + str(device_id) if cuda.is_available() else 'cpu')
+#         print(f'set_device: {device_id} == device: {cuda_device} == current_device:'
+#               f' {cuda.current_device()} out of device_count: {cuda.device_count()}')
+#     else:
+#         print('CUDA NOT SUPPORTED')
+#         cuda_device = 'cpu'
+#         device_id = -1
+#
+#     return device_id, cuda_device
+#
+#
+# global cuda_device
+# global device_id
+# cuda_device = 'cpu'
+# device_id = None
+# # # if cuda.is_available() and configuration['cuda']["use_cuda"][platform][username]:
+# # # # device_id, cuda_device = set_cuda_device()
+# # # cuda_device = device(f'cuda:' + str(device_id) if cuda.is_available() else 'cpu')
+# #
+# if cuda.is_available() and configuration['cuda']["use_cuda"][platform][username]:
+# #     device_id = get_gpu_details()
+#     cuda_device = device(f'cuda:' + str(device_id) if cuda.is_available() and configuration['cuda']["use_cuda"][
+#     platform][username] else 'cpu')
 
 def get_gpu_details():
     _output_to_list = lambda x: x.decode('ascii').split('\n')[:-1]
