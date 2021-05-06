@@ -17,18 +17,132 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
+from random import sample
 import pandas as pd
 from os.path import join, exists
+from torch.utils.data import DataLoader, Dataset
 
+from Transformers_simpletransformers.text_representation import get_token_representations
 from Text_Processesor.tokenizer import BERT_tokenizer
 from File_Handlers.csv_handler import read_csv, read_csvs
 from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 from File_Handlers.read_datasets import load_fire16, load_smerp17
 from Utils.utils import freq_tokens_per_class, split_target, split_df
-from Data_Handlers.torchtext_handler import dataset2bucket_dataloader
+from Data_Handlers.torchtext_handler import dataset2bucket_dataloader, dataset2iter
 from config import configuration as cfg, dataset_dir, pretrain_dir
 from Logger.logger import logger
+
+
+class BERT_LSTM_Dataset(Dataset):
+    def __init__(self, dataset):
+        self.dataset = dataset
+
+    def __getitem__(self, idx: int):
+        """ Get token embedding and label.
+
+        Parameters
+        ----------
+        idx : int
+            Item index
+
+        Returns
+        -------
+        (tensor, list[int])
+        """
+        return self.dataset[idx]
+
+    def __len__(self):
+        """Number of graphs in the dataset"""
+        return len(self.dataset)
+
+
+def get_BERT_LSTM_dataloader(df, batch_size=cfg['training']['train_batch_size']):
+    bert_sent_embs = get_token_representations(df)
+    labels = df.labels.to_list()
+    dataset = []
+    for row_id in range(bert_sent_embs.shape[0]):
+        sent_emb = bert_sent_embs[row_id]
+        dataset.append((sent_emb, labels[row_id]))
+
+    bert_lstm_dataset = BERT_LSTM_Dataset(dataset)
+    bert_lstm_dataloader = DataLoader(bert_lstm_dataset, batch_size, shuffle=True)
+
+    return bert_lstm_dataset, bert_lstm_dataloader
+
+
+class Example_Contrast_Dataset(Dataset):
+    def __init__(self, dataset):
+        self.dataset = dataset
+
+    def __getitem__(self, idx: int):
+        """ Get token embedding and label.
+
+        Parameters
+        ----------
+        idx : int
+            Item index
+
+        Returns
+        -------
+        (tensor, list[int])
+        """
+        return self.dataset[idx]
+
+    def __len__(self):
+        """Number of graphs in the dataset"""
+        return len(self.dataset)
+
+
+def prepare_example_contrast_datasets(data_name, batch_size=cfg['training']['train_batch_size'],
+                                      dataset_size=5000, n_count=5):
+    train_data, vocab, iter = prepare_single_dataset(
+        data_dir=dataset_dir, dataname=data_name + ".csv")
+    train_data_iter = dataset2iter(train_data, batch_size=batch_size, shuffle=False)
+
+    pos_idxs = []
+    neg_idxs = []
+    error_ids = []
+    data_items = []
+    i = 0
+    for batch in train_data_iter:
+        texts, text_lengths = batch.text
+        idxs = batch.ids
+        labels = batch.__getattribute__('0')
+        for item in zip(idxs, texts, text_lengths, labels):
+            if item[-1].item() == 1:
+                pos_idxs.append(i)
+            elif item[-1].item() == 0:
+                neg_idxs.append(i)
+            else:
+                error_ids.append((i, item[0].item(), item[-1].item()))
+                continue
+
+            data_items.append((i, item))
+            i += 1
+
+    if len(error_ids) > 0:
+        logger.warn(f'{len(error_ids)} examples has wrong label {error_ids}.')
+
+    if dataset_size <= len(data_items):
+        df_use = sample(data_items, dataset_size)
+    else:
+        df_use = data_items
+
+    dataset = []
+    for idx, row in df_use:
+        if row[-1] == 1:
+            pos_neighbors = sample(pos_idxs, n_count)
+            neg_neighbors = sample(neg_idxs, n_count)
+        else:
+            pos_neighbors = sample(neg_idxs, n_count)
+            neg_neighbors = sample(pos_idxs, n_count)
+        dataset.append((idx, pos_neighbors, neg_neighbors))
+
+    exam_con_dataset = Example_Contrast_Dataset(dataset)
+    # exam_con_dataloader = DataLoader(exam_con_dataset, batch_size, shuffle=False)
+
+    return exam_con_dataset, train_data_iter
 
 
 def prepare_datasets(
