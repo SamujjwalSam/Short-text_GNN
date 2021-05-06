@@ -20,21 +20,92 @@ import torch
 import torch.nn as nn
 
 
+# class BiLSTM_Emb_Classifier(nn.Module):
+#     """ BiLSTM with Embedding layer for classification """
+#
+#     # define all the layers used in model
+#     def __init__(self, vocab_size: int, hid_dim: int, out_dim: int, in_dim: int = 100,
+#                  n_layers: int = 2, bidirectional: bool = True, dropout: float = 0.2, num_linear: int = 1) -> None:
+#         super(BiLSTM_Emb_Classifier, self).__init__()
+#
+#         # embedding layer
+#         self.embedding = nn.Embedding(vocab_size, in_dim)
+#
+#         # lstm layer
+#         self.lstm = nn.LSTM(in_dim, hid_dim, num_layers=n_layers,
+#                             bidirectional=bidirectional, dropout=dropout,
+#                             batch_first=True)
+#
+#         self.linear_layers = []
+#         for _ in range(num_linear - 1):
+#             if bidirectional:
+#                 self.linear_layers.append(nn.Linear(hid_dim * 2, hid_dim * 2))
+#             else:
+#                 self.linear_layers.append(nn.Linear(hid_dim, hid_dim))
+#
+#         self.linear_layers = nn.ModuleList(self.linear_layers)
+#
+#         # Final dense layer
+#         if bidirectional:
+#             self.fc = nn.Linear(hid_dim * 2, out_dim)
+#         else:
+#             self.fc = nn.Linear(hid_dim, out_dim)
+#
+#         # activation function
+#         ## NOTE: Sigmoid not required as BCEWithLogitsLoss calculates sigmoid
+#         # self.act = nn.Sigmoid()
+#
+#     def forward(self, text: torch.Tensor, text_lengths: torch.Tensor) -> torch.Tensor:
+#         """ Takes ids of input text, pads them and predict using BiLSTM.
+#
+#         Args:
+#             text:
+#             text_lengths:
+#
+#         Returns:
+#
+#         """
+#         # text = [batch size,sent_length]
+#         embedded = self.embedding(text)
+#         # embedded = [batch size, sent_len, emb dim]
+#
+#         # packed sequence
+#         # packed_embedded = nn.utils.rnn.pack_padded_sequence(embedded,
+#         #                                                     text_lengths,
+#         #                                                     batch_first=True)
+#
+#         # packed_output1, (hidden1, cell) = self.lstm(packed_embedded)
+#         embedded = nn.utils.rnn.pack_padded_sequence(embedded, text_lengths, batch_first=True)
+#         # output, output_lengths = nn.utils.rnn.pad_packed_sequence(packed_output)
+#         packed_output, (hidden, cell) = self.lstm(embedded)
+#         # hidden = [batch size, num num_lstm_layers * num directions, hid dim]
+#         # cell = [batch size, num num_lstm_layers * num directions, hid dim]
+#
+#         # concat the final forward and backward hidden state
+#         hidden = torch.cat((hidden[-2, :, :], hidden[-1, :, :]), dim=1)
+#
+#         for layer in self.linear_layers:
+#             hidden = layer(hidden)
+#
+#         # hidden = [batch size, hid dim * num directions]
+#         logits = self.fc(hidden)
+#
+#         # Final activation function
+#         ## NOTE: Sigmoid not required as BCEWithLogitsLoss calculates sigmoid
+#         # logits = self.act(logits)
+#
+#         return logits
+
+
 class BiLSTM_Emb_Classifier(nn.Module):
     """ BiLSTM with Embedding layer for classification """
-
-    # define all the layers used in model
-    def __init__(self, vocab_size: int, hid_dim: int, out_dim: int, in_dim: int = 100,
-                 n_layers: int = 2, bidirectional: bool = True, dropout: float = 0.2, num_linear: int = 1) -> None:
+    def __init__(self, vocab_size: int, in_dim: int, hid_dim: int, out_dim: int,
+                 n_layers: int = 2, bidirectional: bool = True,
+                 dropout: float = 0.2, num_linear: int = 1) -> None:
         super(BiLSTM_Emb_Classifier, self).__init__()
 
-        # embedding layer
-        self.embedding = nn.Embedding(vocab_size, in_dim)
-
-        # lstm layer
-        self.lstm = nn.LSTM(in_dim, hid_dim, num_layers=n_layers,
-                            bidirectional=bidirectional, dropout=dropout,
-                            batch_first=True)
+        self.bilstm_embedding = BiLSTM_Emb_repr(vocab_size, in_dim, hid_dim,
+                                                n_layers, bidirectional, dropout)
 
         self.linear_layers = []
         for _ in range(num_linear - 1):
@@ -51,9 +122,42 @@ class BiLSTM_Emb_Classifier(nn.Module):
         else:
             self.fc = nn.Linear(hid_dim, out_dim)
 
-        # activation function
-        ## NOTE: Sigmoid not required as BCEWithLogitsLoss calculates sigmoid
-        # self.act = nn.Sigmoid()
+    def forward(self, text: torch.Tensor, text_lengths: torch.Tensor) -> torch.Tensor:
+        """ Takes ids of input text, pads them and predict using BiLSTM.
+
+        Args:
+            text:
+            text_lengths:
+
+        Returns:
+
+        """
+        bilstm_embedded = self.bilstm_embedding(text, text_lengths)
+
+        for layer in self.linear_layers:
+            bilstm_embedded = layer(bilstm_embedded)
+
+        # hidden = [batch size, hid dim * num directions]
+        logits = self.fc(bilstm_embedded)
+
+        return logits
+
+
+class BiLSTM_Emb_repr(nn.Module):
+    """ BiLSTM with Embedding layer for classification """
+
+    # define all the layers used in model
+    def __init__(self, vocab_size: int, in_dim: int, out_dim: int, n_layers: int = 2,
+                 bidirectional: bool = True, dropout: float = 0.2) -> None:
+        super(BiLSTM_Emb_repr, self).__init__()
+
+        # embedding layer
+        self.embedding = nn.Embedding(vocab_size, in_dim)
+
+        # lstm layer
+        self.lstm = nn.LSTM(in_dim, out_dim, num_layers=n_layers,
+                            bidirectional=bidirectional, dropout=dropout,
+                            batch_first=True)
 
     def forward(self, text: torch.Tensor, text_lengths: torch.Tensor) -> torch.Tensor:
         """ Takes ids of input text, pads them and predict using BiLSTM.
@@ -69,13 +173,8 @@ class BiLSTM_Emb_Classifier(nn.Module):
         embedded = self.embedding(text)
         # embedded = [batch size, sent_len, emb dim]
 
-        # packed sequence
-        # packed_embedded = nn.utils.rnn.pack_padded_sequence(embedded,
-        #                                                     text_lengths,
-        #                                                     batch_first=True)
-
         # packed_output1, (hidden1, cell) = self.lstm(packed_embedded)
-        embedded = nn.utils.rnn.pack_padded_sequence(embedded, text_lengths, batch_first=True)
+        embedded = nn.utils.rnn.pack_padded_sequence(embedded, text_lengths, batch_first=True, enforce_sorted=False)
         # output, output_lengths = nn.utils.rnn.pad_packed_sequence(packed_output)
         packed_output, (hidden, cell) = self.lstm(embedded)
         # hidden = [batch size, num num_lstm_layers * num directions, hid dim]
@@ -84,17 +183,7 @@ class BiLSTM_Emb_Classifier(nn.Module):
         # concat the final forward and backward hidden state
         hidden = torch.cat((hidden[-2, :, :], hidden[-1, :, :]), dim=1)
 
-        for layer in self.linear_layers:
-            hidden = layer(hidden)
-
-        # hidden = [batch size, hid dim * num directions]
-        logits = self.fc(hidden)
-
-        # Final activation function
-        ## NOTE: Sigmoid not required as BCEWithLogitsLoss calculates sigmoid
-        # logits = self.act(logits)
-
-        return logits
+        return hidden
 
 
 class BiLSTM_Classifier(torch.nn.Module):

@@ -123,13 +123,13 @@ configuration = {
 
         # 'num_classes': 4,
         # 'class_names': ('0', '1', '2', '3'),
-        'min_freq':     2,
-        'train_portions': [0.5, 0.25],
+        'min_freq':       3,
+        'train_portions': [0.9999],
 
         # 'num_classes':  4,
         # 'class_names':  ('0', '1', '2', '3'),
-        'num_classes':  1,
-        'class_names':  ('0'),
+        'num_classes':    1,
+        'class_names':    ('0'),
 
         'use_all_data': True,
         'all_test_files': [
@@ -279,6 +279,32 @@ configuration = {
         # 'train':      'WTE13_train',
         # 'val':        'WTE13_val',
         # 'test':       'WTE13_test',
+
+
+        # 'name':       'Amazon_Reviews_Sentiment_books',
+        # 'train':      'books_train',
+        # 'val':        'books_val',
+        # 'test':       'books_test',
+
+        # 'name':       'Amazon_Reviews_Sentiment_dvd',
+        # 'train':      'dvd_train',
+        # 'val':        'dvd_val',
+        # 'test':       'dvd_test',
+
+        # 'name':       'Amazon_Reviews_Sentiment_kitchen',
+        # 'train':      'kitchen_train',
+        # 'val':        'kitchen_val',
+        # 'test':       'kitchen_test',
+
+        # 'name':       'Amazon_Reviews_Sentiment_electronics',
+        # 'train':      'electronics_train',
+        # 'val':        'electronics_val',
+        # 'test':       'electronics_test',
+        #
+        # 'name':       'Amazon_Reviews_Sentiment_video',
+        # 'train':      'video_train',
+        # 'val':        'video_val',
+        # 'test':       'video_test',
     },
     'pretrain':     {
         'epoch':       80,
@@ -315,6 +341,21 @@ configuration = {
             'WTE13_val',
 
             # 'IEQ12',
+
+            # 'books_train',
+            # 'books_val',
+
+            # 'dvd_train',
+            # 'dvd_val',
+
+            # 'kitchen_train',
+            # 'kitchen_val',
+            #
+            # 'electronics_train',
+            # 'electronics_val',
+            #
+            # 'video_train',
+            # 'video_val',
         ],
     },
 
@@ -361,7 +402,7 @@ configuration = {
                 "cs14resch11001": True
             },
         },
-        "cuda_devices":     {
+        "cuda_devices": {
             "Windows": False,
             "OSX":     False,
             "Linux":   {
@@ -375,9 +416,9 @@ configuration = {
     },
 
     "transformer":  {
-        "num_epoch":                   20,
-        "train_batch_size": 32,
-        "eval_batch_size":  64,
+        "num_epoch":                   10,
+        "train_batch_size":            64,
+        "eval_batch_size":             256,
         "model_type":                  "bert",
         "model_name":                  "bert-base-uncased",
         "max_seq_len":                 50,
@@ -414,8 +455,8 @@ configuration = {
     },
 
     "model":        {
-        'type':                 'GLEN',
-        'lrs':                  [1e-4],
+        'type':                 'LSTM',
+        'lrs':                  [1e-4, 1e-2],
         'mittens_iter':         100,
         "max_sequence_length":  128,
         "dropout":              0.2,
@@ -467,7 +508,7 @@ configuration = {
     "training":     {
         "seed_count":       3,
         "seed_start":       0,
-        "num_epoch":        15,
+        "num_epoch":        10,
         "cls_pretrain_epochs": [1, 3],
         "train_batch_size": 128,
         "eval_batch_size":  256,
@@ -579,14 +620,13 @@ def get_gpu_details():
     return device_id
 
 
-global device
+global cuda_device
 global device_id
 # device = device(f'cuda:' + str(configuration['cuda']['cuda_devices'][platform][
 #                                    username]) if
 #                 cuda.is_available() else 'cpu')
 device_id = get_gpu_details()
-device = device(f'cuda:' + str(device_id) if cuda.is_available() else 'cpu')
-
+cuda_device = device(f'cuda:' + str(device_id) if cuda.is_available() else 'cpu')
 
 
 def main():
