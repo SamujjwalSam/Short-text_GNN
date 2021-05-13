@@ -373,7 +373,7 @@ configuration = {
     'pretrain':     {
         'epoch':       80,
         'model_type':  'GCN',
-        'save_epochs': [60, 80],
+        'save_epochs': [1, 3, 10, 25, 50],
         'min_freq':    2,
         'lr':          0.005,
         # 'name':        'disaster_binary_pretrain',
