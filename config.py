@@ -37,7 +37,7 @@ seed = 0
 
 global configuration
 configuration = {
-    "data":         {
+    "data":             {
         # 'name':       'fire16_smerp17',
         # 'train':      'fire16_train',
         # 'val':        'fire16_val',
@@ -304,46 +304,14 @@ configuration = {
         # 'name':         'disaster_binary_task',
 
         ## GCPD Configs:
-        # 'name':       'AF13',
-        # 'train':      'AF13_train',
-        # 'val':        'AF13_val',
-        # 'test':       'AF13_test',
-
-        # 'name':       'BB13',
-        # 'train':      'BB13_train',
-        # 'val':        'BB13_val',
-        # 'test':       'BB13_test',
-
-        # 'name':       'Kaggle',
-        # 'train':      'Kaggle_train',
-        # 'val':        'Kaggle_val',
-        # 'test':       'Kaggle_test',
-
-        # 'name':       'NEQ15',
-        # 'train':      'NEQ15_train',
-        # 'val':        'NEQ15_val',
-        # 'test':       'NEQ15_test',
-
-        'name':       'OT13',
-        'train':      'OT13_train',
-        'val':        'OT13_val',
-        'test':       'OT13_test',
-
-        # 'name':       'QFL13',
-        # 'train':      'QFL13_train',
-        # 'val':        'QFL13_val',
-        # 'test':       'QFL13_test',
-
-        # 'name':       'SH12',
-        # 'train':      'SH12_train',
-        # 'val':        'SH12_val',
-        # 'test':       'SH12_test',
-        #
-        # 'name':       'WTE13',
-        # 'train':      'WTE13_train',
-        # 'val':        'WTE13_val',
-        # 'test':       'WTE13_test',
-
+        # 'name': 'AF13', 'train': 'AF13_train', 'val': 'AF13_val', 'test': 'AF13_test',
+        'name': 'BB13', 'train': 'BB13_train', 'val': 'BB13_val', 'test': 'BB13_test',
+        # 'name': 'Kaggle', 'train': 'Kaggle_train', 'val': 'Kaggle_val', 'test': 'Kaggle_test',
+        # 'name': 'NEQ15', 'train': 'NEQ15_train', 'val': 'NEQ15_val', 'test': 'NEQ15_test',
+        # 'name': 'OT13', 'train': 'OT13_train', 'val': 'OT13_val', 'test': 'OT13_test',
+        # 'name': 'QFL13', 'train': 'QFL13_train', 'val': 'QFL13_val', 'test': 'QFL13_test',
+        # 'name': 'SH12', 'train': 'SH12_train', 'val': 'SH12_val', 'test': 'SH12_test',
+        # 'name': 'WTE13', 'train': 'WTE13_train', 'val': 'WTE13_val', 'test': 'WTE13_test',
 
         # 'name':       'Amazon_Reviews_Sentiment_books',
         # 'train':      'books_train',
@@ -370,12 +338,12 @@ configuration = {
         # 'val':        'video_val',
         # 'test':       'video_test',
     },
-    'pretrain':     {
-        'epoch':       80,
+    'pretrain':         {
+        'epoch':       30,
         'model_type':  'GCN',
-        'save_epochs': [1, 3, 10, 25, 50],
-        'min_freq':    2,
-        'lr':          0.005,
+        'save_epochs': [1, 3, 10, 20, 30],
+        'min_freq':    15,
+        'lr':          8e-4,
         # 'name':        'disaster_binary_pretrain',
         # 'name':        'Amazon_Reviews_Sentiment_books',
         # 'name':        'Amazon_Reviews_Sentiment_dvd',
@@ -392,29 +360,14 @@ configuration = {
         # 'name':        'pretrain_WE',
         'files':       [
 
-            'AF13_train',
-            'AF13_val',
-
-            'BB13_train',
-            'BB13_val',
-
-            'Kaggle_train',
-            'Kaggle_val',
-
-            'NEQ15_train',
-            'NEQ15_val',
-
-            # 'OT13_train',
-            # 'OT13_val',
-
-            'QFL13_train',
-            'QFL13_val',
-
-            'SH12_train',
-            'SH12_val',
-
-            'WTE13_train',
-            'WTE13_val',
+            'AF13_train', 'AF13_val',
+            # 'BB13_train', 'BB13_val',
+            'Kaggle_train', 'Kaggle_val',
+            'NEQ15_train', 'NEQ15_val',
+            'OT13_train', 'OT13_val',
+            'QFL13_train', 'QFL13_val',
+            'SH12_train', 'SH12_val',
+            'WTE13_train', 'WTE13_val',
 
             # 'IEQ12',
 
@@ -434,13 +387,13 @@ configuration = {
             # 'video_val',
         ],
     },
-    'examcon_pretrain':     {
+    'examcon_pretrain': {
         'epoch':       50,
         'save_epochs': [1, 3, 5, 10, 50],
         'lr':          0.005,
     },
 
-    "paths":        {
+    "paths":            {
         "result_dir":    "results",
         "log_dir":       "logs",
         "cache_dir":     "cache",
@@ -471,7 +424,7 @@ configuration = {
         }
     },
 
-    'cuda':         {
+    'cuda':             {
         "use_cuda":     {
             "Windows": False,
             "OSX":     False,
@@ -535,7 +488,7 @@ configuration = {
         "view_train_precision":        True
     },
 
-    "model":        {
+    "model":            {
         'type':                 'LSTM',
         'lrs':                  [1e-4, 1e-2],
         'mittens_iter':         100,
@@ -564,12 +517,12 @@ configuration = {
         "view_train_precision": True
     },
 
-    "embeddings":   {
+    "embeddings":       {
         'embedding_file': 'glove.6B.300d',
         'emb_dim':        300,
     },
 
-    "lstm_params":  {
+    "lstm_params":      {
         "num_layers":  2,
         "bias":        True,
         "batch_first": True,
@@ -577,7 +530,7 @@ configuration = {
         "hid_size":    64,
     },
 
-    "gnn_params":   {
+    "gnn_params":       {
         "hid_dim":     300,
         "num_heads":   2,
         "padding":     1,
@@ -586,16 +539,16 @@ configuration = {
         "bias":        True,
     },
 
-    "training":     {
-        "seed_count":       3,
-        "seed_start":       0,
-        "num_epoch":        10,
+    "training":         {
+        "seed_count":          3,
+        "seed_start":          0,
+        "num_epoch":           10,
         "cls_pretrain_epochs": [1, 3],
-        "train_batch_size": 128,
-        "eval_batch_size":  256,
+        "train_batch_size":    128,
+        "eval_batch_size":     256,
     },
 
-    "prep_vecs":    {
+    "prep_vecs":        {
         "max_nb_words":   20000,
         "min_word_count": 1,
         "window":         7,
@@ -605,7 +558,7 @@ configuration = {
         "idf":            True
     },
 
-    "text_process": {
+    "text_process":     {
         "encoding":         'latin-1',
         "sents_chunk_mode": "word_avg",
         "workers":          5

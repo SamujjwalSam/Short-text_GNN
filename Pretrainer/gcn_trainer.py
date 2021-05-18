@@ -20,7 +20,7 @@ __license__     : "This source code is licensed under the MIT-style license
 import timeit
 # import numpy as np
 from os.path import join
-from torch import utils, cuda, save, load
+from torch import utils, cuda, save, load, nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
@@ -51,24 +51,24 @@ def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoad
         model.train()
         epoch_loss = 0
         epoch_start_time = timeit.default_timer()
-        X_hat = model(A, X)
-        loss = 0
+        loss = 0.
+        step_count = 64
         for iter, (x_idx, x_pos_idx, x_neg_idx) in enumerate(dataloader):
+            X_hat = model(A, X)
             x = X_hat[x_idx]
             x_pos = X_hat[x_pos_idx]
             x_neg = X_hat[x_neg_idx]
             if x.dim() == 1:
                 x = x.unsqueeze(1).T
-            if iter == 0:
-                loss = supervised_contrastive_loss(x, x_pos, x_neg)
-            else:
-                loss += supervised_contrastive_loss(x, x_pos, x_neg)
-            epoch_loss += loss.detach().item()
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+            loss += supervised_contrastive_loss(x, x_pos, x_neg)
+            epoch_loss += loss.item()
+            if (iter+1) % step_count == 0:
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                loss = 0.
+
         epoch_train_time = timeit.default_timer() - epoch_start_time
-        epoch_loss = loss.detach().item() / (iter + 1)
         logger.info(f'Epoch {epoch}, Time: {epoch_train_time / 60:6.3} mins, Loss: {epoch_loss}')
         train_epoch_losses.append(epoch_loss)
 
@@ -85,6 +85,7 @@ def gcn_trainer(A, X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
                 epoch=cfg['training']['num_epoch'], lr=cfg["pretrain"]["lr"], node_list=None, idx2str=None, model_type='GCN'):
     model = GCN(in_dim=in_dim, hid_dim=hid_dim, out_dim=hid_dim)
     # model = MLP_Model(in_dim=in_dim, hid_dim=hid_dim, out_dim=hid_dim)
+    # model = nn.DataParallel(model)
 
     logger.info(model)
     count_parameters(model)
@@ -95,6 +96,7 @@ def gcn_trainer(A, X, train_dataloader, in_dim: int = 300, hid_dim: int = 300,
         X = X.to(cuda_device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
+    # optimizer = optim.SparseAdam(model.parameters(), lr=lr)
 
     # model_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
     # model_name = model_type

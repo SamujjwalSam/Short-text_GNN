@@ -157,10 +157,8 @@ def preprocess_and_find_oov(datasets: tuple, common_vocab: dict = None,
 
 def preprocess_and_find_oov2(
         vocab: dict = None, glove_embs: dict = None, labelled_vocab_set: set = None,
-        special_tokens={'<unk>', '<pad>'}, add_glove_tokens_back=True,
-limit_oov=5000):
-    """ Process and prepare data by removing stopwords, finding oovs and
-     creating corpus.
+        special_tokens={'<unk>', '<pad>'}, add_glove_tokens_back=True, limit_oov=5000):
+    """ Process and prepare data by removing stopwords, finding oovs and creating corpus.
 
     :param add_glove_tokens_back: Adds low freq tokens which are present in glove
     :param special_tokens:
@@ -386,8 +384,8 @@ def get_oov_tokens(dataset, dataname, data_dir, vocab, glove_embs):
             and exists(datapath + '_corpus.json')\
             and exists(datapath + '_corpus_toks.json'):
         high_oov = read_json(datapath + '_high_oov')
-        low_glove = read_json(datapath+'_low_glove')
-        low_oov = read_json(datapath+'_low_oov')
+        low_glove = read_json(datapath + '_low_glove')
+        low_oov = read_json(datapath + '_low_oov')
         corpus = read_json(datapath + '_corpus', convert_ordereddict=False)
         corpus_toks = read_json(datapath + '_corpus_toks', convert_ordereddict=False)
         # vocab = read_json(datapath + 'vocab', convert_ordereddict=False)
@@ -400,8 +398,8 @@ def get_oov_tokens(dataset, dataname, data_dir, vocab, glove_embs):
 
         ## Save token sets: high_oov, low_glove, corpus, corpus_toks
         save_json(high_oov, datapath + '_high_oov')
-        save_json(low_glove, datapath+'_low_glove')
-        save_json(low_oov, datapath+'_low_oov')
+        save_json(low_glove, datapath + '_low_glove')
+        save_json(low_oov, datapath + '_low_oov')
         save_json(corpus, datapath + '_corpus')
         save_json(corpus_toks, datapath + '_corpus_toks')
         # save_json(vocab, datapath + 'vocab', overwrite=True)
@@ -412,7 +410,7 @@ def get_oov_tokens(dataset, dataname, data_dir, vocab, glove_embs):
 def get_oov_vecs(high_oov_tokens, corpus, dataname, data_dir, glove_embs,
                  mittens_iter=cfg['model']['mittens_iter']):
     logger.info(f'Get embeddings for OOV tokens')
-    oov_filename = dataname + '_OOV_vectors_dict'# + str(mittens_iter)
+    oov_filename = dataname + '_OOV_vectors_dict'  # + str(mittens_iter)
     if exists(join(data_dir, oov_filename + '.pkl')):
         logger.info('Read OOV embeddings:')
         oov_embs = load_pickle(filepath=data_dir, filename=oov_filename)
