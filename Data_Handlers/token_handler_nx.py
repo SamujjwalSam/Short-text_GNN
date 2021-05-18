@@ -21,7 +21,7 @@ import numpy as np
 import networkx as nx
 # from scipy.spatial.distance import cosine
 from os.path import join, exists
-from torch import from_numpy, Tensor, sparse, sqrt, diag
+from torch import from_numpy, Tensor, sparse, sqrt, diag, stack
 from torch.utils.data import Dataset
 from torch.nn.functional import kl_div, softmax, mse_loss, l1_loss
 
@@ -34,13 +34,13 @@ class Token_Dataset_nx(Dataset):
     """ Token graph dataset in NX. """
 
     def __init__(self, corpus_toks, C_vocab, dataset_name, S_vocab=None, T_vocab=None,
-                 data_dir: str = dataset_dir, graph_path=None, G=None):
+                 data_dir: str = dataset_dir, graph_path=None, G=None, save_name_suffix='_token_nx.bin'):
         super(Token_Dataset_nx, self).__init__()
         self.data_dir = data_dir
         self.dataset_name = dataset_name
         if G is None:
             if graph_path is None:
-                self.graph_path = join(self.data_dir, dataset_name + '_token_nx.bin')
+                self.graph_path = join(self.data_dir, dataset_name + save_name_suffix)
             else:
                 self.graph_path = graph_path
 
@@ -83,7 +83,7 @@ class Token_Dataset_nx(Dataset):
 
         return A
 
-    def get_node_embeddings(self, oov_embs: dict, embs: dict, i2s: list, pretrain_embs=None):
+    def get_node_embeddings(self, oov_embs: dict, embs: dict, i2s: list, pretrain_embs=None, add_unk=True):
         """ Generates embeddings in node_list order.
 
         :param pretrain_embs: Pretrained embeddings if exists.
@@ -92,13 +92,14 @@ class Token_Dataset_nx(Dataset):
         :param embs: Default embedding (e.g. GloVe)
         :return:
         """
-        emb_shape = embs[list(embs.keys())[0]].shape
-        embs['<unk>'] = embs.get('<unk>', np.random.normal(size=emb_shape))
-        embs['<pad>'] = embs.get('<pad>', np.zeros(emb_shape))
-        embs['HTTPURL'] = embs.get('HTTPURL', np.random.normal(size=emb_shape))
+        if add_unk:
+            emb_shape = embs[list(embs.keys())[0]].shape
+            embs['<unk>'] = embs.get('<unk>', np.random.normal(size=emb_shape))
+            embs['<pad>'] = embs.get('<pad>', np.zeros(emb_shape))
+            embs['HTTPURL'] = embs.get('HTTPURL', np.random.normal(size=emb_shape))
 
+        X = []
         if pretrain_embs is not None:
-            X = []
             for node_id in self.node_list:
                 # logger.info((node_id, i2s[node_id]))
                 node_txt = i2s[node_id]
@@ -112,9 +113,12 @@ class Token_Dataset_nx(Dataset):
                     node_emb = embs[node_txt]
                 else:
                     node_emb = embs['<unk>']
-                X.append(node_emb)
+
+                if isinstance(node_emb, np.ndarray):
+                    X.append(from_numpy(node_emb))
+                else:
+                    X.append(node_emb)
         else:
-            X = []
             for node_id in self.node_list:
                 # logger.info((node_id, i2s[node_id]))
                 node_txt = i2s[node_id]
@@ -127,10 +131,14 @@ class Token_Dataset_nx(Dataset):
                 else:
                     node_emb = embs['<unk>']
 
-                X.append(node_emb)
+                if isinstance(node_emb, np.ndarray):
+                    X.append(from_numpy(node_emb))
+                else:
+                    X.append(node_emb)
 
-        X = np.stack(X)
-        X = from_numpy(X).float()
+        # X = np.stack(X)
+        # X = from_numpy(X).float()
+        X = stack(X).float()
 
         return X
 
@@ -371,7 +379,11 @@ class Token_Dataset_nx(Dataset):
 
                 ## Add edges with attribute:
                 for token_pair, freq in occurrences.items():
-                    ## Get token ids from source if exists else from target
+                    # ## Get token ids from source if exists else from target
+                    # if token_pair[0] not in c_vocab['str2idx_map'] or\
+                    #         token_pair[1] not in c_vocab['str2idx_map']:
+                    #     logger.warn(f'{token_pair} is not present in vocab.')
+                    #     continue
                     token1_id = c_vocab['str2idx_map'][token_pair[0]]
                     token2_id = c_vocab['str2idx_map'][token_pair[1]]
                     if G.has_edge(token1_id, token2_id):
