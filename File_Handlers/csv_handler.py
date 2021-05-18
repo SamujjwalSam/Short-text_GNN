@@ -45,7 +45,10 @@ def read_csvs(data_dir=dataset_dir,
 
         dfs.append(df)
 
-    return pd.concat(dfs)
+    dfs = pd.concat(dfs)
+    logger.info("Dataset size: [{}]".format(dfs.shape))
+    logger.info("Few dataset samples: \n[{}]".format(dfs.head()))
+    return dfs
 
 
 def read_csv(data_dir=dataset_dir, data_file='fire16_labeled_train', index_col=0,

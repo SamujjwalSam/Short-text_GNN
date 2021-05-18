@@ -42,7 +42,7 @@ def contrastive_loss(x, x_pos, x_neg, delta=0.1):
     return torch.relu(dot_pos - dot_neg + delta)
 
 
-def supervised_contrastive_loss(x, x_pos, x_neg, x_pos_wt=None, x_neg_wt=None, tau=5):
+def supervised_contrastive_loss(x, x_pos, x_neg, x_pos_wt=None, x_neg_wt=None, tau=0.05):
     """ Calculate token level contrastive loss using dot product.
 
     :param tau: Temperature for softmax
@@ -61,8 +61,8 @@ def supervised_contrastive_loss(x, x_pos, x_neg, x_pos_wt=None, x_neg_wt=None, t
 
     # x_all = torch.cat((x_pos, x_neg), 0)
 
-    x_pos_dot = - torch.tensordot(x, x_pos, dims=([1, 2], [1, 2])) / tau
-    x_neg_dot = - torch.tensordot(x, x_neg, dims=([1, 2], [1, 2])) / tau
+    x_pos_dot = torch.tensordot(x, x_pos, dims=([1, 2], [1, 2])) / tau
+    x_neg_dot = torch.tensordot(x, x_neg, dims=([1, 2], [1, 2])) / tau
     # logger.debug(f'POS neighbors: {x_pos.shape}, {x_pos_dot}')
     # logger.debug(f'NEG neighbors: {x_neg.shape}, {x_neg_dot}')
 

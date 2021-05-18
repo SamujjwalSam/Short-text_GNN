@@ -149,6 +149,7 @@ class GCN(torch.nn.Module):
         Convert to boolean mask indicating the tokens present in the current batch of instances.
         Boolean mask size: List of number of tokens in the large graph.
         """
+        torch.autograd.set_detect_anomaly(True)
         X = self.gcn_1(A, X)
         X = F.dropout(X, self.dropout, training=training)
 
