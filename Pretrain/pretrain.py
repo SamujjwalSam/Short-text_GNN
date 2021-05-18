@@ -33,7 +33,8 @@ from Text_Encoder.TextEncoder import train_w2v, load_word2vec
 from Pretrainer.mlp_trainer import mlp_trainer
 from Pretrainer.gcn_trainer import gcn_trainer
 # from Trainer.lstm_trainer import LSTM_trainer
-from Utils.utils import load_graph, sp_coo2torch_coo, get_token2pretrained_embs, save_token2pretrained_embs, load_token2pretrained_embs
+from Utils.utils import load_graph, sp_coo2torch_coo, get_token2pretrained_embs, save_token2pretrained_embs,\
+    load_token2pretrained_embs
 from File_Handlers.csv_handler import read_csv
 from File_Handlers.json_handler import save_json, read_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
@@ -131,7 +132,7 @@ def calculate_vocab_overlap(task_tokens, pretrain_tokens):
     logger.info(f'Token overlap percent as fine-tune vocab:{finetune_vocab_percent}')
 
 
-def get_xclusive_tokens(pos_vocab, neg_vocab, min_ratio=5.):
+def get_xclusive_tokens(pos_vocab, neg_vocab, min_ratio=.9):
     pos_s2i = set(pos_vocab['str2idx_map']) - {'<unk>', '<pad>'}
     neg_s2i = set(neg_vocab['str2idx_map']) - {'<unk>', '<pad>'}
     # pos_freq = set(pos_vocab['freqs'])
@@ -145,12 +146,13 @@ def get_xclusive_tokens(pos_vocab, neg_vocab, min_ratio=5.):
     pos_ratio_toks = []
     neg_ratio_toks = []
     for tok in nonX_toks:
+        total_freq = pos_vocab['freqs'][tok] + neg_vocab['freqs'][tok]
         if tok in neg_s2i:
-            pos_ratio = pos_vocab['freqs'][tok] / neg_vocab['freqs'][tok]
+            pos_ratio = pos_vocab['freqs'][tok] / total_freq
             if pos_ratio >= min_ratio:
                 pos_ratio_toks.append(tok)
         if tok in pos_s2i:
-            neg_ratio = neg_vocab['freqs'][tok] / pos_vocab['freqs'][tok]
+            neg_ratio = neg_vocab['freqs'][tok] / total_freq
             if neg_ratio >= min_ratio:
                 neg_ratio_toks.append(tok)
 
@@ -267,15 +269,21 @@ def get_pretrain_dataset(G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
     return dataset, ignored_tokens
 
 
-def get_sel_samples(C, global_G, G, vocab, joint_vocab, k=10):
+def get_sel_samples(C, G, vocab, joint_vocab, k=20):
     data = {}
     ignored_tokens = set()
     for i, token in enumerate(C):
         N_id = []
         N_id_wt = []
         N_txt = []
+        if token not in vocab['str2idx_map']:
+            logger.debug(token)
         for n in G.G.neighbors(vocab['str2idx_map'][token]):
-            n_txt = vocab['idx2str_map'][n]
+            try:
+                n_txt = vocab['idx2str_map'][n]
+            except IndexError as e:
+                logger.debug((token, n))
+                continue
             n_id = joint_vocab['str2idx_map'][n_txt]
             if n_id in N_id:
                 continue
@@ -292,7 +300,7 @@ def get_sel_samples(C, global_G, G, vocab, joint_vocab, k=10):
             continue
         ## Sample positive neighbors based on freq:
         # N_sel = random.choices(N_id, N_id_wt, k=k)
-        N_id_wt = np.power(N_id_wt, (3/4)).tolist()
+        N_id_wt = np.power(N_id_wt, (3 / 4)).tolist()
         # N_id_wt2 = np.log(N_id_wt).tolist()
         probas = softmax(N_id_wt)
         probas_nnz = np.count_nonzero(probas)
@@ -313,13 +321,14 @@ def get_sel_samples(C, global_G, G, vocab, joint_vocab, k=10):
     return data, ignored_tokens
 
 
-def get_new_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
-                             limit_dataset=None, k=15):
+def get_new_pretrain_dataset(G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
+                             limit_dataset=None, N=30):
     """ Creates the dataset for pretraining.
 
     Fetches exclusive pos and neg token set which are present either in pos and neg graph with high freq.
 
-    :param k: Number of neg examples to select
+    :param limit_dataset:
+    :param N: Number of total neighbors to select for each example token
     :param G:
     :param G_pos:
     :param G_neg:
@@ -332,9 +341,9 @@ def get_new_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
     Cpos, Cneg = get_xclusive_tokens(pos_vocab, neg_vocab)
 
     if limit_dataset is not None:
-        Cpos = set(list(Cpos)[:limit_dataset//2])
+        Cpos = set(list(Cpos)[:limit_dataset // 2])
         logger.debug(f"Resetting |Cpos|: {len(Cpos)}")
-        Cneg = set(list(Cneg)[:limit_dataset//2])
+        Cneg = set(list(Cneg)[:limit_dataset // 2])
         logger.debug(f"Resetting |Cneg|: {len(Cneg)}")
 
     # extra_tokens = C - set(joint_vocab["str2idx_map"].keys())
@@ -348,20 +357,22 @@ def get_new_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
     logger.info(f"Overlap between selected and total vocab: {(len(Cpos.union(Cneg)) / len(pos_neg_union)) * 100}")
 
     dataset = []
-    pos_data, pos_ignored = get_sel_samples(Cpos, G, G_pos, pos_vocab, joint_vocab)
-    neg_data, neg_ignored = get_sel_samples(Cneg, G, G_neg, neg_vocab, joint_vocab)
+    pos_data, pos_ignored = get_sel_samples(Cpos, G_pos, pos_vocab, joint_vocab)
+    neg_data, neg_ignored = get_sel_samples(Cneg, G_neg, neg_vocab, joint_vocab)
 
     for node_id in pos_data:
         N_pos = pos_data[node_id]
-        N_neg = random.sample(list(neg_data), k=len(N_pos))
+        N_neg = random.sample(list(neg_data), k=N - len(N_pos))
         dataset.append((node_id, N_pos, N_neg))
 
     for node_id in neg_data:
         N_neg = neg_data[node_id]
-        N_pos = random.sample(list(pos_data), k=len(N_neg))
+        N_pos = random.sample(list(pos_data), k=N - len(N_neg))
         dataset.append((node_id, N_neg, N_pos))
 
-    logger.info(f'Pretraining dataset size: {len(dataset)}; portion of total vocab: {(len(dataset) / len(joint_vocab["idx2str_map"])):2.4}')
+    logger.info(
+        f'Pretraining dataset size: {len(dataset)}; portion of total vocab: '
+        f'{(len(dataset) / len(joint_vocab["idx2str_map"])):2.4}')
     return dataset, pos_ignored.update(neg_ignored)
 
 
@@ -369,6 +380,7 @@ def get_vocab_data(path=join(pretrain_dir, data_filename + "_multihot.csv"),
                    name='_joint', glove_embs=None, min_freq=cfg['pretrain']['min_freq'], read_input=False):
     """ Creates cleaned corpus and finds oov tokens.
 
+    :param read_input:
     :param path:
     :param name:
     :param glove_embs:
@@ -387,6 +399,7 @@ def get_vocab_data(path=join(pretrain_dir, data_filename + "_multihot.csv"),
         if read_input:
             read_input_files()
         # Create tokenizer:
+        logger.info(f'Using normalizeTweet tokenizer')
         tokenizer = partial(normalizeTweet, return_tokens=True)
 
         dataset, (fields, LABEL) = get_dataset_fields(
@@ -439,7 +452,7 @@ class Pretrain_Dataset(Dataset):
         return len(self.dataset)
 
 
-def get_graph_inputs(G, oov_embs, joint_vocab, G_node_list=None, glove_embs=None, prepare_G=True):
+def get_graph_inputs(G, oov_embs, joint_vocab, G_node_list=None, glove_embs=None, get_adj=True):
     logger.info('Accessing graph node embeddings:')
     emb_filename = join(pretrain_dir, data_filename + "_emb.pt")
     if exists(emb_filename):
@@ -457,15 +470,16 @@ def get_graph_inputs(G, oov_embs, joint_vocab, G_node_list=None, glove_embs=None
     if G_node_list is None:
         G_node_list = list(G.G.nodes)
 
-    adj = None
+    # adj = None
     ## Create adjacency matrix if required:
-    if prepare_G:
+    if get_adj:
         adj = adjacency_matrix(G.G, nodelist=G_node_list, weight='weight')
         adj = sp_coo2torch_coo(adj)
         logger.info('Normalize token graph:')
         adj = G.normalize_adj(adj)
 
-    return adj, X
+        return X, adj
+    return X
 
 
 def get_graph_and_dataset(limit_dataset=None):
@@ -540,7 +554,7 @@ def get_graph_and_dataset(limit_dataset=None):
     logger.info(f"Number of nodes {len(neg_node_list)} and edges {len(G_neg.G.edges)} in NEG token graph")
 
     # dataset, ignored_tokens = get_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
-    dataset, ignored_tokens = get_new_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
+    dataset, ignored_tokens = get_new_pretrain_dataset(G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
 
     if ignored_tokens is not None:
         logger.warning(f'Total number of ignored tokens: {len(ignored_tokens)}')
@@ -565,10 +579,10 @@ def prepare_pretraining(model_type=cfg['pretrain']['model_type'],
     else:
         dataset, G, oov_embs, joint_vocab = get_graph_and_dataset()
 
-    adj, X = get_graph_inputs(G, oov_embs, joint_vocab, prepare_G=True)
+    X, adj = get_graph_inputs(G, oov_embs, joint_vocab, get_adj=True)
     pretrain_dataloader = Pretrain_Dataset(dataset)
 
-    logger.info(f'Pre-Training [{model_type}]')
+    logger.info(f"Pre-Training [{model_type}] for {cfg['pretrain']['epoch']} epochs")
     node_list = list(G.G.nodes)
     idx2str = joint_vocab['idx2str_map']
     if model_type == 'MLP':
@@ -597,6 +611,9 @@ def get_pretrain_artifacts(
     token_embs_path = token_embs_path + str(epoch) + '.pt'
     pretrainedX_path = pretrainedX_path + str(epoch) + '.pt'
 
+    ## Use this:
+    # load_token2pretrained_embs()
+
     if exists(vocab_path + '.json') and exists(pretrainedX_path):
         logger.info(f'Loading Pretraining Artifacts from [{token_embs_path}] and [{vocab_path}]')
         vocab = read_json(vocab_path)
@@ -621,7 +638,7 @@ def get_w2v_embs(glove_embs):
 
     X = train_w2v(joint_corpus_toks, list(joint_vocab['str2idx_map'].keys()),
                   in_dim=cfg['embeddings']['emb_dim'],
-                  min_freq=cfg["prep_vecs"]["min_freq"],
+                  min_freq=cfg['pretrain']['min_freq'],
                   context=cfg["prep_vecs"]["window"])
 
     return joint_vocab['str2idx_map'], from_numpy(X)

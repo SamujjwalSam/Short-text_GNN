@@ -20,8 +20,8 @@ __license__     : "This source code is licensed under the MIT-style license
 import random
 import numpy as np
 import pandas as pd
-from functools import partial
-from scipy.special import softmax
+# from functools import partial
+# from scipy.special import softmax
 from torch import cuda, save, load, manual_seed, backends, from_numpy
 from torch.utils.data import Dataset
 from networkx import adjacency_matrix
@@ -29,7 +29,7 @@ from os import environ
 from os.path import join, exists
 from sklearn.preprocessing import MultiLabelBinarizer
 
-from Text_Encoder.TextEncoder import train_w2v, load_word2vec
+# from Text_Encoder.TextEncoder import train_w2v, load_word2vec
 from Pretrainer.mlp_trainer import mlp_trainer
 from Pretrainer.gcn_trainer import gcn_trainer
 # from Trainer.lstm_trainer import LSTM_trainer
@@ -37,13 +37,12 @@ from Utils.utils import load_graph, sp_coo2torch_coo, get_token2pretrained_embs,
     load_token2pretrained_embs
 from File_Handlers.csv_handler import read_csv
 from File_Handlers.json_handler import save_json, read_json
-from File_Handlers.pkl_handler import save_pickle, load_pickle
+# from File_Handlers.pkl_handler import save_pickle, load_pickle
 from Text_Processesor.tokenizer import BERT_tokenizer
 from Text_Processesor.build_corpus_vocab import get_dataset_fields
-from Text_Processesor.tweet_normalizer import normalizeTweet
+# from Text_Processesor.tweet_normalizer import normalizeTweet
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
-from Text_Encoder.finetune_static_embeddings import glove2dict, train_mittens,\
-    calculate_cooccurrence_mat, preprocess_and_find_oov2, create_clean_corpus
+from Text_Encoder.finetune_static_embeddings import create_clean_corpus
 from config import configuration as cfg, platform as plat, username as user, \
     pretrain_dir, emb_dir
 from Logger.logger import logger
@@ -132,7 +131,7 @@ def calculate_vocab_overlap(task_tokens, pretrain_tokens):
     logger.info(f'Token overlap percent as fine-tune vocab:{finetune_vocab_percent}')
 
 
-def get_xclusive_tokens(pos_vocab, neg_vocab, min_ratio=5.):
+def get_xclusive_tokens(pos_vocab, neg_vocab, min_ratio=.9):
     pos_s2i = set(pos_vocab['str2idx_map']) - {'<unk>', '<pad>'}
     neg_s2i = set(neg_vocab['str2idx_map']) - {'<unk>', '<pad>'}
     # pos_freq = set(pos_vocab['freqs'])
@@ -146,12 +145,13 @@ def get_xclusive_tokens(pos_vocab, neg_vocab, min_ratio=5.):
     pos_ratio_toks = []
     neg_ratio_toks = []
     for tok in nonX_toks:
+        total_freq = pos_vocab['freqs'][tok] + neg_vocab['freqs'][tok]
         if tok in neg_s2i:
-            pos_ratio = pos_vocab['freqs'][tok] / neg_vocab['freqs'][tok]
+            pos_ratio = pos_vocab['freqs'][tok] / total_freq
             if pos_ratio >= min_ratio:
                 pos_ratio_toks.append(tok)
         if tok in pos_s2i:
-            neg_ratio = neg_vocab['freqs'][tok] / pos_vocab['freqs'][tok]
+            neg_ratio = neg_vocab['freqs'][tok] / total_freq
             if neg_ratio >= min_ratio:
                 neg_ratio_toks.append(tok)
 
@@ -268,15 +268,21 @@ def get_pretrain_dataset(G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
     return dataset, ignored_tokens
 
 
-def get_sel_samples(C, global_G, G, vocab, joint_vocab, k=10):
+def get_sel_samples(C, G, vocab, joint_vocab, k=20):
     data = {}
     ignored_tokens = set()
     for i, token in enumerate(C):
         N_id = []
         N_id_wt = []
         N_txt = []
+        if token not in vocab['str2idx_map']:
+            logger.debug(token)
         for n in G.G.neighbors(vocab['str2idx_map'][token]):
-            n_txt = vocab['idx2str_map'][n]
+            try:
+                n_txt = vocab['idx2str_map'][n]
+            except IndexError as e:
+                logger.debug((token, n))
+                continue
             n_id = joint_vocab['str2idx_map'][n_txt]
             if n_id in N_id:
                 continue
@@ -314,14 +320,14 @@ def get_sel_samples(C, global_G, G, vocab, joint_vocab, k=10):
     return data, ignored_tokens
 
 
-def get_new_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
-                             limit_dataset=None, k=15):
+def get_new_pretrain_dataset(G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
+                             limit_dataset=None, N=30):
     """ Creates the dataset for pretraining.
 
     Fetches exclusive pos and neg token set which are present either in pos and neg graph with high freq.
 
     :param limit_dataset:
-    :param k: Number of neg examples to select
+    :param N: Number of total neighbors to select for each example token
     :param G:
     :param G_pos:
     :param G_neg:
@@ -350,17 +356,17 @@ def get_new_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
     logger.info(f"Overlap between selected and total vocab: {(len(Cpos.union(Cneg)) / len(pos_neg_union)) * 100}")
 
     dataset = []
-    pos_data, pos_ignored = get_sel_samples(Cpos, G, G_pos, pos_vocab, joint_vocab)
-    neg_data, neg_ignored = get_sel_samples(Cneg, G, G_neg, neg_vocab, joint_vocab)
+    pos_data, pos_ignored = get_sel_samples(Cpos, G_pos, pos_vocab, joint_vocab)
+    neg_data, neg_ignored = get_sel_samples(Cneg, G_neg, neg_vocab, joint_vocab)
 
     for node_id in pos_data:
         N_pos = pos_data[node_id]
-        N_neg = random.sample(list(neg_data), k=len(N_pos))
+        N_neg = random.sample(list(neg_data), k=N - len(N_pos))
         dataset.append((node_id, N_pos, N_neg))
 
     for node_id in neg_data:
         N_neg = neg_data[node_id]
-        N_pos = random.sample(list(pos_data), k=len(N_neg))
+        N_pos = random.sample(list(pos_data), k=N - len(N_neg))
         dataset.append((node_id, N_neg, N_pos))
 
     logger.info(
@@ -376,12 +382,9 @@ def get_subword_vocab_data(path=join(pretrain_dir, data_filename + "_multihot.cs
     :param read_input:
     :param path:
     :param name:
-    :param glove_embs:
     :param min_freq:
     :return:
     """
-    if read_input:
-        read_input_files()
     if exists(join(pretrain_dir, data_filename + name + '_corpus_toks.json'))\
             and exists(join(pretrain_dir, data_filename + name + '_vocab.json')):
         vocab = read_json(join(pretrain_dir, data_filename + name + '_vocab'))
@@ -391,6 +394,8 @@ def get_subword_vocab_data(path=join(pretrain_dir, data_filename + "_multihot.cs
         corpus_strs = read_json(join(pretrain_dir, data_filename + name + '_corpus_strs'),
                                 convert_ordereddict=False)
     else:
+        if read_input:
+            read_input_files()
         logger.info(f'Using BERT tokenizer')
         bert_tokenizer = BERT_tokenizer()
         dataset, (fields, LABEL) = get_dataset_fields(
@@ -402,15 +407,9 @@ def get_subword_vocab_data(path=join(pretrain_dir, data_filename + "_multihot.cs
             'idx2str_map': fields.vocab.itos,
         }
 
-        # if glove_embs is None:
-        #     glove_embs = glove2dict()
-        #
-        # oov_high_freqs, glove_low_freqs, oov_low_freqs =\
-        #     preprocess_and_find_oov2(vocab, glove_embs=glove_embs, labelled_vocab_set=set(
-        #         vocab['str2idx_map'].keys()), add_glove_tokens_back=False)
-
+        low_oov_ignored = list(set(vocab['freqs'].keys()) - set(vocab['idx2str_map']))
         corpus_strs, corpus_toks, ignored_examples =\
-            create_clean_corpus(dataset, low_oov_ignored=[])
+            create_clean_corpus(dataset, low_oov_ignored=low_oov_ignored)
 
         # save_json(oov_high_freqs, join(pretrain_dir, data_filename + name + '_oov_high_freqs'))
         save_json(vocab, join(pretrain_dir, data_filename + name + '_vocab'))
@@ -473,9 +472,10 @@ def get_graph_inputs(G, oov_embs, embs, joint_vocab, G_node_list=None, get_adj=T
 
 def get_graph_and_dataset(limit_dataset=None):
     joint_vocab, joint_corpus_toks, joint_corpus_strs =\
-        get_subword_vocab_data(name='_subword_joint', min_freq=1, read_input=True)
+        get_subword_vocab_data(name='_subword_joint', min_freq=cfg['pretrain']['min_freq'], read_input=True)
 
-    G = Token_Dataset_nx(joint_corpus_toks, joint_vocab, dataset_name=joint_path[:-12], graph_path=joint_path[:-12] + 'subword_token_nx.bin')
+    G = Token_Dataset_nx(joint_corpus_toks, joint_vocab, dataset_name=joint_path[:-12],
+                         graph_path=joint_path[:-12] + 'subword_token_nx.bin')
 
     G.add_edge_weights_pretrain()
     # num_tokens = G.num_tokens
@@ -485,13 +485,15 @@ def get_graph_and_dataset(limit_dataset=None):
 
     ## Create G+:
     pos_vocab, pos_corpus_toks, pos_corpus_strs =\
-        get_subword_vocab_data(pos_path, name='_subword_pos', min_freq=1)
-    G_pos = Token_Dataset_nx(pos_corpus_toks, pos_vocab, dataset_name=pos_path[:-4], graph_path=pos_path[:-4] + 'subword_token_nx.bin')
+        get_subword_vocab_data(pos_path, name='_subword_pos', min_freq=cfg['pretrain']['min_freq'])
+    G_pos = Token_Dataset_nx(pos_corpus_toks, pos_vocab, dataset_name=pos_path[:-4],
+                             graph_path=pos_path[:-4] + 'subword_token_nx.bin')
 
     ## Create G-:
     neg_vocab, neg_corpus_toks, neg_corpus_strs =\
-        get_subword_vocab_data(neg_path, name='_subword_neg', min_freq=1)
-    G_neg = Token_Dataset_nx(neg_corpus_toks, neg_vocab, dataset_name=neg_path[:-4], graph_path=neg_path[:-4] + 'subword_token_nx.bin')
+        get_subword_vocab_data(neg_path, name='_subword_neg', min_freq=cfg['pretrain']['min_freq'])
+    G_neg = Token_Dataset_nx(neg_corpus_toks, neg_vocab, dataset_name=neg_path[:-4],
+                             graph_path=neg_path[:-4] + 'subword_token_nx.bin')
 
     G_pos.add_edge_weights_pretrain()
     # pos_num_tokens = G_pos.num_tokens
@@ -504,7 +506,7 @@ def get_graph_and_dataset(limit_dataset=None):
     logger.info(f"Number of nodes {len(neg_node_list)} and edges {len(G_neg.G.edges)} in NEG token graph")
 
     # dataset, ignored_tokens = get_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
-    dataset, ignored_tokens = get_new_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
+    dataset, ignored_tokens = get_new_pretrain_dataset(G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
 
     if ignored_tokens is not None:
         logger.warning(f'Total number of ignored tokens: {len(ignored_tokens)}')
@@ -572,7 +574,7 @@ def get_pretrain_artifacts(
             token2pretrained_embs = get_token2pretrained_embs(
                 X, list(vocab['str2idx_map'].keys()), vocab['idx2str_map'])
     else:
-        logger.info(f'[{vocab_path + ".json"}] or [{pretrainedX_path}] NOT found.')
+        logger.fatal(f'Pretrained [{vocab_path + ".json"}] or [{pretrainedX_path}] NOT found.')
         _, vocab, token2pretrained_embs, X = prepare_pretraining(
             embs_dict=init_bert_embs, model_type=model_type)
 
