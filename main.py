@@ -53,6 +53,7 @@ from Trainer.gat_trainer import GAT_BiLSTM_trainer
 # from Trainer.gcn_lstm_trainer import GCN_LSTM_trainer
 from Trainer.bert_lstm_trainer import BERT_LSTM_trainer
 from Trainer.lstm_trainer import LSTM_trainer
+from Trainer.dpcnn_trainer import DPCNN_trainer
 from Trainer.mlp_trainer import MLP_trainer
 from Transformers_simpletransformers.BERT_multilabel_classifier import BERT_multilabel_classifier
 from Text_Encoder.finetune_static_embeddings import glove2dict, get_oov_vecs,\
@@ -185,10 +186,10 @@ def main_glen(model_type='GLEN', glove_embs=None, train_name: str = cfg['data'][
     logger.info("Execution complete.")
 
 
-def main_gcpd_1(model_type=cfg['model']['type'], glove_embs=None,
-                train_name: str = cfg['data']['train'],
-                val_name: str = cfg['data']['val'],
-                test_name: str = cfg['data']['test']):
+def main_gcpd_normal(model_type=cfg['model']['type'], glove_embs=None,
+                     train_name: str = cfg['data']['train'],
+                     val_name: str = cfg['data']['val'],
+                     test_name: str = cfg['data']['test']):
     if glove_embs is None:
         glove_embs = glove2dict()
 
@@ -816,7 +817,7 @@ def get_gcpd_embs(train_dataset, train_vocab: Dict[str, Counter],
 def classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                train_vocab, train_dataset, val_dataset, test_dataset, dataname,
                glove_embs=None, lr=cfg['model']['optimizer']['lr'], model_name=None,
-               pretrain_dataloader=None, all_test=False):
+               pretrain_dataloader=None):
     if model_name is None:
         model_name = f'{model_type}_epoch{str(cfg["training"]["num_epoch"])}_lr{str(lr)}'
     logger.info(f'Classifying examples using [{model_type}] model.')

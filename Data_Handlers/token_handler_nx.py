@@ -34,7 +34,7 @@ class Token_Dataset_nx(Dataset):
     """ Token graph dataset in NX. """
 
     def __init__(self, corpus_toks, C_vocab, dataset_name, S_vocab=None, T_vocab=None,
-                 data_dir: str = dataset_dir, graph_path=None, G=None, save_name_suffix='_token_nx.bin'):
+                 data_dir: str = dataset_dir, graph_path=None, G=None, save_name_suffix='_token_nx.bin', window_size=2):
         super(Token_Dataset_nx, self).__init__()
         self.data_dir = data_dir
         self.dataset_name = dataset_name
@@ -50,7 +50,7 @@ class Token_Dataset_nx(Dataset):
                 if S_vocab is not None and T_vocab is not None:
                     self.G = self.create_token_graph(corpus_toks, C_vocab, S_vocab, T_vocab)
                 else:
-                    self.G = self.create_token_graph_pretrain(corpus_toks, C_vocab)
+                    self.G = self.create_token_graph_pretrain(corpus_toks, C_vocab, window_size=window_size)
                 self.save_graph(self.graph_path)
         else:
             self.G = G

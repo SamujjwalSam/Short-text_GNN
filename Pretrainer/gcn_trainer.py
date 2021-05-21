@@ -43,7 +43,7 @@ def eval_gcn(model, A, X):
     return X
 
 
-def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoader, epochs: int = 5, node_list=None,
+def train_gcn2(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoader, epochs: int = 5, node_list=None,
               idx2str=None, save_epochs=cfg['pretrain']['save_epochs']):
     logger.info("Started GCN training...")
     train_epoch_losses = []
@@ -69,6 +69,40 @@ def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoad
                 loss = 0.
 
         epoch_train_time = timeit.default_timer() - epoch_start_time
+        logger.info(f'Epoch {epoch}, Time: {epoch_train_time / 60:6.3} mins, Loss: {epoch_loss}')
+        train_epoch_losses.append(epoch_loss)
+
+        if epoch in save_epochs:
+            X_hat_eval = eval_gcn(model, A, X)
+            # token2pretrained_embs = get_token2pretrained_embs(X_hat, node_list, idx2str)
+            save_token2pretrained_embs(X_hat_eval, node_list, idx2str, epoch=epoch)
+            logger.info(f'Saved pretrained embeddings for epoch {epoch}')
+
+    return train_epoch_losses
+
+
+def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoader, epochs: int = 5, node_list=None,
+              idx2str=None, save_epochs=cfg['pretrain']['save_epochs']):
+    logger.info("Started GCN training...")
+    train_epoch_losses = []
+    for epoch in range(1, epochs+1):
+        model.train()
+        epoch_loss = 0
+        epoch_start_time = timeit.default_timer()
+        X_hat = model(A, X)
+        loss = 0.
+        for iter, (x_idx, x_pos_idx, x_neg_idx) in enumerate(dataloader):
+            x = X_hat[x_idx]
+            x_pos = X_hat[x_pos_idx]
+            x_neg = X_hat[x_neg_idx]
+            if x.dim() == 1:
+                x = x.unsqueeze(1).T
+            loss += supervised_contrastive_loss(x, x_pos, x_neg)
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+        epoch_train_time = timeit.default_timer() - epoch_start_time
+        epoch_loss = loss.item()
         logger.info(f'Epoch {epoch}, Time: {epoch_train_time / 60:6.3} mins, Loss: {epoch_loss}')
         train_epoch_losses.append(epoch_loss)
 

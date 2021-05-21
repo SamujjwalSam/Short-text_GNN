@@ -169,6 +169,11 @@ def logit2label(predictions_df: pd.core.frame.DataFrame, cls_thresh: [list, floa
 
 # No. of trianable parameters
 def count_parameters(model):
+    logger.info("Named Parameters:\n\n")
+    for name, param in model.named_parameters():
+        if param.requires_grad is True:
+            logger.info(name, param.size())
+    print("\n")
     param_count = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f'The model has {param_count:,} trainable parameters')
     return param_count

@@ -305,13 +305,13 @@ configuration = {
 
         ## GCPD Configs:
         # 'name': 'AF13', 'train': 'AF13_train', 'val': 'AF13_val', 'test': 'AF13_test',
-        'name': 'BB13', 'train': 'BB13_train', 'val': 'BB13_val', 'test': 'BB13_test',
+        # 'name': 'BB13', 'train': 'BB13_train', 'val': 'BB13_val', 'test': 'BB13_test',
         # 'name': 'Kaggle', 'train': 'Kaggle_train', 'val': 'Kaggle_val', 'test': 'Kaggle_test',
         # 'name': 'NEQ15', 'train': 'NEQ15_train', 'val': 'NEQ15_val', 'test': 'NEQ15_test',
         # 'name': 'OT13', 'train': 'OT13_train', 'val': 'OT13_val', 'test': 'OT13_test',
         # 'name': 'QFL13', 'train': 'QFL13_train', 'val': 'QFL13_val', 'test': 'QFL13_test',
         # 'name': 'SH12', 'train': 'SH12_train', 'val': 'SH12_val', 'test': 'SH12_test',
-        # 'name': 'WTE13', 'train': 'WTE13_train', 'val': 'WTE13_val', 'test': 'WTE13_test',
+        'name': 'WTE13', 'train': 'WTE13_train', 'val': 'WTE13_val', 'test': 'WTE13_test',
 
         # 'name':       'Amazon_Reviews_Sentiment_books',
         # 'train':      'books_train',
@@ -339,9 +339,9 @@ configuration = {
         # 'test':       'video_test',
     },
     'pretrain':         {
-        'epoch':       30,
+        'epoch':       100,
         'model_type':  'GCN',
-        'save_epochs': [1, 3, 10, 20, 30],
+        'save_epochs': [1, 3, 10, 50, 100],
         'min_freq':    15,
         'lr':          8e-4,
         # 'name':        'disaster_binary_pretrain',
@@ -354,20 +354,20 @@ configuration = {
         # 'name':        'pretrain_BB',
         # 'name':        'pretrain_KL',
         # 'name':        'pretrain_NE',
-        'name':        'pretrain_OT',
+        # 'name':        'pretrain_OT',
         # 'name':        'pretrain_QF',
         # 'name':        'pretrain_SH',
-        # 'name':        'pretrain_WE',
+        'name':        'pretrain_WE',
         'files':       [
 
             'AF13_train', 'AF13_val',
-            # 'BB13_train', 'BB13_val',
+            'BB13_train', 'BB13_val',
             'Kaggle_train', 'Kaggle_val',
             'NEQ15_train', 'NEQ15_val',
             'OT13_train', 'OT13_val',
             'QFL13_train', 'QFL13_val',
             'SH12_train', 'SH12_val',
-            'WTE13_train', 'WTE13_val',
+            # 'WTE13_train', 'WTE13_val',
 
             # 'IEQ12',
 
@@ -449,10 +449,10 @@ configuration = {
         },
     },
 
-    "transformer":  {
-        "num_epoch":                   10,
-        "train_batch_size":            64,
-        "eval_batch_size":             256,
+    "transformer":      {
+        "num_epoch":                   5,
+        "train_batch_size":            32,
+        "eval_batch_size":             128,
         "model_type":                  "bert",
         "model_name":                  "bert-base-uncased",
         "max_seq_len":                 100,

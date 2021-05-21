@@ -21,7 +21,7 @@ import random
 import numpy as np
 import pandas as pd
 # from functools import partial
-# from scipy.special import softmax
+from scipy.special import softmax
 from torch import cuda, save, load, manual_seed, backends, from_numpy
 from torch.utils.data import Dataset
 from networkx import adjacency_matrix
@@ -232,9 +232,9 @@ def get_pretrain_dataset(G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
         N_pos = set(N_pos)
         N_neg = set(N_neg)
         overlap = N_pos.intersection(N_neg)
-        N_pos_txt = set(N_pos_txt)
-        N_neg_txt = set(N_neg_txt)
-        overlap_txt = N_pos_txt.intersection(N_neg_txt)
+        # N_pos_txt = set(N_pos_txt)
+        # N_neg_txt = set(N_neg_txt)
+        # overlap_txt = N_pos_txt.intersection(N_neg_txt)
         if len(overlap) > 0:
             ## Remove common neighbors:
             ## TODO: What happens if tokens are left as pos neighbors?
@@ -321,7 +321,7 @@ def get_sel_samples(C, G, vocab, joint_vocab, k=20):
 
 
 def get_new_pretrain_dataset(G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
-                             limit_dataset=None, N=30):
+                             limit_dataset=None, N=40):
     """ Creates the dataset for pretraining.
 
     Fetches exclusive pos and neg token set which are present either in pos and neg graph with high freq.
@@ -361,15 +361,15 @@ def get_new_pretrain_dataset(G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
 
     for node_id in pos_data:
         N_pos = pos_data[node_id]
-        N_neg = random.sample(list(neg_data), k=N - len(N_pos))
+        N_neg = random.sample(list(neg_data), k=(N - len(N_pos)))
         dataset.append((node_id, N_pos, N_neg))
 
     for node_id in neg_data:
         N_neg = neg_data[node_id]
-        N_pos = random.sample(list(pos_data), k=N - len(N_neg))
+        N_pos = random.sample(list(pos_data), k=(N - len(N_neg)))
         dataset.append((node_id, N_neg, N_pos))
 
-    logger.info(
+    logger.critical(
         f'Pretraining dataset size: {len(dataset)}; portion of total vocab: '
         f'{(len(dataset) / len(joint_vocab["idx2str_map"])):2.4}')
     return dataset, pos_ignored.update(neg_ignored)
@@ -475,7 +475,7 @@ def get_graph_and_dataset(limit_dataset=None):
         get_subword_vocab_data(name='_subword_joint', min_freq=cfg['pretrain']['min_freq'], read_input=True)
 
     G = Token_Dataset_nx(joint_corpus_toks, joint_vocab, dataset_name=joint_path[:-12],
-                         graph_path=joint_path[:-12] + 'subword_token_nx.bin')
+                         graph_path=joint_path[:-12] + 'subword_token_nx.bin', window_size=3)
 
     G.add_edge_weights_pretrain()
     # num_tokens = G.num_tokens
@@ -487,13 +487,13 @@ def get_graph_and_dataset(limit_dataset=None):
     pos_vocab, pos_corpus_toks, pos_corpus_strs =\
         get_subword_vocab_data(pos_path, name='_subword_pos', min_freq=cfg['pretrain']['min_freq'])
     G_pos = Token_Dataset_nx(pos_corpus_toks, pos_vocab, dataset_name=pos_path[:-4],
-                             graph_path=pos_path[:-4] + 'subword_token_nx.bin')
+                             graph_path=pos_path[:-4] + 'subword_token_nx.bin', window_size=3)
 
     ## Create G-:
     neg_vocab, neg_corpus_toks, neg_corpus_strs =\
         get_subword_vocab_data(neg_path, name='_subword_neg', min_freq=cfg['pretrain']['min_freq'])
     G_neg = Token_Dataset_nx(neg_corpus_toks, neg_vocab, dataset_name=neg_path[:-4],
-                             graph_path=neg_path[:-4] + 'subword_token_nx.bin')
+                             graph_path=neg_path[:-4] + 'subword_token_nx.bin', window_size=3)
 
     G_pos.add_edge_weights_pretrain()
     # pos_num_tokens = G_pos.num_tokens

@@ -233,9 +233,9 @@ def get_pretrain_dataset(G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
         N_pos = set(N_pos)
         N_neg = set(N_neg)
         overlap = N_pos.intersection(N_neg)
-        N_pos_txt = set(N_pos_txt)
-        N_neg_txt = set(N_neg_txt)
-        overlap_txt = N_pos_txt.intersection(N_neg_txt)
+        # N_pos_txt = set(N_pos_txt)
+        # N_neg_txt = set(N_neg_txt)
+        # overlap_txt = N_pos_txt.intersection(N_neg_txt)
         if len(overlap) > 0:
             ## Remove common neighbors:
             ## TODO: What happens if tokens are left as pos neighbors?
@@ -322,7 +322,7 @@ def get_sel_samples(C, G, vocab, joint_vocab, k=20):
 
 
 def get_new_pretrain_dataset(G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
-                             limit_dataset=None, N=30):
+                             limit_dataset=None, N=40):
     """ Creates the dataset for pretraining.
 
     Fetches exclusive pos and neg token set which are present either in pos and neg graph with high freq.
@@ -362,15 +362,15 @@ def get_new_pretrain_dataset(G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab,
 
     for node_id in pos_data:
         N_pos = pos_data[node_id]
-        N_neg = random.sample(list(neg_data), k=N - len(N_pos))
+        N_neg = random.sample(list(neg_data), k=(N - len(N_pos)))
         dataset.append((node_id, N_pos, N_neg))
 
     for node_id in neg_data:
         N_neg = neg_data[node_id]
-        N_pos = random.sample(list(pos_data), k=N - len(N_neg))
+        N_pos = random.sample(list(pos_data), k=(N - len(N_neg)))
         dataset.append((node_id, N_neg, N_pos))
 
-    logger.info(
+    logger.critical(
         f'Pretraining dataset size: {len(dataset)}; portion of total vocab: '
         f'{(len(dataset) / len(joint_vocab["idx2str_map"])):2.4}')
     return dataset, pos_ignored.update(neg_ignored)
@@ -509,7 +509,7 @@ def get_graph_and_dataset(limit_dataset=None):
     G.add_edge_weights_pretrain()
     # num_tokens = G.num_tokens
     G_node_list = list(G.G.nodes)
-    logger.info(f"Number of nodes {len(G_node_list)} and edges {len(G.G.edges)} in POS token graph")
+    logger.info(f"Number of nodes {len(G_node_list)} and edges {len(G.G.edges)} in joint token graph")
     # token2label_vec_map = freq_tokens_per_class(df, normalize=False)
 
     ## Create G+:
@@ -554,7 +554,7 @@ def get_graph_and_dataset(limit_dataset=None):
     logger.info(f"Number of nodes {len(neg_node_list)} and edges {len(G_neg.G.edges)} in NEG token graph")
 
     # dataset, ignored_tokens = get_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
-    dataset, ignored_tokens = get_new_pretrain_dataset(G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
+    dataset, ignored_tokens = get_new_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
 
     if ignored_tokens is not None:
         logger.warning(f'Total number of ignored tokens: {len(ignored_tokens)}')
@@ -606,8 +606,8 @@ def prepare_pretraining(model_type=cfg['pretrain']['model_type'],
 def get_pretrain_artifacts(
         epoch=cfg['pretrain']['epoch'], model_type=cfg['pretrain']['model_type'],
         vocab_path=join(pretrain_dir, data_filename + '_joint_vocab'),
-        token_embs_path=join(pretrain_dir, 'pretrained', 'token2pretrained_'),
-        pretrainedX_path=join(pretrain_dir, 'pretrained', 'X_')):
+        token_embs_path=join(pretrain_dir, 'bert_pretrained', 'token2pretrained_'),
+        pretrainedX_path=join(pretrain_dir, 'bert_pretrained', 'X_')):
     token_embs_path = token_embs_path + str(epoch) + '.pt'
     pretrainedX_path = pretrainedX_path + str(epoch) + '.pt'
 
@@ -625,7 +625,7 @@ def get_pretrain_artifacts(
             token2pretrained_embs = get_token2pretrained_embs(
                 X, list(vocab['str2idx_map'].keys()), vocab['idx2str_map'])
     else:
-        logger.info(f'[{vocab_path + ".json"}] or [{pretrainedX_path}] NOT found.')
+        logger.fatal(f'Pretrained [{vocab_path + ".json"}] or [{pretrainedX_path}] NOT found.')
         _, vocab, token2pretrained_embs, X = prepare_pretraining(
             model_type=model_type)
 
@@ -699,13 +699,16 @@ if __name__ == "__main__":
     words = ['nepal', 'queensland', 'building', 'damage', 'kathmandu', 'water',
              'wifi', 'need', 'available', 'earthquake']
 
-    common = ['common', 'works', 'fear', 'system', 'honestly', 'such', 'trapped', 'technology', 'collect', 'thoughts', 'rise', 'hours', 'dollars']
+    common = ['common', 'works', 'fear', 'system', 'honestly', 'such', 'trapped', 'technology', 'collect', 'thoughts',
+              'rise', 'hours', 'dollars']
     words.extend(common)
 
-    pos_exp = ['linking', 'corporation', 'unclear', 'filling', 'additional', 'pledges', 'slide', 'reversing', 'particularly', 'cared', 'miraculously', 'properly', 'recovering']
+    pos_exp = ['linking', 'corporation', 'unclear', 'filling', 'additional', 'pledges', 'slide', 'reversing',
+               'particularly', 'cared', 'miraculously', 'properly', 'recovering']
     words.extend(pos_exp)
 
-    neg_exp = ['successful', 'sounding', 'equally', 'antique', 'beautifully', 'stink', 'sauce', 'homecoming', 'emotions', 'lick', 'atheist', 'fancy', 'coconut']
+    neg_exp = ['successful', 'sounding', 'equally', 'antique', 'beautifully', 'stink', 'sauce', 'homecoming',
+               'emotions', 'lick', 'atheist', 'fancy', 'coconut']
     words.extend(neg_exp)
 
     X_glove = {word: glove_embs[word] for word in words}
