@@ -614,9 +614,13 @@ def get_pretrain_artifacts(
     ## Use this:
     # load_token2pretrained_embs()
 
-    if exists(vocab_path + '.json') and exists(pretrainedX_path):
-        logger.info(f'Loading Pretraining Artifacts from [{token_embs_path}] and [{vocab_path}]')
+    if exists(pretrainedX_path):
+        logger.info(f'Loading Pretraining Artifacts from [{token_embs_path}]')
+        if not exists(vocab_path + '.json'):
+            _, _, _, _ = get_graph_and_dataset()
+            logger.info(f'[{vocab_path}] NOT found; Generating...')
         vocab = read_json(vocab_path)
+
         X = load(pretrainedX_path)
 
         if exists(token_embs_path):

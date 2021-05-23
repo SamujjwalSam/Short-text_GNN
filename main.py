@@ -312,9 +312,14 @@ def main_dpcnn_normal(model_type='DPCNN', glove_embs=None,
                       train_name: str = cfg['data']['train'],
                       val_name: str = cfg['data']['val'],
                       test_name: str = cfg['data']['test'],
-                      fix_length=40):
+                      fix_length=40, use_all_data=cfg['data']['use_all_data']):
     if glove_embs is None:
         glove_embs = glove2dict()
+
+    # if use_all_data:
+    #     logger.warning(f'Cleaning extra files from directory: {data_dir}')
+    #     logger.warning(f'This should be removed if only zeroshot code is run multiple times to run the code faster.')
+    #     clean_dataset_dir()
 
     lrs = cfg['model']['lrs']
     logger.info(f'Run for multiple LRs {lrs}')
@@ -325,7 +330,8 @@ def main_dpcnn_normal(model_type='DPCNN', glove_embs=None,
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
             get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name,
-            test_dataname=test_name, use_all_data=False, fix_length=fix_length)
+            test_dataname=test_name, use_all_data=cfg['data']['use_all_data'],
+            fix_length=fix_length)
 
         tr_freq = train_vocab.vocab.freqs.keys()
         tr_v = train_vocab.vocab.itos
@@ -1362,6 +1368,6 @@ if __name__ == "__main__":
         set_all_seeds(seed)
         # main_gcpd_alltrain(glove_embs=glove_embs)
         # main_gcpd_zeroshot(glove_embs=glove_embs)
-        main_gcpd_zeroshot_examcon(glove_embs=glove_embs)
+        main_dpcnn_normal(glove_embs=glove_embs)
 
     logger.info(f"Execution complete for {seed_count} SEEDs.")

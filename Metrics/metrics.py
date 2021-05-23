@@ -77,7 +77,11 @@ def calculate_performance_bin_sk(true: (np.ndarray, torch.tensor), pred: (np.nda
     """
     scores = {}
     # scores["f1"] = {}
-    scores["f1_weighted"] = f1_score(true, pred, average='weighted', zero_division=0)
+    try:
+        scores["f1_weighted"] = f1_score(true, pred, average='weighted', zero_division=0)
+    except ValueError as e:
+        logger.debug(e)
+        logger.debug(pred)
     scores["f1_macro"] = f1_score(true, pred, average='macro', zero_division=0)
     scores["f1_micro"] = f1_score(true, pred, average='micro', zero_division=0)
     # scores["f1_samples"] = f1_score(true, pred, average='samples', zero_division=0)

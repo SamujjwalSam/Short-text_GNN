@@ -596,7 +596,7 @@ def load_token2pretrained_embs(
 
 
 def clean_dataset_dir(dataset_dir=dataset_dir, dataset_name=cfg['data']['train']):
-    extra_filenames = ['_token_nx.bin', 'C_vocab.json', 'labelled_token2vec_map.json',
+    extra_filenames = ['_token_nx.bin', 'joint_vocab.json', 'C_vocab.json', 'labelled_token2vec_map.json',
                        'T_vocab.json', 'T_corpus.json', 'T_corpus_toks.json', 'T_high_oov.json',
                        'S_vocab.json', 'S_corpus.json', 'S_corpus_toks.json', 'S_high_oov.json',
                        '_emb.pt', 'instance_graph_local_node_ids.pkl', '_instance_graph_global_node_ids.pkl'

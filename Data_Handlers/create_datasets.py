@@ -28,7 +28,7 @@ from File_Handlers.csv_handler import read_csv, read_csvs
 from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from File_Handlers.json_handler import save_json, read_json, read_labelled_json
 from File_Handlers.read_datasets import load_fire16, load_smerp17
-from Utils.utils import freq_tokens_per_class, split_target, split_df
+from Utils.utils import freq_tokens_per_class, split_target, split_df, clean_dataset_dir
 from Data_Handlers.torchtext_handler import dataset2bucket_dataloader, dataset2iter
 from config import configuration as cfg, dataset_dir, pretrain_dir
 from Logger.logger import logger
@@ -240,7 +240,8 @@ def prepare_splitted_datasets(
         stoi=None, vectors=None, get_dataloader=False, dim=cfg['embeddings']['emb_dim'],
         data_dir=dataset_dir, train_dataname=cfg["data"]["train"],
         val_dataname=cfg["data"]["val"], test_dataname=cfg["data"]["test"],
-        use_all_data=False, min_freq=cfg["data"]["min_freq"], train_portion=None, fix_length=None):
+        use_all_data=False, min_freq=cfg["data"]["min_freq"], train_portion=None,
+        fix_length=None):
     """ Creates train and test dataset from df and returns data loader.
 
     :param fix_length: Sequence length during batches (None = variable)
@@ -274,10 +275,11 @@ def prepare_splitted_datasets(
         train_df.to_csv(join(data_dir, train_datafile))
 
     if use_all_data:
-        train_datafile = "training_" + str(len(cfg['pretrain']['files'])) + ".csv"
+        train_datafile = "zeroshot_" + train_dataname + str(len(cfg['pretrain']['files'])) + ".csv"
         # if not exists(join(dataset_dir, train_dataname)):
         train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
         train_df.to_csv(join(data_dir, train_datafile))
+        logger.info(f'Using all training data saved at {join(data_dir, train_datafile)}')
 
     if stoi is None:
         logger.critical('Setting default GLOVE vectors:')

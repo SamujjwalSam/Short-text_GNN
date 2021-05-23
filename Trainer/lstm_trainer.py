@@ -130,7 +130,8 @@ def train_lstm_classifier(
         # logger.info(f'Epoch {epoch} result: \n{result_dict}')
 
     logger.info(
-        f"LSTM Epoch {max_result['epoch']}, MAX Score {max_result['score']:1.4}, Model {model_name}")
+        f"LSTM Epoch {max_result['epoch']}, MAX Score "
+        f"{max_result['score']:1.4} MAX Model {model_name}")
     return model, train_epoch_losses, train_epoch_dict
 
 

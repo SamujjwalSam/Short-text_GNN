@@ -149,8 +149,8 @@ def train_glen(model, G, X, dataloader: utils.data.dataloader.DataLoader,
         # logger.info(f'Epoch {epoch} result: \n{result_dict}')
 
     logger.info(
-        f"GLEN: Epoch {max_result['epoch']}, MAX Score {max_result['score']:1.4},"
-        f" Result {dumps(max_result, indent=4)}, Model {model_name}")
+        f"GLEN: Epoch {max_result['epoch']}, MAX Score {max_result['score']:1.4} MAX Model {model_name}"
+        f" Result {dumps(max_result, indent=4)},")
 
     return model, max_result, train_epoch_dict
 

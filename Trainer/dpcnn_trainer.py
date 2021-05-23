@@ -147,7 +147,7 @@ def train_dpcnn_classifier(
             scheduler.step()
 
     logger.info(
-        f"dpcnn Epoch {max_result['epoch']}, MAX Score {max_result['score']:1.4}, Model {model_name}")
+        f"dpcnn Epoch {max_result['epoch']}, MAX Score {max_result['score']:1.4} MAX Model {model_name}")
     return model, train_epoch_losses, train_epoch_dict
 
 
