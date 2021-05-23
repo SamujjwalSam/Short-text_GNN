@@ -308,6 +308,87 @@ def main_gcpd_normal(model_type=cfg['model']['type'], glove_embs=None,
     logger.info("Execution complete.")
 
 
+def main_dpcnn_normal(model_type='DPCNN', glove_embs=None,
+                      train_name: str = cfg['data']['train'],
+                      val_name: str = cfg['data']['val'],
+                      test_name: str = cfg['data']['test'],
+                      fix_length=40):
+    if glove_embs is None:
+        glove_embs = glove2dict()
+
+    lrs = cfg['model']['lrs']
+    logger.info(f'Run for multiple LRs {lrs}')
+    for lr in lrs:
+        logger.critical(f'Current Learning Rate: [{lr}]')
+
+        train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+        train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+            get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+            train_dataname=train_name, val_dataname=val_name,
+            test_dataname=test_name, use_all_data=False, fix_length=fix_length)
+
+        tr_freq = train_vocab.vocab.freqs.keys()
+        tr_v = train_vocab.vocab.itos
+        ts_freq = test_vocab.vocab.freqs.keys()
+        ts_v = test_vocab.vocab.itos
+        ov_freq = set(tr_freq).intersection(ts_freq)
+        ov_v = set(tr_v).intersection(ts_v)
+        logger.info(
+            f'Vocab train freq: {len(tr_freq)}, itos: {len(tr_v)}, '
+            f'test freq: {len(ts_freq)}, itos: {len(ts_v)} = '
+            f'overlap freq: {len(ov_freq)}, itos: {len(ov_v)}')
+
+        train_vocab_mod = {
+            'freqs':       train_vocab.vocab.freqs.copy(),
+            'str2idx_map': dict(train_vocab.vocab.stoi.copy()),
+            'idx2str_map': train_vocab.vocab.itos.copy(),
+        }
+        model_name = f'GloVe_{model_type}_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
+        logger.critical(f'GLOVE ^^^^^^^^^^ {model_name}')
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   train_name, glove_embs, lr, model_name=model_name)
+
+        # ====================================================================
+
+        model_name = f'Rand_{model_type}_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
+        logger.critical(f'RANDOM ^^^^^^^^^^ {model_name}')
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   train_name, glove_embs, lr, model_name=model_name,
+                   random_vecs=True)
+
+        # ====================================================================
+
+        pmodel_type = cfg['pretrain']['model_type']
+        logger.critical('PRETRAIN ##########')
+        token2idx_map, X = get_gcpd_embs(
+            train_dataset, train_vocab_mod, glove_embs, train_name,
+            epoch=cfg['pretrain']['epoch'], model_type=pmodel_type)
+
+        train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+        train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+            stoi=token2idx_map, vectors=X, get_dataloader=True,
+            dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+            train_dataname=train_name, val_dataname=val_name,
+            test_dataname=test_name, use_all_data=cfg['data']['use_all_data'],
+            fix_length=fix_length)
+
+        extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
+        logger.info(f'Add {len(extra_pretrained_tokens)} extra pretrained vectors to vocab')
+        if len(extra_pretrained_tokens) > 0:
+            train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
+
+        model_name = f'GCPD_{model_type}_freq{cfg["data"]["min_freq"]}'\
+                     f'_lr{str(lr)}_Pepoch{str(cfg["pretrain"]["epoch"])}_Pmodel{pmodel_type}'
+        logger.critical(f'GCPD ********** {model_name}')
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   train_name, glove_embs, lr, model_name=model_name)
+
+    logger.info("Execution complete.")
+
+
 def main_gcpd_zeroshot(model_type='LSTM', glove_embs=None, train_name=cfg['data']['train'],
                        val_name=cfg['data']['val'], test_name=cfg['data']['test']):
     # if cfg['data']['use_all_data']:
@@ -817,13 +898,26 @@ def get_gcpd_embs(train_dataset, train_vocab: Dict[str, Counter],
 def classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                train_vocab, train_dataset, val_dataset, test_dataset, dataname,
                glove_embs=None, lr=cfg['model']['optimizer']['lr'], model_name=None,
-               pretrain_dataloader=None):
+               pretrain_dataloader=None, random_vecs=False):
     if model_name is None:
         model_name = f'{model_type}_epoch{str(cfg["training"]["num_epoch"])}_lr{str(lr)}'
     logger.info(f'Classifying examples using [{model_type}] model.')
     datapath = join(data_dir, dataname)
-    if model_type == 'MLP':
-        train_epochs_output_dict, test_output = MLP_trainer(
+
+    if model_type == 'DPCNN':
+        if random_vecs:
+            train_epochs_output_dict = DPCNN_trainer(
+                train_dataloader, val_dataloader, test_dataloader, vectors=train_vocab.vocab.vectors,
+                in_dim=cfg['embeddings']['emb_dim'], epoch=cfg['training']['num_epoch'],
+                lr=lr, model_name=model_name, pretrain_dataloader=pretrain_dataloader, init_vectors=False)
+        else:
+            train_epochs_output_dict = DPCNN_trainer(
+                train_dataloader, val_dataloader, test_dataloader, vectors=train_vocab.vocab.vectors,
+                in_dim=cfg['embeddings']['emb_dim'], epoch=cfg['training']['num_epoch'],
+                lr=lr, model_name=model_name, pretrain_dataloader=pretrain_dataloader)
+
+    elif model_type == 'MLP':
+        train_epochs_output_dict = MLP_trainer(
             train_dataloader, val_dataloader, test_dataloader,
             in_dim=cfg['embeddings']['emb_dim'], hid_dim=cfg['gnn_params']['hid_dim'],
             epoch=cfg['training']['num_epoch'], lr=lr, model_name=model_name)
