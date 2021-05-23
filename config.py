@@ -145,8 +145,8 @@ configuration = {
 
             # 'books_test',
             # 'dvd_test',
-            # 'kitchen_test',
             # 'electronics_test',
+            # 'kitchen_test',
             # 'video_test',
         ],
 
@@ -318,37 +318,23 @@ configuration = {
         # 'val':        'books_val',
         # 'test':       'books_test',
 
-        # 'name':       'Amazon_Reviews_Sentiment_dvd',
-        # 'train':      'dvd_train',
-        # 'val':        'dvd_val',
-        # 'test':       'dvd_test',
-
-        # 'name':       'Amazon_Reviews_Sentiment_kitchen',
-        # 'train':      'kitchen_train',
-        # 'val':        'kitchen_val',
-        # 'test':       'kitchen_test',
-
-        # 'name':       'Amazon_Reviews_Sentiment_electronics',
-        # 'train':      'electronics_train',
-        # 'val':        'electronics_val',
-        # 'test':       'electronics_test',
-        #
-        # 'name':       'Amazon_Reviews_Sentiment_video',
-        # 'train':      'video_train',
-        # 'val':        'video_val',
-        # 'test':       'video_test',
+        # 'name': 'Amazon_Reviews_Sentiment_books', 'train': 'books_train', 'val': 'books_val', 'test': 'books_test',
+        # 'name': 'Amazon_Reviews_Sentiment_dvd', 'train': 'dvd_train', 'val': 'dvd_val', 'test': 'dvd_test',
+        # 'name': 'Amazon_Reviews_Sentiment_electronics', 'train': 'electronics_train', 'val': 'electronics_val', 'test': 'electronics_test',
+        # 'name': 'Amazon_Reviews_Sentiment_kitchen', 'train': 'kitchen_train', 'val': 'kitchen_val', 'test': 'kitchen_test',
+        # 'name': 'Amazon_Reviews_Sentiment_video', 'train': 'video_train', 'val': 'video_val', 'test': 'video_test',
     },
     'pretrain':         {
-        'epoch':       100,
+        'epoch':       80,
         'model_type':  'GCN',
         'save_epochs': [1, 3, 10, 50, 100],
-        'min_freq':    15,
+        'min_freq':    3,
         'lr':          8e-4,
         # 'name':        'disaster_binary_pretrain',
         # 'name':        'Amazon_Reviews_Sentiment_books',
         # 'name':        'Amazon_Reviews_Sentiment_dvd',
-        # 'name':        'Amazon_Reviews_Sentiment_kitchen',
         # 'name':        'Amazon_Reviews_Sentiment_electronics',
+        # 'name':        'Amazon_Reviews_Sentiment_kitchen',
         # 'name':        'Amazon_Reviews_Sentiment_video',
         # 'name':        'pretrain_AF',
         # 'name':        'pretrain_BB',
@@ -371,20 +357,11 @@ configuration = {
 
             # 'IEQ12',
 
-            # 'books_train',
-            # 'books_val',
-
-            # 'dvd_train',
-            # 'dvd_val',
-
-            # 'kitchen_train',
-            # 'kitchen_val',
-            #
-            # 'electronics_train',
-            # 'electronics_val',
-            #
-            # 'video_train',
-            # 'video_val',
+            # 'books_train', 'books_val',
+            # 'dvd_train', 'dvd_val',
+            # 'electronics_train', 'electronics_val',
+            # 'kitchen_train', 'kitchen_val',
+            # 'video_train', 'video_val',
         ],
     },
     'examcon_pretrain': {
@@ -506,7 +483,7 @@ configuration = {
             "optimizer_type": "adam",
             "lr":             0.001,
             "lr_decay":       0,
-            "weight_decay":   0,
+            "weight_decay":   0.0001,
             "momentum":       0.9,
             "dampening":      0.9,
             "alpha":          0.99,

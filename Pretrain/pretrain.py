@@ -554,7 +554,7 @@ def get_graph_and_dataset(limit_dataset=None):
     logger.info(f"Number of nodes {len(neg_node_list)} and edges {len(G_neg.G.edges)} in NEG token graph")
 
     # dataset, ignored_tokens = get_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
-    dataset, ignored_tokens = get_new_pretrain_dataset(G, G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
+    dataset, ignored_tokens = get_new_pretrain_dataset(G_pos, G_neg, joint_vocab, pos_vocab, neg_vocab)
 
     if ignored_tokens is not None:
         logger.warning(f'Total number of ignored tokens: {len(ignored_tokens)}')
@@ -606,8 +606,8 @@ def prepare_pretraining(model_type=cfg['pretrain']['model_type'],
 def get_pretrain_artifacts(
         epoch=cfg['pretrain']['epoch'], model_type=cfg['pretrain']['model_type'],
         vocab_path=join(pretrain_dir, data_filename + '_joint_vocab'),
-        token_embs_path=join(pretrain_dir, 'bert_pretrained', 'token2pretrained_'),
-        pretrainedX_path=join(pretrain_dir, 'bert_pretrained', 'X_')):
+        token_embs_path=join(pretrain_dir, 'pretrained', 'token2pretrained_'),
+        pretrainedX_path=join(pretrain_dir, 'pretrained', 'X_')):
     token_embs_path = token_embs_path + str(epoch) + '.pt'
     pretrainedX_path = pretrainedX_path + str(epoch) + '.pt'
 

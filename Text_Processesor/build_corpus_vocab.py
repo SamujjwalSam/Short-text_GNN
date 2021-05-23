@@ -92,9 +92,10 @@ def get_dataset_fields(
         min_freq: int = 2, text_headers: list = ['text'], batch_size: int = 1,
         init_vocab: bool = True, labelled_data: bool = False, target_train_portion=None,
         embedding_dir: [None, str] = cfg["paths"]["embedding_dir"][plat][user],
-        embedding_file: [None, str] = cfg["embeddings"]["embedding_file"]):
+        embedding_file: [None, str] = cfg["embeddings"]["embedding_file"],
+        fix_length=40):
     (TEXT, LABEL), labelled_fields, unlabelled_fields = prepare_fields(
-        text_headers=text_headers, tokenizer=tokenizer, n_classes=cfg['data']['num_classes'])
+        text_headers=text_headers, tokenizer=tokenizer, n_classes=cfg['data']['num_classes'], fix_length=fix_length)
 
     ## Create dataset from saved csv file:
     if labelled_data:

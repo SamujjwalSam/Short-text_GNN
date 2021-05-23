@@ -30,7 +30,7 @@ from Logger.logger import logger
 
 def prepare_fields(text_headers: list = None, label_headers=None, tokenizer='spacy',
                    batch_first: bool = True, include_lengths: bool = True,
-                   n_classes: int = cfg['data']['num_classes']):
+                   n_classes: int = cfg['data']['num_classes'], fix_length=None):
     """ Generates fields present on the dataset.
 
     Args:
@@ -56,7 +56,7 @@ def prepare_fields(text_headers: list = None, label_headers=None, tokenizer='spa
         label_headers = [str(cls) for cls in range(n_classes)]
 
     TEXT = data.Field(tokenize=tokenizer, batch_first=batch_first,
-                      include_lengths=include_lengths)
+                      include_lengths=include_lengths, fix_length=fix_length)
     LABEL = data.LabelField(dtype=torch.float, batch_first=batch_first,
                             use_vocab=False, sequential=False)
     IDS = data.LabelField(batch_first=batch_first, use_vocab=False,
