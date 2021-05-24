@@ -21,6 +21,7 @@ import timeit
 from os.path import join
 from torch import nn, stack, utils, sigmoid, mean, cat, cuda
 from json import dumps
+from math import isnan
 from collections import OrderedDict
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -46,7 +47,8 @@ def train_lstm_classifier(
         epoch: int = cfg['training']['num_epoch'],
         eval_dataloader: utils.data.dataloader.DataLoader = None,
         test_dataloader: utils.data.dataloader.DataLoader = None,
-        n_classes=cfg['data']['num_classes'], model_name='Glove'):
+        n_classes=cfg['data']['num_classes'], model_name='Glove',
+        scheduler=None):
     logger.info(f"Started training for {epoch} epoch: ")
     max_result = {'score': 0.0, 'epoch': 0}
     train_epoch_losses = []
@@ -60,11 +62,7 @@ def train_lstm_classifier(
         for iter, batch in enumerate(dataloader):
             # logger.debug(batch)
             text, text_lengths = batch.text
-            ## Get label based on number of classes:
-            if cfg['data']['class_names'] == 1:
-                label = batch.__getattribute__('0').unsqueeze(1)
-            else:
-                label = stack([batch.__getattribute__(cls) for cls in cfg['data']['class_names']]).T
+            label = stack([batch.__getattribute__(cls) for cls in cfg['data']['class_names']]).T
             prediction = model(text, text_lengths.long().cpu()).squeeze()
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
                 prediction = prediction.to(cuda_device)
@@ -76,7 +74,15 @@ def train_lstm_classifier(
             loss.backward()
             optimizer.step()
             # train_count = label.shape[0]
-            epoch_loss += loss.detach().item()
+            # logger.info(f'Running (iteration) loss: {loss.item():4.6}')
+            if isnan(loss.item()):
+                logger.fatal(f'Loss is {loss.item()} at iter {iter}, epoch {epoch}')
+                logger.info("Named Parameters:\n")
+                for name, param in model.named_parameters():
+                    if param.requires_grad is True:
+                        logger.info((name, param.size(), param))
+                raise ValueError(f'Loss == NaN for model {model_name} at iter {iter}, epoch {epoch}')
+            epoch_loss += loss.item()
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
                 preds.append(prediction.detach().cpu())
                 trues.append(label.detach().cpu())
@@ -97,14 +103,14 @@ def train_lstm_classifier(
             logger.info(
                 f"Epoch {epoch}, time: {train_time / 60:1.4} mins, Train loss: "
                 f"{epoch_loss:0.6} Val W-F1 {val_output['result']['f1_weighted'].item():4.4}"
-                f" TEST W-F1: {test_output[cfg['data']['test']]} Dataset "
-                f"{cfg['data']['test']} \n{dumps(test_output, indent=4)} Model {model_name}")
+                f" TEST W-F1: {test_output[cfg['data']['test']]} Model {model_name}"
+                f" Dataset {cfg['data']['test']}\n{dumps(test_output, indent=4)}")
         else:
             logger.info(
                 f"Epoch {epoch}, time: {train_time / 60:1.4} mins, Train loss: "
                 f"{epoch_loss} TEST W-F1: {test_output[cfg['data']['test']]}"
-                f" Dataset {cfg['data']['test']} \n{dumps(test_output, indent=4)}"
-                f" Model {model_name}")
+                f" Model {model_name} Dataset {cfg['data']['test']}"
+                f"\n{dumps(test_output, indent=4)}")
 
         if max_result['score'] < test_output[cfg['data']['test']]:
             max_result['score'] = test_output[cfg['data']['test']]
@@ -128,6 +134,9 @@ def train_lstm_classifier(
             'result': result_dict
         }
         # logger.info(f'Epoch {epoch} result: \n{result_dict}')
+
+        if scheduler is not None:
+            scheduler.step()
 
     logger.info(
         f"LSTM Epoch {max_result['epoch']}, MAX Score "
@@ -265,20 +274,24 @@ def LSTM_trainer(
         hid_dim: int = 50, epoch=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
         model_name='Glove', pretrain_dataloader=None,
-        pretrain_epoch=cfg['pretrain']['epoch'], examcon_pretrain=True):
+        pretrain_epoch=cfg['pretrain']['epoch'], examcon_pretrain=True, init_vectors=True):
     # train_dataloader, test_dataloader = dataloaders
     model = BiLSTM_Emb_Classifier(vocab_size=vectors.shape[0], in_dim=in_dim,
                                   hid_dim=hid_dim, out_dim=cfg["data"]["num_classes"])
     logger.info(model)
     count_parameters(model)
 
-    logger.info('Initialize the pretrained embedding')
-    model.bilstm_embedding.embedding.weight.data.copy_(vectors)
+    if init_vectors:
+        model.bilstm_embedding.embedding.weight.data.copy_(vectors)
+        logger.info(f'Initialized pretrained embedding of shape {model.bilstm_embedding.embedding.weight.shape}')
 
     if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
         model.to(cuda_device)
 
-    optimizer = optim.Adam(model.parameters(), lr=lr)
+    optimizer = optim.Adam(
+        model.parameters(), lr=lr, momentum=cfg["model"]["optimizer"]["momentum"],
+        weight_decay=cfg["model"]["optimizer"]["weight_decay"])
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[int((4/5)*epoch)], gamma=0.1)
 
     # model_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
     # model_name = model_name + '_epoch' + str(epoch)
@@ -317,7 +330,7 @@ def LSTM_trainer(
     model, epoch_losses, train_epochs_output_dict = train_lstm_classifier(
         model, train_dataloader, loss_func=loss_func, optimizer=optimizer,
         epoch=epoch, eval_dataloader=val_dataloader,
-        test_dataloader=test_dataloader, model_name=model_name)
+        test_dataloader=test_dataloader, model_name=model_name, scheduler=scheduler)
 
     # if saved_model:
     #     start_time = timeit.default_timer()

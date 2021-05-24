@@ -331,8 +331,7 @@ def main_dpcnn_normal(model_type='DPCNN', glove_embs=None,
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
             get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name,
-            test_dataname=test_name, use_all_data=cfg['data']['use_all_data'],
-            fix_length=fix_length)
+            test_dataname=test_name, use_all_data=use_all_data, fix_length=fix_length)
 
         tr_freq = train_vocab.vocab.freqs.keys()
         tr_v = train_vocab.vocab.itos
@@ -1467,6 +1466,6 @@ if __name__ == "__main__":
         set_all_seeds(seed)
         # main_gcpd_alltrain(glove_embs=glove_embs)
         # main_gcpd_zeroshot(glove_embs=glove_embs)
-        main_dpcnn_normal(glove_embs=glove_embs)
+        main_disaster_normal(glove_embs=glove_embs)
 
     logger.info(f"Execution complete for {seed_count} SEEDs.")
