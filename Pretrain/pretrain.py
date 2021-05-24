@@ -482,9 +482,10 @@ def get_graph_inputs(G, oov_embs, joint_vocab, G_node_list=None, glove_embs=None
     return X
 
 
-def get_graph_and_dataset(limit_dataset=None):
+def get_graph_and_dataset(glove_embs=None, limit_dataset=None):
     # df, joint_path, pos_path, neg_path = read_dataset(pretrain_dir, data_filename)
-    glove_embs = glove2dict()
+    if glove_embs is None:
+        glove_embs = glove2dict()
     # oov_emb_filename = data_filename + '_OOV_vectors_dict'
     oov_emb_filename = 'disaster_binary_pretrain_OOV_vectors_dict'
     joint_vocab, joint_corpus_toks, joint_corpus_strs, joint_oov_high_freqs =\

@@ -174,7 +174,8 @@ class BiLSTM_Emb_repr(nn.Module):
         # embedded = [batch size, sent_len, emb dim]
 
         # packed_output1, (hidden1, cell) = self.lstm(packed_embedded)
-        embedded = nn.utils.rnn.pack_padded_sequence(embedded, text_lengths, batch_first=True, enforce_sorted=False)
+        embedded = nn.utils.rnn.pack_padded_sequence(
+            embedded, text_lengths, batch_first=True, enforce_sorted=False)
         # output, output_lengths = nn.utils.rnn.pad_packed_sequence(packed_output)
         packed_output, (hidden, cell) = self.lstm(embedded)
         # hidden = [batch size, num num_lstm_layers * num directions, hid dim]

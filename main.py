@@ -54,6 +54,7 @@ from Trainer.gat_trainer import GAT_BiLSTM_trainer
 from Trainer.bert_lstm_trainer import BERT_LSTM_trainer
 from Trainer.lstm_trainer import LSTM_trainer
 from Trainer.dpcnn_trainer import DPCNN_trainer
+from Trainer.disaster_trainer import disaster_trainer, run_all_disaster
 from Trainer.mlp_trainer import MLP_trainer
 from Transformers_simpletransformers.BERT_multilabel_classifier import BERT_multilabel_classifier
 from Text_Encoder.finetune_static_embeddings import glove2dict, get_oov_vecs,\
@@ -363,6 +364,92 @@ def main_dpcnn_normal(model_type='DPCNN', glove_embs=None,
                    train_vocab, train_dataset, val_dataset, test_dataset,
                    train_name, glove_embs, lr, model_name=model_name,
                    random_vecs=True)
+
+        # ====================================================================
+
+        pmodel_type = cfg['pretrain']['model_type']
+        logger.critical('PRETRAIN ##########')
+        token2idx_map, X = get_gcpd_embs(
+            train_dataset, train_vocab_mod, glove_embs, train_name,
+            epoch=cfg['pretrain']['epoch'], model_type=pmodel_type)
+
+        train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+        train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+            stoi=token2idx_map, vectors=X, get_dataloader=True,
+            dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+            train_dataname=train_name, val_dataname=val_name,
+            test_dataname=test_name, use_all_data=cfg['data']['use_all_data'],
+            fix_length=fix_length)
+
+        extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
+        logger.info(f'Add {len(extra_pretrained_tokens)} extra pretrained vectors to vocab')
+        if len(extra_pretrained_tokens) > 0:
+            train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
+
+        model_name = f'GCPD_{model_type}_freq{cfg["data"]["min_freq"]}'\
+                     f'_lr{str(lr)}_Pepoch{str(cfg["pretrain"]["epoch"])}_Pmodel{pmodel_type}'
+        logger.critical(f'GCPD ********** {model_name}')
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   train_name, glove_embs, lr, model_name=model_name)
+
+    logger.info("Execution complete.")
+
+
+def main_disaster_normal(model_type='disaster', glove_embs=None,
+                         train_name: str = cfg['data']['train'],
+                         val_name: str = cfg['data']['val'],
+                         test_name: str = cfg['data']['test'], fix_length=40,
+                         use_all_data=cfg['data']['use_all_data'], clean_dir=False):
+    if glove_embs is None:
+        glove_embs = glove2dict()
+
+    if clean_dir:
+        logger.warning(f'Cleaning extra files from directory: {data_dir}')
+        logger.warning(f'This should be removed if only zeroshot code is run multiple times to run the code faster.')
+        clean_dataset_dir()
+
+    lrs = cfg['model']['lrs']
+    logger.info(f'Run for multiple LRs {lrs}')
+    for lr in lrs:
+        logger.critical(f'Current Learning Rate: [{lr}]')
+
+        train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
+        train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
+            get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
+            train_dataname=train_name, val_dataname=val_name,
+            test_dataname=test_name, use_all_data=use_all_data, fix_length=fix_length)
+
+        tr_freq = train_vocab.vocab.freqs.keys()
+        tr_v = train_vocab.vocab.itos
+        ts_freq = test_vocab.vocab.freqs.keys()
+        ts_v = test_vocab.vocab.itos
+        ov_freq = set(tr_freq).intersection(ts_freq)
+        ov_v = set(tr_v).intersection(ts_v)
+        logger.info(
+            f'Vocab train freq: {len(tr_freq)}, itos: {len(tr_v)}, '
+            f'test freq: {len(ts_freq)}, itos: {len(ts_v)} = '
+            f'overlap freq: {len(ov_freq)}, itos: {len(ov_v)}')
+
+        train_vocab_mod = {
+            'freqs':       train_vocab.vocab.freqs.copy(),
+            'str2idx_map': dict(train_vocab.vocab.stoi.copy()),
+            'idx2str_map': train_vocab.vocab.itos.copy(),
+        }
+        model_name = f'GloVe_{model_type}_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
+        logger.critical(f'GLOVE ^^^^^^^^^^ {model_name}')
+        classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+                   train_vocab, train_dataset, val_dataset, test_dataset,
+                   train_name, glove_embs, lr, model_name=model_name)
+
+        # ====================================================================
+
+        # model_name = f'Rand_{model_type}_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
+        # logger.critical(f'RANDOM ^^^^^^^^^^ {model_name}')
+        # classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
+        #            train_vocab, train_dataset, val_dataset, test_dataset,
+        #            train_name, glove_embs, lr, model_name=model_name,
+        #            random_vecs=True)
 
         # ====================================================================
 
@@ -918,6 +1005,18 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                 lr=lr, model_name=model_name, pretrain_dataloader=pretrain_dataloader, init_vectors=False)
         else:
             train_epochs_output_dict = DPCNN_trainer(
+                train_dataloader, val_dataloader, test_dataloader, vectors=train_vocab.vocab.vectors,
+                in_dim=cfg['embeddings']['emb_dim'], epoch=cfg['training']['num_epoch'],
+                lr=lr, model_name=model_name, pretrain_dataloader=pretrain_dataloader)
+
+    if model_type == 'disaster':
+        if random_vecs:
+            train_epochs_output_dict = run_all_disaster(
+                train_dataloader, val_dataloader, test_dataloader, vectors=train_vocab.vocab.vectors,
+                in_dim=cfg['embeddings']['emb_dim'], epoch=cfg['training']['num_epoch'],
+                lr=lr, model_name=model_name, pretrain_dataloader=pretrain_dataloader, init_vectors=False)
+        else:
+            train_epochs_output_dict = run_all_disaster(
                 train_dataloader, val_dataloader, test_dataloader, vectors=train_vocab.vocab.vectors,
                 in_dim=cfg['embeddings']['emb_dim'], epoch=cfg['training']['num_epoch'],
                 lr=lr, model_name=model_name, pretrain_dataloader=pretrain_dataloader)

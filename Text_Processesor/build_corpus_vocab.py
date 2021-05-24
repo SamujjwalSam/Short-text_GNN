@@ -95,7 +95,8 @@ def get_dataset_fields(
         embedding_file: [None, str] = cfg["embeddings"]["embedding_file"],
         fix_length=40):
     (TEXT, LABEL), labelled_fields, unlabelled_fields = prepare_fields(
-        text_headers=text_headers, tokenizer=tokenizer, n_classes=cfg['data']['num_classes'], fix_length=fix_length)
+        text_headers=text_headers, tokenizer=tokenizer,
+        n_classes=cfg['data']['num_classes'], fix_length=fix_length)
 
     ## Create dataset from saved csv file:
     if labelled_data:
