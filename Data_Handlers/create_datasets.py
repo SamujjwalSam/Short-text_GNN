@@ -241,10 +241,10 @@ def prepare_splitted_datasets(
         data_dir=dataset_dir, train_dataname=cfg["data"]["train"],
         val_dataname=cfg["data"]["val"], test_dataname=cfg["data"]["test"],
         use_all_data=False, min_freq=cfg["data"]["min_freq"], train_portion=None,
-        fix_length=None):
+        fix_len=None, test_count=1):
     """ Creates train and test dataset from df and returns data loader.
 
-    :param fix_length: Sequence length during batches (None = variable)
+    :param fix_len: Sequence length during batches (None = variable)
     :param train_portion: Reduces training data size
     :param min_freq:
     :param use_all_data: Uses all disaster data for training if True
@@ -269,6 +269,7 @@ def prepare_splitted_datasets(
     train_datafile = train_dataname + ".csv"
     if train_portion is not None:
         train_df = read_csv(data_dir=dataset_dir, data_file=train_dataname)
+        # train_df = train_df.sample(n=1)
         df, train_df = split_df(train_df, test_size=train_portion, stratified=False)
         train_datafile = train_dataname + str(train_portion) + ".csv"
         logger.warning(f'New train data size {train_df.shape} for train_portion {train_portion}')
@@ -285,13 +286,13 @@ def prepare_splitted_datasets(
         logger.critical('Setting default GLOVE vectors:')
         train_dataset, (train_vocab, train_label) = get_dataset_fields(
             csv_dir=data_dir, csv_file=train_datafile, min_freq=min_freq,
-            labelled_data=True, fix_length=fix_length)
+            labelled_data=True, fix_len=fix_len)
     else:
         logger.critical('Setting custom vectors:')
         train_dataset, (train_vocab, train_label) = get_dataset_fields(
             csv_dir=data_dir, csv_file=train_datafile, min_freq=min_freq,
             labelled_data=True, embedding_file=None, embedding_dir=None,
-            fix_length=fix_length)
+            fix_len=fix_len)
         train_vocab.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
 
     clean_dataset(train_dataset)
@@ -304,7 +305,7 @@ def prepare_splitted_datasets(
     val_dataname = val_dataname + ".csv"
     # val_df.to_csv(join(data_dir, val_dataname))
     val_dataset, (val_vocab, val_label) = get_dataset_fields(
-        csv_dir=data_dir, csv_file=val_dataname, labelled_data=True,fix_length=fix_length)
+        csv_dir=data_dir, csv_file=val_dataname, labelled_data=True, fix_len=fix_len)
 
     clean_dataset(val_dataset)
 
@@ -316,10 +317,16 @@ def prepare_splitted_datasets(
 
     # if split_test:
     #     test_extra_df, test_df = split_target(df=test_df, test_size=0.4)
-    test_dataname = test_dataname + ".csv"
-    # test_df.to_csv(join(data_dir, test_dataname))
+
+    test_datafile = test_dataname + ".csv"
+    if test_count is not None:
+        test_df = read_csv(data_dir=dataset_dir, data_file=test_dataname)
+        test_df = test_df.sample(n=1)
+        test_datafile = test_dataname + f"_n{str(test_count)}.csv"
+        logger.warning(f'New TEST data size {test_df.shape}')
+        test_df.to_csv(join(data_dir, test_datafile))
     test_dataset, (test_vocab, test_label) = get_dataset_fields(
-        csv_dir=data_dir, csv_file=test_dataname, labelled_data=True, fix_length=fix_length)
+        csv_dir=data_dir, csv_file=test_datafile, labelled_data=True, fix_len=fix_len)
 
     clean_dataset(test_dataset)
 
@@ -377,7 +384,7 @@ def prepare_single_dataset(
         stoi=None, vectors=None, dim=cfg['embeddings']['emb_dim'],
         data_dir=dataset_dir, min_freq=cfg["data"]["min_freq"],
         dataname="training_" + str(len(cfg['pretrain']['files'])) + ".csv",
-        fix_length=None):
+        fix_len=None):
     """ Creates a torchtext dataset
 
     Passes a csv file for dataset creation and returns dataloader. Sets custom vectors if provided.
@@ -394,7 +401,7 @@ def prepare_single_dataset(
     if stoi is None:
         logger.critical('Setting default GLOVE vectors:')
         dataset, (vocab, label) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=dataname, min_freq=min_freq, labelled_data=True, fix_length=fix_length)
+            csv_dir=data_dir, csv_file=dataname, min_freq=min_freq, labelled_data=True, fix_len=fix_len)
     else:
         logger.critical('Setting custom vectors:')
         dataset, (vocab, label) = get_dataset_fields(

@@ -40,6 +40,6 @@ class BOW_mean_Classifier(nn.Module):
 
         avg_input = embedded_input.mean(dim=1)
 
-        logits = T.sigmoid(self.out_linear(avg_input))
+        logits = self.out_linear(avg_input)
 
         return logits

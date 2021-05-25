@@ -55,5 +55,5 @@ class XMLCNN_Classifier(nn.Module):
         x = T.cat(x, 1)  # (batch, channel_output * ks)
         x = F.relu(self.bottleneck(x.view(-1, self.ks * self.output_channel * self.dynamic_pool_length)))
         x = self.dropout(x)
-        logit = T.sigmoid(self.fc1(x))  # (batch, target_size)
+        logit = self.fc1(x)  # (batch, target_size)
         return logit

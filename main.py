@@ -417,7 +417,7 @@ def main_disaster_normal(model_type='disaster', glove_embs=None,
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
             get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name,
-            test_dataname=test_name, use_all_data=use_all_data, fix_length=fix_length)
+            test_dataname=test_name, use_all_data=use_all_data, fix_len=fix_length)
 
         tr_freq = train_vocab.vocab.freqs.keys()
         tr_v = train_vocab.vocab.itos
@@ -464,7 +464,7 @@ def main_disaster_normal(model_type='disaster', glove_embs=None,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name,
             test_dataname=test_name, use_all_data=cfg['data']['use_all_data'],
-            fix_length=fix_length)
+            fix_len=fix_length)
 
         extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
         logger.info(f'Add {len(extra_pretrained_tokens)} extra pretrained vectors to vocab')

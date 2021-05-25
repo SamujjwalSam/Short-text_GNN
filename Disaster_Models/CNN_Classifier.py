@@ -53,5 +53,5 @@ class CNN_Classifier(nn.Module):
         # (batch, channel_output*dynamic_pool_length) * ks
         x = T.cat(x, 1)  # (batch, channel_output * ks)
         x = self.dropout(x)
-        logit = T.sigmoid(self.fc1(x))  # (batch, target_size)
+        logit = self.fc1(x)  # (batch, target_size)
         return logit

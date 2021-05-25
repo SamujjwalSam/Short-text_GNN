@@ -92,7 +92,7 @@ class BiLSTM_Classifier(nn.Module):
 
         max_pooled_out = self.output_dropout(max_pooled_out)
 
-        logits = T.sigmoid(self.linear(max_pooled_out))
+        logits = self.linear(max_pooled_out)
 
         return logits
 

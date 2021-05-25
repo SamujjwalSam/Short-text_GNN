@@ -107,5 +107,5 @@ class DenseCNN_Classifier(nn.Module):
 
         x = self.dropout(x)
 
-        logit = T.sigmoid(self.fc2(F.relu(self.fc1(x))))  # (batch, target_size)
+        logit = self.fc2(F.relu(self.fc1(x)))  # (batch, target_size)
         return logit

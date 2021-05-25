@@ -53,6 +53,6 @@ class FastText_Classifier(nn.Module):
         max_pooled_out, _ = T.max(avg_pooled_out, dim=1)
         max_pooled_out = self.output_dropout(max_pooled_out)
         intermediate = F.relu(self.linear(max_pooled_out))
-        logits = T.sigmoid(self.out_linear(intermediate))
+        logits = self.out_linear(intermediate)
 
         return logits
