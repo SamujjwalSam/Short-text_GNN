@@ -609,6 +609,15 @@ def clean_dataset_dir(dataset_dir=dataset_dir, dataset_name=cfg['data']['train']
             logger.fatal(f'Could not remove file [{join(dataset_dir, dataset_name + filename)}] for {e}')
 
 
+def dict2df(data, index=None):
+    if index is not None:
+        df = pd.DataFrame(data, index=index)
+    else:
+        df = pd.DataFrame(data)
+
+    return df
+
+
 def main():
     """
     Main module to start code

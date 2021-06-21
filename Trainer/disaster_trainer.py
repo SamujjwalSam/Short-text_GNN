@@ -18,6 +18,8 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import timeit
+from os.path import join
+from copy import deepcopy
 from torch import nn, stack, utils, sigmoid, mean, cat, cuda
 from json import dumps
 from math import isnan
@@ -31,13 +33,13 @@ from Disaster_Models.CNN_Classifier import CNN_Classifier
 from Disaster_Models.DenseCNN_Classifier import DenseCNN_Classifier
 from Disaster_Models.FastText_Classifier import FastText_Classifier
 from Disaster_Models.XML_CNN_Classifier import XMLCNN_Classifier
-from Layers.bilstm_classifiers import BiLSTM_Emb_Classifier
+from Layers.pretrain_losses import supervised_contrastive_loss
+from Layers.bilstm_classifiers import BiLSTM_Emb_Classifier, BiLSTM_Emb_repr
 from DPCNN.DPCNN import DPCNN
 from Data_Handlers.create_datasets import prepare_single_dataset
 from File_Handlers.json_handler import load_json
-from Metrics.metrics import calculate_performance_sk as calculate_performance,\
-    calculate_performance_bin_sk
-from Utils.utils import logit2label, count_parameters
+from Metrics.metrics import calculate_performance_sk as calculate_performance
+from Utils.utils import logit2label, count_parameters, save_model_state, dict2df
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user,\
     pretrain_dir, cuda_device
@@ -62,7 +64,8 @@ def train_disaster_classifier(
     train_epoch_dict = OrderedDict()
     for epoch in range(1, epoch + 1):
         model.train()
-        epoch_loss = 0
+        epoch_loss = 0.
+        idxs = []
         preds = []
         trues = []
         start_time = timeit.default_timer()
@@ -99,10 +102,12 @@ def train_disaster_classifier(
                 raise ValueError(f'Loss == NaN for model {model_name} at iter {iter}, epoch {epoch}')
             epoch_loss += loss.item()
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
+                idxs.append(batch.ids.detach().cpu())
                 preds.append(prediction.detach().cpu())
                 trues.append(label.detach().cpu())
                 # losses.append(loss.detach().cpu())
             else:
+                idxs.append(batch.ids.detach())
                 preds.append(prediction.detach())
                 trues.append(label.detach())
                 # losses.append(loss.detach())
@@ -111,53 +116,63 @@ def train_disaster_classifier(
 
         epoch_loss /= (iter + 1)
         train_time = timeit.default_timer() - start_time
-        test_output = eval_all(model, loss_func=loss_func,
-                               classifier_type=classifier_type, embeds=embeds,
-                               fix_len=fix_len)
-        if test_dataloader is not None:
-            val_losses, val_output = eval_disaster_classifier(
-                model, loss_func=loss_func, dataloader=test_dataloader,
-                classifier_type=classifier_type, embeds=embeds, print_logits=True)
-            logger.info(
-                f"Epoch {epoch}, time: {train_time / 60:1.4} mins, Train loss: "
-                f"{epoch_loss:0.6} Val W-F1 {val_output['result']['f1_weighted'].item():4.4}"
-                f" TEST W-F1: {test_output[cfg['data']['test']]} Model {model_name}"
-                f" Dataset {cfg['data']['test']}\n{dumps(test_output, indent=4)}")
+
+        if run_eval:
+            test_output = eval_all(model, loss_func=loss_func,
+                                   classifier_type=clf_type, embeds=embeds,
+                                   fix_len=fix_len)
+            if eval_dataloader is not None:
+                val_losses, val_result, val_output = eval_disaster_classifier(
+                    model, loss_func=loss_func, dataloader=eval_dataloader,
+                    classifier_type=clf_type, embeds=embeds)
+                logger.info(
+                    f"Epoch {epoch}, time: {train_time / 60:1.4} mins, Train loss: "
+                    f"{epoch_loss:0.6} Val W-F1 {val_result['f1_weighted'].item():4.4}"
+                    f" TEST W-F1: [{test_output[cfg['data']['test']]:1.4}] Model {model_name}"
+                    f" Dataset {cfg['data']['test']}\n{dumps(test_output, indent=4)}")
+            else:
+                logger.info(
+                    f"Epoch {epoch}, time: {train_time / 60:1.4} mins, Train loss: "
+                    f"{epoch_loss:1.6} TEST W-F1: [{test_output[cfg['data']['test']]:1.4}]"
+                    f" Model {model_name} Dataset {cfg['data']['test']}"
+                    f"\n{dumps(test_output, indent=4)}")
+
+            if max_result['score'] < test_output[cfg['data']['test']]:
+                max_result['score'] = test_output[cfg['data']['test']]
+                max_result['epoch'] = epoch
+                # max_result['result'] = test_output['result']
+
+            train_epoch_losses.append(epoch_loss)
+            preds = cat(preds)
+
+            ## Converting raw scores to probabilities using Sigmoid:
+            preds = sigmoid(preds)
+
+            ## Converting probabilities to class labels:
+            preds = logit2label(preds.detach(), cls_thresh=0.5)
+            trues = cat(trues)
+            result_dict = calculate_performance(trues, preds)
+            # logger.info(dumps(result_dict, indent=4))
+            train_epoch_dict[epoch] = {
+                # 'idxs':  idxs,
+                # 'preds':  preds,
+                # 'trues':  trues,
+                'result': result_dict
+            }
+            # logger.info(f'Epoch {epoch} result: \n{result_dict}')
+
+            if scheduler is not None:
+                scheduler.step()
+
         else:
             logger.info(
                 f"Epoch {epoch}, time: {train_time / 60:1.4} mins, Train loss: "
-                f"{epoch_loss} TEST W-F1: {test_output[cfg['data']['test']]}"
-                f" Model {model_name} Dataset {cfg['data']['test']}"
-                f"\n{dumps(test_output, indent=4)}")
+                f"{epoch_loss} Model {model_name} Dataset {cfg['data']['test']}")
 
-        if max_result['score'] < test_output[cfg['data']['test']]:
-            max_result['score'] = test_output[cfg['data']['test']]
-            max_result['epoch'] = epoch
-            # max_result['result'] = test_output['result']
-
-        train_epoch_losses.append(epoch_loss)
-        preds = cat(preds)
-
-        ## Converting raw scores to probabilities using Sigmoid:
-        preds = sigmoid(preds)
-
-        ## Converting probabilities to class labels:
-        preds = logit2label(preds.detach(), cls_thresh=0.5)
-        trues = cat(trues)
-        result_dict = calculate_performance(trues, preds)
-        # logger.info(dumps(result_dict, indent=4))
-        train_epoch_dict[epoch] = {
-            'preds':  preds,
-            'trues':  trues,
-            'result': result_dict
-        }
-        # logger.info(f'Epoch {epoch} result: \n{result_dict}')
-
-        if scheduler is not None:
-            scheduler.step()
-
-    logger.info(
-        f"{classifier_type} Epoch {max_result['epoch']}, MAX Score {max_result['score']:1.4} MAX Model {model_name}")
+    if run_eval:
+        logger.warn(
+            f"{clf_type} Epoch {max_result['epoch']}, MAX Score "
+            f"[{max_result['score']:1.4}] MAX Model {model_name}")
     return model, train_epoch_losses, train_epoch_dict
 
 
@@ -168,6 +183,7 @@ def eval_disaster_classifier(
     # if use_saved:
     #     model = load_model_state(model, epoch)
     model.eval()
+    idxs = []
     preds = []
     trues = []
     losses = []
@@ -193,10 +209,12 @@ def eval_disaster_classifier(
             label = label.to(cuda_device)
         loss = loss_func(prediction, label)
         if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
+            idxs.append(batch.ids.detach().cpu())
             preds.append(prediction.detach().cpu())
             trues.append(label.detach().cpu())
             losses.append(loss.detach().cpu())
         else:
+            idxs.append(batch.ids.detach())
             preds.append(prediction.detach())
             trues.append(label.detach())
             losses.append(loss.detach())
@@ -205,30 +223,23 @@ def eval_disaster_classifier(
     losses = mean(stack(losses))
     preds = cat(preds)
 
-    if print_logits:
-        logger.debug(preds)
-
     ## Converting raw scores to probabilities using Sigmoid:
     preds = sigmoid(preds)
 
-    if print_logits:
-        logger.debug(preds)
+    idxs = cat(idxs).detach().cpu().tolist()
+    trues = cat(trues).detach().cpu().tolist()
+    preds = preds.detach().cpu()
+    preds_soft = deepcopy(preds).tolist()
 
     ## Converting probabilities to class labels:
-    preds = logit2label(preds.detach().cpu(), cls_thresh=0.5)
-    trues = cat(trues)
-    if n_classes == 1:
-        result_dict = calculate_performance_bin_sk(trues, preds)
-    else:
-        result_dict = calculate_performance(trues, preds)
-    test_output = {
-        # 'preds':  preds,
-        # 'trues':  trues,
-        'result': result_dict
-    }
+    preds_hard = logit2label(preds, cls_thresh=0.5)
+    result_dict = calculate_performance(trues, preds_hard)
+
+    test_output = {str(idx): (t[0], ps[0], ph[0]) for idx, t, ps, ph in
+                   zip(idxs, trues, preds_soft, preds_hard.tolist())}
     # logger.info(dumps(result_dict, indent=4))
 
-    return losses, test_output
+    return losses, result_dict, test_output
 
 
 all_test_dataloaders = None
@@ -252,11 +263,10 @@ def eval_all(model, loss_func, class_names=cfg['data']['class_names'],
 
     all_test_output = {}
     for tfile in test_files:
-        test_losses, test_output = eval_disaster_classifier(
-            model, loss_func=loss_func,
-            dataloader=all_test_dataloaders[tfile], n_classes=n_classes,
-            classifier_type=classifier_type, embeds=embeds)
-        all_test_output[tfile] = test_output['result']['f1_weighted']
+        test_losses, test_result, test_output = eval_disaster_classifier(
+            model, loss_func=loss_func, dataloader=all_test_dataloaders[tfile],
+            class_names=class_names, classifier_type=classifier_type, embeds=embeds)
+        all_test_output[tfile] = test_result['f1_weighted']
 
     return all_test_output
 
@@ -329,6 +339,89 @@ def get_optimizer(model, clf_type, lr=cfg["model"]["optimizer"]["lr"],
     return optimizer, scheduler
 
 
+def train_lstm_examplecon(model, optimizer, neighbors_dataset,
+                          example_dataloader: utils.data.dataloader.DataLoader,
+                          epochs: int = 5, model_name='examplecon_lstm',
+                          save_epochs=cfg['pretrain']['save_epochs']):
+    logger.info(f"Training [{model_name}] for {epochs} epochs: ")
+    train_epoch_losses = []
+    for epoch in range(1, epochs + 1):
+        model.train()
+        epoch_loss = 0
+        epoch_start_time = timeit.default_timer()
+        X_hat = []
+        for iter, batch in enumerate(example_dataloader):
+            text, text_lengths = batch.text
+            X_hat.append(model(text, text_lengths.long().cpu()))
+        X_hat = cat(X_hat)
+        loss = 0
+        for iter, (x_idx, x_pos_idx, x_neg_idx) in enumerate(neighbors_dataset):
+            x = X_hat[x_idx]
+            x_pos = X_hat[x_pos_idx]
+            x_neg = X_hat[x_neg_idx]
+            if x.dim() == 1:
+                x = x.unsqueeze(1).T
+            if iter == 0:
+                loss = supervised_contrastive_loss(x, x_pos, x_neg)
+            else:
+                loss += supervised_contrastive_loss(x, x_pos, x_neg)
+            epoch_loss += loss.detach().item()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        epoch_train_time = timeit.default_timer() - epoch_start_time
+        epoch_loss = loss.detach().item() / (iter + 1)
+        logger.info(f'Epoch {epoch}, Time: {epoch_train_time / 60:6.3} mins, '
+                    f'Loss: {epoch_loss} Model {model_name}')
+        train_epoch_losses.append(epoch_loss)
+
+        if epoch in save_epochs:
+            # model.save(join(pretrain_dir, cfg['pretrain']['name'] +model_name))
+            save_model_state(model, 'lstm_examplecon_' + str(epoch), optimizer)
+            logger.info(f'Saved model for epoch {epoch}')
+
+    return model
+
+
+def get_kd_logits(model, dataloader, clf_type, loss_func=nn.BCEWithLogitsLoss(),
+                  dataname=cfg["data"]["train"], model_name='kd', embeds=None, epoch=None):
+    _, result, logits = eval_disaster_classifier(
+        model, loss_func=loss_func, dataloader=dataloader,
+        classifier_type=clf_type, embeds=embeds)
+
+    logger.info(f'Result train: [{result["f1_weighted"]}]\n{dumps(result, indent=4)}')
+
+    texts = []
+    logits0 = []
+    logits1 = []
+    preds_hard = []
+    trues = []
+    idxs = []
+    for example in dataloader.dataset.examples:
+        idxs.append(example.ids)
+        texts.append(" ".join(example.text))
+        t, ps, ph = logits[example.ids]
+        ## Convert binary logit to 2-class proba:
+        logits0.append(1 - ps)
+        logits1.append(ps)
+        preds_hard.append(ph)
+        trues.append(t)
+
+    data = {
+        'text':       texts,
+        'trues':      trues,
+        'preds_hard': preds_hard,
+        'logits0':    logits0,
+        'logits1':    logits1,
+    }
+    df = dict2df(data, index=idxs)
+    kd_filename = dataname + '_' + model_name + '_kd.csv'
+    # kd_filename = kd_filename
+    df.to_csv(join(pretrain_dir, kd_filename))
+
+    return df
+
+
 def disaster_trainer(
         train_dataloader, val_dataloader, test_dataloader, vectors, classifier,
         clf_type, in_dim=300, hid_dim=128, epoch=cfg['training']['num_epoch'],
@@ -380,15 +473,29 @@ def disaster_trainer(
     model_name = model_name + '_' + str(lr)
 
     if pretrain_dataloader is not None:
-        model_name = model_name + '_cls_preepoch_' + str(pretrain_epoch)
+        if examcon_pretrain:
+            examcon_pretrain_epoch = cfg['pretrain']['epoch']
+            examcon_model = BiLSTM_Emb_repr(vocab_size=vectors.shape[0], in_dim=in_dim,
+                                            out_dim=hid_dim)
+            if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
+                examcon_model.to(cuda_device)
+            model_name = model_name + '_examcon_preepoch_' + str(examcon_pretrain_epoch)
+            # loss_func = nn.BCEWithLogitsLoss() examcon_pretrain
+            logger.info(f'Training classifier with all pretraining data with '
+                        f'contrastive task for pretrain_epoch {examcon_pretrain_epoch}')
+            examcon_model = train_lstm_examplecon(
+                examcon_model, optimizer, pretrain_dataloader[0], pretrain_dataloader[1],
+                epochs=pretrain_epoch, model_name=model_name)
+            ## Load pretrained state_dict to train model:
+            model.bilstm_embedding.load_state_dict(examcon_model.state_dict())
+        model_name = model_name + '_aepoch_' + str(pretrain_epoch)
         logger.info(f'Training classifier with all pretraining data with '
                     f'classification task for pretrain_epoch {pretrain_epoch}')
-        model, epoch_losses, train_epochs_output_dict = train_disaster_classifier(
+        model, _, _ = train_disaster_classifier(
             model, pretrain_dataloader, loss_func=loss_func, optimizer=optimizer,
-            epoch=pretrain_epoch, eval_dataloader=val_dataloader,
-            test_dataloader=test_dataloader, model_name=model_name,
-            scheduler=scheduler, classifier_type=classifier_type,
-            embeds=embeds, fix_len=fix_len)
+            epoch=pretrain_epoch, eval_dataloader=None, test_dataloader=None,
+            model_name=model_name, scheduler=scheduler, clf_type=clf_type,
+            embeds=embeds, fix_len=fix_len, run_eval=False)
 
     model_name = model_name + '_epoch_' + str(epoch)
 
@@ -404,13 +511,14 @@ def disaster_trainer(
     #             f"\nPer example: [{test_time / test_count} sec]")
     # logger.info(dumps(test_output['result'], indent=4))
 
-    return train_epochs_output_dict
+    df = get_kd_logits(model, train_dataloader, clf_type, model_name=model_name,
+                       embeds=embeds, epoch=epoch)
+    return model, epoch_losses, train_epochs_output_dict, df
 
 
 def run_all_disaster(train_dataloader, val_dataloader, test_dataloader, vectors,
                      in_dim=300, epoch=cfg['training']['num_epoch'],
-                     lr=cfg["model"]["optimizer"]["lr"], model_name=None,
-                     pretrain_dataloader=None, init_vectors=True):
+                     model_name=None, pretrain_dataloader=None, init_vectors=True):
     classifiers = {
         # 'DPCNN': DPCNN,
         # 'BiLSTM_Emb': BiLSTM_Emb_Classifier,
@@ -419,16 +527,19 @@ def run_all_disaster(train_dataloader, val_dataloader, test_dataloader, vectors,
         'CNN':        CNN_Classifier,
         'DenseCNN':   DenseCNN_Classifier,
         # 'FastText':   FastText_Classifier,
-        'XML_CNN':    XMLCNN_Classifier
+        # 'XMLCNN':    XMLCNN_Classifier,
     }
 
     for classifier_type, classifier in classifiers.items():
-        _ = disaster_trainer(
-            train_dataloader, val_dataloader, test_dataloader, vectors,
-            classifier, classifier_type, in_dim=in_dim, epoch=epoch,
-            loss_func=nn.BCEWithLogitsLoss(), lr=lr, model_name=model_name,
-            pretrain_dataloader=pretrain_dataloader, pretrain_epoch=cfg['pretrain']['epoch'],
-            init_vectors=init_vectors)
+        lrs = cfg['model']['lrs']
+        logger.info(f'Run for multiple LR {lrs}')
+        for lr in lrs:
+            logger.info(f'Current LR {lr}')
+            _, _, _, df = disaster_trainer(
+                train_dataloader, val_dataloader, test_dataloader, vectors,
+                classifier, classifier_type, in_dim=in_dim, epoch=epoch,
+                loss_func=nn.BCEWithLogitsLoss(), lr=lr, model_name=model_name,
+                pretrain_dataloader=pretrain_dataloader, init_vectors=init_vectors)
 
 
 def main():
@@ -440,7 +551,6 @@ def main():
         Read Only
     :return:
     """
-    disaster_trainer(in_dim=1, hid_dim=4, num_heads=2)
 
 
 if __name__ == "__main__":
