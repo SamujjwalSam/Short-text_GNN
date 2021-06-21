@@ -34,7 +34,7 @@ from config import configuration as cfg, platform as plat, username as user, dat
 from Metrics.metrics import calculate_performance_pl
 from Logger.logger import logger
 from File_Handlers.json_handler import read_labelled_json
-from Transformers_simpletransformers.BERT_multilabel_classifier import format_df_cls
+from stf_classification.BERT_multilabel_classifier import format_df_cls
 
 ## Setting up the device for GPU usage
 from torch import cuda

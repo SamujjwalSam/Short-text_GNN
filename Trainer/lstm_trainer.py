@@ -18,8 +18,8 @@ __license__     : "This source code is licensed under the MIT-style license
 """
 
 import timeit
-from os.path import join
-from torch import nn, stack, utils, sigmoid, mean, cat, cuda
+from os.path import join, exists
+from torch import nn, stack, utils, sigmoid, mean, cat, cuda, save, load
 from json import dumps
 from math import isnan
 from collections import OrderedDict
@@ -29,8 +29,7 @@ from torch.utils.data import DataLoader
 from Layers.pretrain_losses import supervised_contrastive_loss
 from Data_Handlers.create_datasets import prepare_single_dataset
 from Layers.bilstm_classifiers import BiLSTM_Emb_Classifier, BiLSTM_Emb_repr
-from Metrics.metrics import calculate_performance_sk as calculate_performance,\
-    calculate_performance_bin_sk
+from Metrics.metrics import calculate_performance_sk as calculate_performance
 from Utils.utils import logit2label, count_parameters, save_model_state, load_model_state
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user,\
@@ -47,7 +46,7 @@ def train_lstm_classifier(
         epoch: int = cfg['training']['num_epoch'],
         eval_dataloader: utils.data.dataloader.DataLoader = None,
         test_dataloader: utils.data.dataloader.DataLoader = None,
-        n_classes=cfg['data']['num_classes'], model_name='Glove',
+        class_names=cfg['data']['class_names'], model_name='Glove',
         scheduler=None):
     logger.info(f"Started training for {epoch} epoch: ")
     max_result = {'score': 0.0, 'epoch': 0}
@@ -62,7 +61,7 @@ def train_lstm_classifier(
         for iter, batch in enumerate(dataloader):
             # logger.debug(batch)
             text, text_lengths = batch.text
-            label = stack([batch.__getattribute__(cls) for cls in cfg['data']['class_names']]).T
+            label = stack([batch.__getattribute__(cls) for cls in class_names]).T
             prediction = model(text, text_lengths.long().cpu()).squeeze()
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
                 prediction = prediction.to(cuda_device)
@@ -190,7 +189,7 @@ def train_lstm_examplecon(model, optimizer, neighbors_dataset,
 
 def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
                          dataloader: utils.data.dataloader.DataLoader,
-                         n_classes=cfg['data']['num_classes']):
+                         class_names=cfg['data']['class_names']):
     # if use_saved:
     #     model = load_model_state(model, epoch)
 
@@ -202,10 +201,7 @@ def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
     for iter, batch in enumerate(dataloader):
         text, text_lengths = batch.text
         ## Get label based on number of classes:
-        if cfg['data']['class_names'] == 1:
-            label = batch.__getattribute__('0').unsqueeze(1)
-        else:
-            label = stack([batch.__getattribute__(cls) for cls in cfg['data']['class_names']]).T
+        label = stack([batch.__getattribute__(cls) for cls in class_names]).T
         prediction = model(text, text_lengths.long().cpu())
         # test_count = label.shape[0]
         if prediction.dim() == 1:
@@ -233,10 +229,7 @@ def eval_lstm_classifier(model: BiLSTM_Emb_Classifier, loss_func,
     ## Converting probabilities to class labels:
     preds = logit2label(preds.detach().cpu(), cls_thresh=0.5)
     trues = cat(trues)
-    if n_classes == 1:
-        result_dict = calculate_performance_bin_sk(trues, preds)
-    else:
-        result_dict = calculate_performance(trues, preds)
+    result_dict = calculate_performance(trues, preds)
     test_output = {
         # 'preds':  preds,
         # 'trues':  trues,
@@ -251,7 +244,7 @@ all_test_dataloaders = None
 
 
 def eval_all(model: BiLSTM_Emb_Classifier, loss_func,
-             n_classes=cfg['data']['num_classes'], test_files=cfg['data']['all_test_files']):
+             class_names=cfg['data']['class_names'], test_files=cfg['data']['all_test_files']):
     global all_test_dataloaders
 
     if all_test_dataloaders is None:
@@ -263,15 +256,15 @@ def eval_all(model: BiLSTM_Emb_Classifier, loss_func,
     all_test_output = {}
     for tfile in test_files:
         test_losses, test_output = eval_lstm_classifier(
-            model, loss_func=loss_func, dataloader=all_test_dataloaders[tfile], n_classes=n_classes)
+            model, loss_func=loss_func, dataloader=all_test_dataloaders[tfile], class_names=class_names)
         all_test_output[tfile] = test_output['result']['f1_weighted']
 
     return all_test_output
 
 
 def LSTM_trainer(
-        train_dataloader, val_dataloader, test_dataloader, vectors, in_dim=100,
-        hid_dim: int = 50, epoch=cfg['training']['num_epoch'],
+        train_dataloader, val_dataloader, test_dataloader, vectors, in_dim=300,
+        hid_dim: int = 300, epoch=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
         model_name='Glove', pretrain_dataloader=None,
         pretrain_epoch=cfg['pretrain']['epoch'], examcon_pretrain=True, init_vectors=True):
@@ -289,9 +282,9 @@ def LSTM_trainer(
         model.to(cuda_device)
 
     optimizer = optim.Adam(
-        model.parameters(), lr=lr, momentum=cfg["model"]["optimizer"]["momentum"],
+        model.parameters(), lr=lr,
         weight_decay=cfg["model"]["optimizer"]["weight_decay"])
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[int((4/5)*epoch)], gamma=0.1)
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[int((4 / 5) * epoch)], gamma=0.1)
 
     # model_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
     # model_name = model_name + '_epoch' + str(epoch)

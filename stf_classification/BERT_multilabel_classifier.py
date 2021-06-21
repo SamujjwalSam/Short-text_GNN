@@ -25,6 +25,8 @@ import pandas as pd
 from os.path import join
 from os import environ
 from json import dumps, dump
+# from simpletransformers.classification import MultiLabelClassificationModel, MultiLabelClassificationArgs,\
+#     ClassificationModel, ClassificationArgs
 from simpletransformers.classification import MultiLabelClassificationModel, MultiLabelClassificationArgs,\
     ClassificationModel, ClassificationArgs
 # from simpletransformers.language_representation import RepresentationModel
@@ -208,6 +210,7 @@ def BERT_multilabel_classifier(
                 "weight_decay": 0.0,
             },
         ]
+        exp_name = exp_name+"_CLS"
 
     """
     You can set config in predict(): 
@@ -236,16 +239,22 @@ def BERT_multilabel_classifier(
         replace_bert_init_embs(model, pepoch)
         logger.warning(f'Replaced BERT embs with pepoch {pepoch}')
 
+    # # Evaluate the model
+    # result, _, _ = model.eval_model(test_df, macro_f1=macro_f1)
+    # logger.info(f'BERT for experiment {exp_name+"_NOTRAIN"} Test W-F1:'
+    #             f' {result["macro_f1"]:1.4} with Train {train_df.shape}, '
+    #             f'Val {val_df.shape}, Test {test_df.shape}')
+
     ## Train the model
     start_time = timeit.default_timer()
     model.train_model(train_df, eval_df=test_df, verbose=True, macro_f1=macro_f1)
     train_time = timeit.default_timer() - start_time
 
     # Evaluate the model
-    result, _, _ = model.eval_model(test_df, macro_f1=macro_f1)
-    logger.info(f'BERT EVAL Test W-F1: {result["macro_f1"]:1.4}')
-    logger.info(
-        f'Running BERT for experiment {exp_name} with Train {train_df.shape}, Val {val_df.shape}, Test {test_df.shape}')
+    # result, _, _ = model.eval_model(test_df, macro_f1=macro_f1)
+    # logger.info(f'BERT for experiment {exp_name+"_TRAINED"} Test W-F1:'
+    #             f' {result["macro_f1"]:1.4} with Train {train_df.shape}, '
+    #             f'Val {val_df.shape}, Test {test_df.shape}')
     if run_cross_tests:
         for test_data in cfg['data']['all_test_files']:
             logger.info(f'TEST data: {test_data}')
@@ -255,9 +264,7 @@ def BERT_multilabel_classifier(
             if format_input:
                 test_df = format_df_cls(test_df)
             r, _, _ = model.eval_model(test_df, macro_f1=macro_f1)
-            logger.info(f'BERT Cross W-F1: {r["macro_f1"]:1.4} Data: {test_data}')
-            logger.info(f'Testing BERT for experiment {exp_name} with Test data '
-                        f'[{test_data}] size {test_df.shape}')
+            logger.info(f'BERT Data: {test_data} Cross W-F1: {r["macro_f1"]:1.4} size {test_df.shape}')
 
     # ## Evaluate the model
     # start_time = timeit.default_timer()
@@ -292,7 +299,7 @@ def BERT_multilabel_classifier(
     #     dump(result, f)
 
     logger.info(f"Total training time for [{num_epoch}] with [{train_df.shape[0]}] examples: [{train_time} sec]"
-                f"\nPer example: [{train_time / train_df.shape[0]} sec] for model: [{model_type}]")
+                f"\nPer example: [{train_time / train_df.shape[0]} sec] for model: [{exp_name}]")
 
     # logger.info(f"Total prediction time for [{test_df.shape[0]}] examples: [{prediction_time} sec]"
     #             f"\nPer example: [{prediction_time / test_df.shape[0]} sec] for model: [{model_type}]")
@@ -326,21 +333,16 @@ if __name__ == "__main__":
     if cfg['data']['use_all_data']:
         train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
         train_df = train_df.sample(frac=1)
-        val_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['val'])
-        val_df = val_df.sample(frac=1)
-        test_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['test'])
-        test_df = test_df.sample(frac=1)
-        # test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
     else:
         train_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['train'])
         train_df = train_df.sample(frac=1)
         # train_df["labels"] = pd.to_numeric(train_df["labels"], downcast="float")
-        val_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['val'])
-        val_df = val_df.sample(frac=1)
-        # val_df["labels"] = pd.to_numeric(val_df["labels"], downcast="float")
-        test_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['test'])
-        test_df = test_df.sample(frac=1)
-        # test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
+    val_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['val'])
+    val_df = val_df.sample(frac=1)
+    # val_df["labels"] = pd.to_numeric(val_df["labels"], downcast="float")
+    test_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['test'])
+    test_df = test_df.sample(frac=1)
+    # test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
 
     BERT_multilabel_classifier(
         train_df=train_df, val_df=val_df, test_df=test_df,
@@ -353,21 +355,16 @@ if __name__ == "__main__":
         if cfg['data']['use_all_data']:
             train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
             train_df = train_df.sample(frac=1)
-            val_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['val'])
-            val_df = val_df.sample(frac=1)
-            test_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['test'])
-            test_df = test_df.sample(frac=1)
-            # test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
         else:
             train_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['train'])
             train_df = train_df.sample(frac=1)
             # train_df["labels"] = pd.to_numeric(train_df["labels"], downcast="float")
-            val_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['val'])
-            val_df = val_df.sample(frac=1)
-            # val_df["labels"] = pd.to_numeric(val_df["labels"], downcast="float")
-            test_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['test'])
-            test_df = test_df.sample(frac=1)
-            # test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
+        val_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['val'])
+        val_df = val_df.sample(frac=1)
+        # val_df["labels"] = pd.to_numeric(val_df["labels"], downcast="float")
+        test_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['test'])
+        test_df = test_df.sample(frac=1)
+        # test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
 
         BERT_multilabel_classifier(
             train_df=train_df, val_df=val_df, test_df=test_df,

@@ -22,7 +22,7 @@ import pandas as pd
 from os.path import join, exists
 from torch.utils.data import DataLoader, Dataset
 
-from Transformers_simpletransformers.text_representation import get_token_representations
+# from stf_classification.text_representation import get_token_representations
 from Text_Processesor.tokenizer import BERT_tokenizer
 from File_Handlers.csv_handler import read_csv, read_csvs
 from Text_Processesor.build_corpus_vocab import get_dataset_fields
@@ -94,8 +94,9 @@ class Example_Contrast_Dataset(Dataset):
         return len(self.dataset)
 
 
-def prepare_example_contrast_datasets(data_name, batch_size=cfg['training']['train_batch_size'],
-                                      dataset_size=5000, n_count=5):
+def prepare_example_contrast_datasets(
+        data_name, batch_size=cfg['training']['train_batch_size'],
+        dataset_size=5000, n_count=5):
     train_data, vocab, iter = prepare_single_dataset(
         data_dir=dataset_dir, dataname=data_name + ".csv")
     train_data_iter = dataset2iter(train_data, batch_size=batch_size, shuffle=False)

@@ -26,7 +26,7 @@ import torch
 
 from config import configuration as cfg, dataset_dir, platform as plat, pretrain_dir, username as user, cuda_device
 from File_Handlers.csv_handler import read_csv, read_csvs
-from Transformers_simpletransformers.BERT_multilabel_classifier import BERT_multilabel_classifier
+from stf_classification.BERT_multilabel_classifier import BERT_multilabel_classifier
 from Logger.logger import logger
 
 if torch.cuda.is_available() and cfg['cuda']['cuda_devices'][plat][user]:

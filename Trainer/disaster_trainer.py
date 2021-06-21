@@ -53,9 +53,10 @@ def train_disaster_classifier(
         epoch: int = cfg['training']['num_epoch'],
         eval_dataloader: utils.data.dataloader.DataLoader = None,
         test_dataloader: utils.data.dataloader.DataLoader = None,
-        model_name='Glove', scheduler=None, classifier_type='disaster',
-        pad_token_id=1, embeds=None, fix_len=None):
-    logger.info(f"Started training for {epoch} epoch: ")
+        class_names=cfg['data']['class_names'], model_name='Glove',
+        scheduler=None, clf_type='disaster', pad_token_id=1, embeds=None,
+        fix_len=None, run_eval=True):
+    logger.info(f"Training {model_name} for {epoch} epoch: ")
     max_result = {'score': 0.0, 'epoch': 0}
     train_epoch_losses = []
     train_epoch_dict = OrderedDict()
@@ -67,14 +68,15 @@ def train_disaster_classifier(
         start_time = timeit.default_timer()
         for iter, batch in enumerate(dataloader):
             text, text_lengths = batch.text
-            label = stack([batch.__getattribute__(cls) for cls in cfg['data']['class_names']]).T
-            if classifier_type == 'BiLSTM_Emb':
+            label = stack([batch.__getattribute__(cls) for cls in class_names]).T
+            if clf_type == 'BiLSTMEmb':
                 prediction = model(text, text_lengths.long().cpu())
-            elif classifier_type == 'DPCNN':
+            elif clf_type == 'DPCNN':
                 text = embeds(text)
                 prediction = model(text)
             else:
                 pad_mask = ~(text == pad_token_id)
+                ## Need to do .float() in separate step, else code fails:
                 pad_mask = pad_mask.float()
                 prediction = model(text, pad_mask)
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
@@ -161,8 +163,8 @@ def train_disaster_classifier(
 
 def eval_disaster_classifier(
         model, loss_func, dataloader: utils.data.dataloader.DataLoader,
-        n_classes=cfg['data']['num_classes'], pad_token_id=1,
-        classifier_type='disaster', embeds=None, print_logits=False):
+        class_names=cfg['data']['class_names'], pad_token_id=1,
+        classifier_type='disaster', embeds=None):
     # if use_saved:
     #     model = load_model_state(model, epoch)
     model.eval()
@@ -172,15 +174,16 @@ def eval_disaster_classifier(
     # start_time = timeit.default_timer()
     for iter, batch in enumerate(dataloader):
         text, text_lengths = batch.text
-        ## Get label based on number of classes:
-        label = stack([batch.__getattribute__(cls) for cls in cfg['data']['class_names']]).T
-        if classifier_type == 'BiLSTM_Emb':
+        ## aggregate labels:
+        label = stack([batch.__getattribute__(cls) for cls in class_names]).T
+        if classifier_type == 'BiLSTMEmb':
             prediction = model(text, text_lengths.long().cpu())
         elif classifier_type == 'DPCNN':
             text = embeds(text)
             prediction = model(text)
         else:
             pad_mask = ~(text == pad_token_id)
+            ## Need to do .float() in separate step, else code fails:
             pad_mask = pad_mask.float()
             prediction = model(text, pad_mask)
         if prediction.dim() == 1:
@@ -231,7 +234,7 @@ def eval_disaster_classifier(
 all_test_dataloaders = None
 
 
-def eval_all(model: BiLSTM_Classifier, loss_func, n_classes=cfg['data']['num_classes'],
+def eval_all(model, loss_func, class_names=cfg['data']['class_names'],
              test_files=cfg['data']['all_test_files'], classifier_type='disaster', embeds=None, fix_len=None):
     global all_test_dataloaders
 
@@ -291,7 +294,7 @@ def get_optimizer(model, clf_type, lr=cfg["model"]["optimizer"]["lr"],
         scheduler = optim.lr_scheduler.MultiStepLR(
             optimizer, milestones=[int((4 / 5) * epoch)], gamma=0.1)
 
-    elif clf_type == 'BiLSTM_Emb':
+    elif clf_type == 'BiLSTMEmb':
         optimizer = optim.Adam(
             model.parameters(), lr=lr,
             weight_decay=cfg["model"]["optimizer"]["weight_decay"])
@@ -300,6 +303,7 @@ def get_optimizer(model, clf_type, lr=cfg["model"]["optimizer"]["lr"],
     else:
         def lambda_(epoch):
             return (1 / 10) ** epoch
+
         decay_parameters, fine_tune_decay_parameters, no_decay_parameters,\
         fine_tune_no_decay_parameters = set_param_hypers(model)
 
@@ -327,18 +331,18 @@ def get_optimizer(model, clf_type, lr=cfg["model"]["optimizer"]["lr"],
 
 def disaster_trainer(
         train_dataloader, val_dataloader, test_dataloader, vectors, classifier,
-        classifier_type, in_dim=300, epoch=cfg['training']['num_epoch'],
+        clf_type, in_dim=300, hid_dim=128, epoch=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
         model_name=None, pretrain_dataloader=None, fix_len=None, pad_idx=1,
-        pretrain_epoch=cfg['pretrain']['epoch'], init_vectors=True,
-        multi_gpu=False, embeds=None):
-    # train_dataloader, test_dataloader = dataloaders
-    model_name = model_name + '_' + classifier_type
-    model_config = load_json(filename=classifier_type + '_config', filepath='Disaster_Model_Configs')
-    if classifier_type == 'BiLSTM_Emb':
+        pretrain_epoch=cfg['training']['num_epoch'], examcon_pretrain=True,
+        init_vectors=True, multi_gpu=False, embeds=None, use_kd=True):
+    model_name = clf_type + '_' + model_name
+    model_config = load_json(filename=clf_type + '_config',
+                             filepath='Disaster_Model_Configs')
+    if clf_type == 'BiLSTMEmb':
         model = classifier(vocab_size=vectors.shape[0], in_dim=in_dim,
-                           hid_dim=128, out_dim=cfg["data"]["num_classes"])
-    elif classifier_type == 'DPCNN':
+                           hid_dim=hid_dim, out_dim=cfg["data"]["num_classes"])
+    elif clf_type == 'DPCNN':
         model = classifier(channel_size=model_config['channel_size'])
         embeds = nn.Embedding(vectors.shape[0], in_dim)
         fix_len = 40
@@ -347,14 +351,14 @@ def disaster_trainer(
         model = classifier(embeddings=vectors, pad_idx=pad_idx,
                            classes_num=len(cfg['data']['class_names']),
                            config=model_config, device=cuda_device)
-    logger.info((classifier_type, model))
+    logger.info((clf_type, model))
     count_parameters(model)
 
     if init_vectors:
-        if classifier_type == 'BiLSTM_Emb':
+        if clf_type == 'BiLSTMEmb':
             model.bilstm_embedding.embedding.weight.data.copy_(vectors)
             logger.info(f'Initialized pretrained embedding of shape {model.bilstm_embedding.embedding.weight.shape}')
-        elif classifier_type == 'DPCNN':
+        elif clf_type == 'DPCNN':
             embeds.weight.data.copy_(vectors)
         else:
             model.embeddings.data.copy_(vectors)
@@ -370,8 +374,10 @@ def disaster_trainer(
     # model_dir = join(cfg['paths']['dataset_root'][plat][user], cfg['data']['name'])
     # model_name = model_name + '_epoch' + str(epoch)
     # saved_model = load_model_state(model, model_name=model_name + '_epoch' + str(epoch), optimizer=optimizer)
-    optimizer, scheduler = get_optimizer(model, classifier_type, lr=lr,
+    optimizer, scheduler = get_optimizer(model, clf_type, lr=lr,
                                          model_config=model_config, epoch=epoch)
+
+    model_name = model_name + '_' + str(lr)
 
     if pretrain_dataloader is not None:
         model_name = model_name + '_cls_preepoch_' + str(pretrain_epoch)
@@ -390,21 +396,8 @@ def disaster_trainer(
     logger.info(f'Model name: {model_name}')
     model, epoch_losses, train_epochs_output_dict = train_disaster_classifier(
         model, train_dataloader, loss_func=loss_func, optimizer=optimizer,
-        epoch=epoch, eval_dataloader=val_dataloader,
-        test_dataloader=test_dataloader, model_name=model_name,
-        scheduler=scheduler, classifier_type=classifier_type, embeds=embeds,
-        fix_len=fix_len)
-
-    # if saved_model:
-    #     start_time = timeit.default_timer()
-    #     losses, test_output = eval_disaster_classifier(
-    #         saved_model, loss_func=loss_func, dataloader=test_dataloader)
-    #     test_time = timeit.default_timer() - start_time
-    # else:
-    #     start_time = timeit.default_timer()
-    #     losses, test_output = eval_disaster_classifier(
-    #         model, loss_func=loss_func, dataloader=test_dataloader)
-    #     test_time = timeit.default_timer() - start_time
+        epoch=epoch, eval_dataloader=val_dataloader, test_dataloader=test_dataloader, model_name=model_name,
+        scheduler=scheduler, clf_type=clf_type, embeds=embeds, fix_len=fix_len)
 
     # test_count = test_dataloader.dataset.__len__()
     # logger.info(f"Total inference time for [{test_count}] examples: [{test_time:2.4} sec]"
