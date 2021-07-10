@@ -198,7 +198,7 @@ def main_gcpd_normal(model_type=cfg['model']['type'], glove_embs=None,
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
             get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name,
-            test_dataname=test_name, use_all_data=False)
+            test_dataname=test_name, zeroshot=False)
 
         tr_freq = train_vocab.vocab.freqs.keys()
         tr_v = train_vocab.vocab.itos
@@ -235,7 +235,7 @@ def main_gcpd_normal(model_type=cfg['model']['type'], glove_embs=None,
             stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name,
-            test_dataname=test_name, use_all_data=cfg['data']['use_all_data'])
+            test_dataname=test_name, zeroshot=cfg['data']['zeroshot'])
 
         extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
         logger.info(f'Add {len(extra_pretrained_tokens)} extra pretrained vectors to vocab')
@@ -243,7 +243,7 @@ def main_gcpd_normal(model_type=cfg['model']['type'], glove_embs=None,
             train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
 
         model_name = f'GCPD_{model_type}_freq{cfg["data"]["min_freq"]}'\
-                     f'_lr{str(lr)}_Pepoch{str(cfg["pretrain"]["epoch"])}_Pmodel{pmodel_type}'
+                     f'_lr{str(lr)}'
         logger.critical(f'GCPD ********** {model_name}')
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
@@ -257,7 +257,7 @@ def main_gcpd_normal(model_type=cfg['model']['type'], glove_embs=None,
             stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name,
-            test_dataname=test_name, use_all_data=cfg['data']['use_all_data'])
+            test_dataname=test_name, zeroshot=cfg['data']['zeroshot'])
         model_name = f'W2V_{model_type}_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
         logger.critical(f'WORD2VEC @@@@@@@@@@ {model_name}')
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
@@ -272,7 +272,7 @@ def main_gcpd_normal(model_type=cfg['model']['type'], glove_embs=None,
             stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name,
-            test_dataname=test_name, use_all_data=cfg['data']['use_all_data'])
+            test_dataname=test_name, zeroshot=cfg['data']['zeroshot'])
         model_name = f'cnlp_{model_type}_freq{cfg["data"]["min_freq"]}_lr{str(lr)}'
         logger.critical(f'cnlp &&&&&&&&&& {model_name}')
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
@@ -308,11 +308,11 @@ def main_dpcnn_normal(model_type='DPCNN', glove_embs=None,
                       train_name: str = cfg['data']['train'],
                       val_name: str = cfg['data']['val'],
                       test_name: str = cfg['data']['test'],
-                      fix_length=40, use_all_data=cfg['data']['use_all_data']):
+                      fix_length=40, zeroshot=cfg['data']['zeroshot']):
     if glove_embs is None:
         glove_embs = glove2dict()
 
-    # if use_all_data:
+    # if zeroshot:
     #     logger.warning(f'Cleaning extra files from directory: {data_dir}')
     #     logger.warning(f'This should be removed if only zeroshot code is run multiple times to run the code faster.')
     #     clean_dataset_dir()
@@ -326,7 +326,7 @@ def main_dpcnn_normal(model_type='DPCNN', glove_embs=None,
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
             get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name,
-            test_dataname=test_name, use_all_data=use_all_data, fix_length=fix_length)
+            test_dataname=test_name, zeroshot=zeroshot, fix_length=fix_length)
 
         tr_freq = train_vocab.vocab.freqs.keys()
         tr_v = train_vocab.vocab.itos
@@ -372,7 +372,7 @@ def main_dpcnn_normal(model_type='DPCNN', glove_embs=None,
             stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name,
-            test_dataname=test_name, use_all_data=cfg['data']['use_all_data'],
+            test_dataname=test_name, zeroshot=cfg['data']['zeroshot'],
             fix_length=fix_length)
 
         extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
@@ -381,7 +381,7 @@ def main_dpcnn_normal(model_type='DPCNN', glove_embs=None,
             train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
 
         model_name = f'GCPD_{model_type}_lr{str(lr)}_Pepoch'\
-                     f'{str(cfg["pretrain"]["epoch"])}_Pmodel{pmodel_type}'
+                     f'{str(cfg["pretrain"]["epoch"])}'
         logger.critical(f'GCPD ********** {model_name}')
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
@@ -393,7 +393,7 @@ def main_dpcnn_normal(model_type='DPCNN', glove_embs=None,
 def main_disaster_normal(
         model_type='disaster', glove_embs=None, train_name: str = cfg['data']['train'],
         val_name: str = cfg['data']['val'], test_name: str = cfg['data']['test'],
-        fix_length=40, use_all_data=cfg['data']['use_all_data'], clean_dir=False):
+        fix_length=40, zeroshot=cfg['data']['zeroshot'], clean_dir=False):
     if glove_embs is None:
         glove_embs = glove2dict()
 
@@ -406,7 +406,7 @@ def main_disaster_normal(
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
         get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         train_dataname=train_name, val_dataname=val_name, test_dataname=test_name,
-        use_all_data=use_all_data, fix_len=fix_length)
+        zeroshot=zeroshot, fix_len=fix_length)
 
     tr_freq = train_vocab.vocab.freqs.keys()
     tr_v = train_vocab.vocab.itos
@@ -425,6 +425,8 @@ def main_disaster_normal(
         'idx2str_map': train_vocab.vocab.itos.copy(),
     }
     model_name = f'GloVe_{model_type}'
+    if cfg['data']['zeroshot']:
+        model_name = model_name + '_zeroshot'
     logger.critical(f'GLOVE ^^^^^^^^^^ {model_name}')
     classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                train_vocab, train_dataset, val_dataset, test_dataset,
@@ -452,7 +454,7 @@ def main_disaster_normal(
         stoi=token2idx_map, vectors=X, get_dataloader=True,
         dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         train_dataname=train_name, val_dataname=val_name,
-        test_dataname=test_name, use_all_data=cfg['data']['use_all_data'],
+        test_dataname=test_name, zeroshot=cfg['data']['zeroshot'],
         fix_len=fix_length)
 
     extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
@@ -460,8 +462,9 @@ def main_disaster_normal(
     if len(extra_pretrained_tokens) > 0:
         train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
 
-    model_name = f'GCPD_{model_type}_Pepoch{str(cfg["pretrain"]["epoch"])}'\
-                 f'_Pmodel{pmodel_type}'
+    model_name = f'GCPD_{model_type}'
+    if cfg['data']['zeroshot']:
+        model_name = model_name + '_zeroshot'
     logger.critical(f'GCPD ********** {model_name}')
     classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                train_vocab, train_dataset, val_dataset, test_dataset,
@@ -472,7 +475,7 @@ def main_disaster_normal(
 
 def main_gcpd_zeroshot(model_type='disaster', glove_embs=None, train_name=cfg['data']['train'],
                        val_name=cfg['data']['val'], test_name=cfg['data']['test']):
-    # if cfg['data']['use_all_data']:
+    # if cfg['data']['zeroshot']:
     #     train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
     #     train_df = train_df.sample(frac=1)
     # else:
@@ -512,7 +515,7 @@ def main_gcpd_zeroshot(model_type='disaster', glove_embs=None, train_name=cfg['d
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
         get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         train_dataname=train_name, val_dataname=val_name, test_dataname=test_name,
-        use_all_data=True)
+        zeroshot=True)
 
     tr_freq = train_vocab.vocab.freqs.keys()
     tr_v = train_vocab.vocab.itos
@@ -549,7 +552,7 @@ def main_gcpd_zeroshot(model_type='disaster', glove_embs=None, train_name=cfg['d
             stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name,
-            test_dataname=test_name, use_all_data=True)
+            test_dataname=test_name, zeroshot=True)
 
         extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
         logger.info(f'Add {len(extra_pretrained_tokens)} extra pretrained vectors to vocab')
@@ -557,7 +560,7 @@ def main_gcpd_zeroshot(model_type='disaster', glove_embs=None, train_name=cfg['d
             train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
 
         model_name = f'GCPD_zeroshot_{model_type}_lr{str(lr)}_Pepoch'\
-                     f'{str(cfg["pretrain"]["epoch"])}_Pmodel{pmodel_type}'
+                     f'{str(cfg["pretrain"]["epoch"])}'
         logger.critical(f'GCPD ********** {model_name}')
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
@@ -571,7 +574,7 @@ def main_gcpd_zeroshot(model_type='disaster', glove_embs=None, train_name=cfg['d
             stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name,
-            test_dataname=test_name, use_all_data=True)
+            test_dataname=test_name, zeroshot=True)
         model_name = f'W2V_zeroshot_{model_type}_lr{str(lr)}'
         logger.critical(f'WORD2VEC @@@@@@@@@@ {model_name}')
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
@@ -586,7 +589,7 @@ def main_gcpd_zeroshot(model_type='disaster', glove_embs=None, train_name=cfg['d
             stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name,
-            test_dataname=test_name, use_all_data=True)
+            test_dataname=test_name, zeroshot=True)
         model_name = f'cnlp_zeroshot_{model_type}_lr{str(lr)}'
         logger.critical(f'cnlp &&&&&&&&&& {model_name}')
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
@@ -599,7 +602,7 @@ def main_gcpd_zeroshot(model_type='disaster', glove_embs=None, train_name=cfg['d
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
             get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name, test_dataname=test_name,
-            use_all_data=True)
+            zeroshot=True)
         model_name = f'Glove_zeroshot_{model_type}_lr{str(lr)}'
         logger.critical(f'GLOVE ^^^^^^^^^^ {model_name}')
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
@@ -609,9 +612,9 @@ def main_gcpd_zeroshot(model_type='disaster', glove_embs=None, train_name=cfg['d
     logger.info("Execution complete.")
 
 
-def main_gcpd_zeroshot_examcon(model_type='LSTM', glove_embs=None, train_name=cfg['data']['train'],
-                               val_name=cfg['data']['val'], test_name=cfg['data']['test']):
-    # if cfg['data']['use_all_data']:
+def main_gcpd_ecl(model_type='LSTM', glove_embs=None, train_name=cfg['data']['train'],
+                               val_name=cfg['data']['val'], test_name=cfg['data']['test'], zeroshot=False, truncate=64):
+    # if cfg['data']['zeroshot']:
     #     train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
     #     train_df = train_df.sample(frac=1)
     #
@@ -646,18 +649,18 @@ def main_gcpd_zeroshot_examcon(model_type='LSTM', glove_embs=None, train_name=cf
     #     train_df=train_df, val_df=val_df, test_df=test_df,
     #     exp_name=model_name)
 
-    examcon_dataset, examcon_dataloader = prepare_example_contrast_datasets(train_name)
+    ecl_dataset, ecl_dataloader = prepare_example_contrast_datasets(train_name, truncate=truncate)
     logger.info('Read and prepare labelled data for Word level')
     train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
         get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         train_dataname=train_name, val_dataname=val_name, test_dataname=test_name,
-        use_all_data=True)
+        zeroshot=zeroshot, truncate=truncate)
 
     # classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
     #            train_vocab, train_dataset, val_dataset, test_dataset,
-    #            train_name, glove_embs, 1e-4, model_name='examcon',
-    #            pretrain_dataloader=(examcon_dataset, examcon_dataloader))
+    #            train_name, glove_embs, 1e-4, model_name='ecl',
+    #            pretrain_dataloader=(ecl_dataset, ecl_dataloader))
 
     tr_freq = train_vocab.vocab.freqs.keys()
     tr_v = train_vocab.vocab.itos
@@ -679,8 +682,8 @@ def main_gcpd_zeroshot_examcon(model_type='LSTM', glove_embs=None, train_name=cf
     if glove_embs is None:
         glove_embs = glove2dict()
 
-    logger.info('Run for multiple LR')
     lrs = cfg['model']['lrs']
+    logger.info(f'Run for multiple LRs {lrs}')
     for lr in lrs:
         logger.critical(f'Current Learning Rate: [{lr}]')
 
@@ -701,13 +704,13 @@ def main_gcpd_zeroshot_examcon(model_type='LSTM', glove_embs=None, train_name=cf
         train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
             get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name, test_dataname=test_name,
-            use_all_data=True)
-        model_name = f'Glove_zeroshot_examcon_{model_type}_lr{str(lr)}'
+            zeroshot=zeroshot, truncate=truncate)
+        model_name = f'Glove_ecl_{model_type}_lr{str(lr)}'
         logger.critical(f'GLOVE ^^^^^^^^^^ {model_name}')
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
                    train_name, glove_embs, lr, model_name=model_name,
-                   pretrain_dataloader=(examcon_dataset, examcon_dataloader))
+                   pretrain_dataloader=(ecl_dataset, ecl_dataloader))
 
         # ------------------------------------------------------------------
 
@@ -722,15 +725,15 @@ def main_gcpd_zeroshot_examcon(model_type='LSTM', glove_embs=None, train_name=cf
             stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name,
-            test_dataname=test_name, use_all_data=True)
+            test_dataname=test_name, zeroshot=zeroshot, truncate=truncate)
 
         extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
         logger.info(f'Added {len(extra_pretrained_tokens)} extra pretrained vectors to vocab')
         if len(extra_pretrained_tokens) > 0:
             train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
 
-        model_name = f'GCPD_zeroshot_{model_type}_lr{str(lr)}_Pepoch'\
-                     f'{str(cfg["pretrain"]["epoch"])}_Pmodel{pmodel_type}'
+        model_name = f'GCPD_{model_type}_lr{str(lr)}_Pepoch'\
+                     f'{str(cfg["pretrain"]["epoch"])}'
         logger.critical(f'GCPD ********** {model_name}')
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
@@ -749,20 +752,20 @@ def main_gcpd_zeroshot_examcon(model_type='LSTM', glove_embs=None, train_name=cf
             stoi=token2idx_map, vectors=X, get_dataloader=True,
             dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
             train_dataname=train_name, val_dataname=val_name,
-            test_dataname=test_name, use_all_data=True)
+            test_dataname=test_name, zeroshot=zeroshot, truncate=truncate)
 
         extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
         logger.info(f'Added {len(extra_pretrained_tokens)} extra pretrained vectors to vocab')
         if len(extra_pretrained_tokens) > 0:
             train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
 
-        model_name = f'GCPD_zeroshot_examcon_{model_type}_lr{str(lr)}_Pepoch'\
-                     f'{str(cfg["pretrain"]["epoch"])}_Pmodel{pmodel_type}'
+        model_name = f'GCPD_ecl_{model_type}_lr{str(lr)}_Pepoch'\
+                     f'{str(cfg["pretrain"]["epoch"])}'
         logger.critical(f'GCPD ********** {model_name}')
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
                    train_name, glove_embs, lr, model_name=model_name,
-                   pretrain_dataloader=(examcon_dataset, examcon_dataloader))
+                   pretrain_dataloader=(ecl_dataset, ecl_dataloader))
 
         # # ======================================================================
         #
@@ -772,7 +775,7 @@ def main_gcpd_zeroshot_examcon(model_type='LSTM', glove_embs=None, train_name=cf
         #     stoi=token2idx_map, vectors=X, get_dataloader=True,
         #     dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         #     train_dataname=train_name, val_dataname=val_name,
-        #     test_dataname=test_name, use_all_data=True)
+        #     test_dataname=test_name, zeroshot=True)
         # model_name = f'W2V_zeroshot_{model_type}_lr{str(lr)}'
         # logger.critical(f'WORD2VEC @@@@@@@@@@ {model_name}')
         # classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
@@ -787,7 +790,7 @@ def main_gcpd_zeroshot_examcon(model_type='LSTM', glove_embs=None, train_name=cf
         #     stoi=token2idx_map, vectors=X, get_dataloader=True,
         #     dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         #     train_dataname=train_name, val_dataname=val_name,
-        #     test_dataname=test_name, use_all_data=True)
+        #     test_dataname=test_name, zeroshot=True)
         # model_name = f'cnlp_zeroshot_{model_type}_lr{str(lr)}'
         # logger.critical(f'cnlp &&&&&&&&&& {model_name}')
         # classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
@@ -818,7 +821,7 @@ def main_gcpd_alltrain(model_type="disaster", glove_embs=None,
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
         get_dataloader=True, dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         train_dataname=train_name, val_dataname=val_name,
-        test_dataname=test_name, use_all_data=False, fix_len=fix_len)
+        test_dataname=test_name, zeroshot=False, fix_len=fix_len)
 
     logger.info('Use pretrain vocab for alltrain and train both')
     alltrain_dataset, alltrain_vocab, alltrain_dataloader =\
@@ -863,7 +866,7 @@ def main_gcpd_alltrain(model_type="disaster", glove_embs=None,
         get_dataloader=True,
         dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         train_dataname=train_name, val_dataname=val_name,
-        test_dataname=test_name, use_all_data=False, fix_len=fix_len)
+        test_dataname=test_name, zeroshot=False, fix_len=fix_len)
 
     alltrain_dataset, alltrain_vocab, alltrain_dataloader = prepare_single_dataset(
         stoi=token2idx_map, vectors=X, dataname=alltrain_datafile, fix_len=fix_len)
@@ -889,7 +892,7 @@ def main_gcpd_alltrain(model_type="disaster", glove_embs=None,
         stoi=token2idx_map, vectors=X, get_dataloader=True,
         dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         train_dataname=train_name, val_dataname=val_name,
-        test_dataname=test_name, use_all_data=False, fix_len=fix_len)
+        test_dataname=test_name, zeroshot=False, fix_len=fix_len)
 
     alltrain_dataset, alltrain_vocab, alltrain_dataloader = prepare_single_dataset(
         stoi=token2idx_map, vectors=X, dataname=alltrain_datafile, fix_len=fix_len)
@@ -915,7 +918,7 @@ def main_gcpd_alltrain(model_type="disaster", glove_embs=None,
         stoi=token2idx_map, vectors=X, get_dataloader=True,
         dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         train_dataname=train_name, val_dataname=val_name,
-        test_dataname=test_name, use_all_data=False, fix_len=fix_len)
+        test_dataname=test_name, zeroshot=False, fix_len=fix_len)
 
     alltrain_dataset, alltrain_vocab, alltrain_dataloader = prepare_single_dataset(
         dataname=alltrain_datafile, fix_len=fix_len)
@@ -944,7 +947,7 @@ def main_gcpd_alltrain(model_type="disaster", glove_embs=None,
         stoi=token2idx_map, vectors=X, get_dataloader=True,
         dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         train_dataname=train_name, val_dataname=val_name,
-        test_dataname=test_name, use_all_data=False, fix_len=fix_len)
+        test_dataname=test_name, zeroshot=False, fix_len=fix_len)
 
     alltrain_dataset, alltrain_vocab, alltrain_dataloader = prepare_single_dataset(
         stoi=token2idx_map, vectors=X, dataname=alltrain_datafile, fix_len=fix_len)
@@ -966,7 +969,7 @@ def main_gcpd_alltrain(model_type="disaster", glove_embs=None,
         stoi=token2idx_map, vectors=X, get_dataloader=True,
         dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
         train_dataname=train_name, val_dataname=val_name,
-        test_dataname=test_name, use_all_data=False, fix_len=fix_len)
+        test_dataname=test_name, zeroshot=False, fix_len=fix_len)
 
     alltrain_dataset, alltrain_vocab, alltrain_dataloader = prepare_single_dataset(
         stoi=token2idx_map, vectors=X, dataname=alltrain_datafile, fix_len=fix_len)
@@ -1029,14 +1032,14 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                 in_dim=cfg['embeddings']['emb_dim'], epoch=cfg['training']['num_epoch'],
                 lr=lr, model_name=model_name, pretrain_dataloader=pretrain_dataloader)
 
-    if model_type == 'disaster':
+    if model_type == 'multi':
         if random_vecs:
-            train_epochs_output_dict = run_all_disaster(
+            train_epochs_output_dict = run_all_multi(
                 train_dataloader, val_dataloader, test_dataloader, vectors=train_vocab.vocab.vectors,
                 in_dim=cfg['embeddings']['emb_dim'], epoch=cfg['training']['num_epoch'],
                 model_name=model_name, pretrain_dataloader=pretrain_dataloader, init_vectors=False)
         else:
-            train_epochs_output_dict = run_all_disaster(
+            train_epochs_output_dict = run_all_multi(
                 train_dataloader, val_dataloader, test_dataloader, vectors=train_vocab.vocab.vectors,
                 in_dim=cfg['embeddings']['emb_dim'], epoch=cfg['training']['num_epoch'],
                 model_name=model_name, pretrain_dataloader=pretrain_dataloader)

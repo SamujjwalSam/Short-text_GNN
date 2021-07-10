@@ -96,9 +96,9 @@ class Example_Contrast_Dataset(Dataset):
 
 def prepare_example_contrast_datasets(
         data_name, batch_size=cfg['training']['train_batch_size'],
-        dataset_size=5000, n_count=5):
+        dataset_size=5000, n_count=5, truncate=None):
     train_data, vocab, iter = prepare_single_dataset(
-        data_dir=dataset_dir, dataname=data_name + ".csv")
+        data_dir=dataset_dir, dataname=data_name + ".csv", truncate=truncate)
     train_data_iter = dataset2iter(train_data, batch_size=batch_size, shuffle=False)
 
     pos_idxs = []
@@ -241,14 +241,14 @@ def prepare_splitted_datasets(
         stoi=None, vectors=None, get_dataloader=False, dim=cfg['embeddings']['emb_dim'],
         data_dir=dataset_dir, train_dataname=cfg["data"]["train"],
         val_dataname=cfg["data"]["val"], test_dataname=cfg["data"]["test"],
-        use_all_data=False, min_freq=cfg["data"]["min_freq"], train_portion=None,
-        fix_len=None, test_count=1):
+        zeroshot=False, min_freq=cfg["data"]["min_freq"], train_portion=None,
+        fix_len=None, test_count=1, truncate=None):
     """ Creates train and test dataset from df and returns data loader.
 
     :param fix_len: Sequence length during batches (None = variable)
     :param train_portion: Reduces training data size
     :param min_freq:
-    :param use_all_data: Uses all disaster data for training if True
+    :param zeroshot: Uses all disaster data for training if True
     :param stoi:
     :param val_dataname:
     :param get_dataloader: If iterator over the text samples should be returned
@@ -266,7 +266,7 @@ def prepare_splitted_datasets(
     # train_df, val_df, test_df = read_csvs(data_dir=data_dir, filenames=(
     #     train_dataname, val_dataname, test_dataname))
     # logger.info(f"Train {train_df.shape}, Val {test_df.shape}, Test {val_df.shape}.")
-    # assert use_all_data and train_portion is not None, 'Either use_all_data or train_portion should be provided'
+    # assert zeroshot and train_portion is not None, 'Either zeroshot or train_portion should be provided'
     train_datafile = train_dataname + ".csv"
     if train_portion is not None:
         train_df = read_csv(data_dir=dataset_dir, data_file=train_dataname)
@@ -276,7 +276,7 @@ def prepare_splitted_datasets(
         logger.warning(f'New train data size {train_df.shape} for train_portion {train_portion}')
         train_df.to_csv(join(data_dir, train_datafile))
 
-    if use_all_data:
+    if zeroshot:
         train_datafile = "zeroshot_" + train_dataname + str(len(cfg['pretrain']['files'])) + ".csv"
         # if not exists(join(dataset_dir, train_dataname)):
         train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
@@ -287,13 +287,13 @@ def prepare_splitted_datasets(
         logger.critical('Setting default GLOVE vectors:')
         train_dataset, (train_vocab, train_label) = get_dataset_fields(
             csv_dir=data_dir, csv_file=train_datafile, min_freq=min_freq,
-            labelled_data=True, fix_len=fix_len)
+            labelled_data=True, fix_len=fix_len, truncate=truncate)
     else:
         logger.critical('Setting custom vectors:')
         train_dataset, (train_vocab, train_label) = get_dataset_fields(
             csv_dir=data_dir, csv_file=train_datafile, min_freq=min_freq,
             labelled_data=True, embedding_file=None, embedding_dir=None,
-            fix_len=fix_len)
+            fix_len=fix_len, truncate=truncate)
         train_vocab.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
 
     clean_dataset(train_dataset)
@@ -306,7 +306,8 @@ def prepare_splitted_datasets(
     val_dataname = val_dataname + ".csv"
     # val_df.to_csv(join(data_dir, val_dataname))
     val_dataset, (val_vocab, val_label) = get_dataset_fields(
-        csv_dir=data_dir, csv_file=val_dataname, labelled_data=True, fix_len=fix_len)
+        csv_dir=data_dir, csv_file=val_dataname, labelled_data=True,
+        fix_len=fix_len, truncate=truncate)
 
     clean_dataset(val_dataset)
 
@@ -327,7 +328,8 @@ def prepare_splitted_datasets(
         logger.warning(f'New TEST data size {test_df.shape}')
         test_df.to_csv(join(data_dir, test_datafile))
     test_dataset, (test_vocab, test_label) = get_dataset_fields(
-        csv_dir=data_dir, csv_file=test_datafile, labelled_data=True, fix_len=fix_len)
+        csv_dir=data_dir, csv_file=test_datafile, labelled_data=True,
+        fix_len=fix_len, truncate=truncate)
 
     clean_dataset(test_dataset)
 
@@ -385,7 +387,7 @@ def prepare_single_dataset(
         stoi=None, vectors=None, dim=cfg['embeddings']['emb_dim'],
         data_dir=dataset_dir, min_freq=cfg["data"]["min_freq"],
         dataname="training_" + str(len(cfg['pretrain']['files'])) + ".csv",
-        fix_len=None):
+        fix_len=None, truncate=None):
     """ Creates a torchtext dataset
 
     Passes a csv file for dataset creation and returns dataloader. Sets custom vectors if provided.
@@ -402,12 +404,14 @@ def prepare_single_dataset(
     if stoi is None:
         logger.critical('Setting default GLOVE vectors:')
         dataset, (vocab, label) = get_dataset_fields(
-            csv_dir=data_dir, csv_file=dataname, min_freq=min_freq, labelled_data=True, fix_len=fix_len)
+            csv_dir=data_dir, csv_file=dataname, min_freq=min_freq,
+            labelled_data=True, fix_len=fix_len, truncate=truncate)
     else:
         logger.critical('Setting custom vectors:')
         dataset, (vocab, label) = get_dataset_fields(
             csv_dir=data_dir, csv_file=dataname, min_freq=min_freq,
-            labelled_data=True, embedding_file=None, embedding_dir=None)
+            labelled_data=True, embedding_file=None, embedding_dir=None,
+            truncate=truncate)
         vocab.vocab.set_vectors(stoi=stoi, vectors=vectors, dim=dim)
 
     clean_dataset(dataset)
@@ -423,11 +427,11 @@ def prepare_BERT_splitted_datasets(
         stoi=None, vectors=None, get_dataloader=False, dim=cfg['embeddings']['emb_dim'],
         data_dir=dataset_dir, train_dataname=cfg["data"]["train"],
         val_dataname=cfg["data"]["val"], test_dataname=cfg["data"]["test"],
-        use_all_data=False, min_freq=cfg["data"]["min_freq"]):
+        zeroshot=False, min_freq=cfg["data"]["min_freq"]):
     """ Creates train and test dataset from df and returns data loader.
 
     :param min_freq:
-    :param use_all_data: Uses all disaster data for training if True
+    :param zeroshot: Uses all disaster data for training if True
     :param stoi:
     :param val_dataname:
     :param get_dataloader: If iterator over the text samples should be returned
@@ -446,7 +450,7 @@ def prepare_BERT_splitted_datasets(
     #     train_dataname, val_dataname, test_dataname))
     # logger.info(f"Train {train_df.shape}, Val {test_df.shape}, Test {val_df.shape}.")
     train_dataname = train_dataname + ".csv"
-    if use_all_data:
+    if zeroshot:
         train_dataname = "all_training.csv"
         # if not exists(join(dataset_dir, train_dataname)):
         train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])

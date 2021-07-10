@@ -330,7 +330,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if cfg['data']['use_all_data']:
+    if cfg['data']['zeroshot']:
         train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
         train_df = train_df.sample(frac=1)
     else:
@@ -352,7 +352,7 @@ if __name__ == "__main__":
 
     pepochs = cfg['pretrain']['save_epochs']
     for pepoch in pepochs:  ## NEXT: Run multiple train sizes
-        if cfg['data']['use_all_data']:
+        if cfg['data']['zeroshot']:
             train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
             train_df = train_df.sample(frac=1)
         else:

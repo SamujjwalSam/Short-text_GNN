@@ -93,7 +93,7 @@ def get_dataset_fields(
         init_vocab: bool = True, labelled_data: bool = False, target_train_portion=None,
         embedding_dir: [None, str] = cfg["paths"]["embedding_dir"][plat][user],
         embedding_file: [None, str] = cfg["embeddings"]["embedding_file"],
-        fix_len=40):
+        fix_len=40, truncate=None):
     (TEXT, LABEL), labelled_fields, unlabelled_fields = prepare_fields(
         text_headers=text_headers, tokenizer=tokenizer,
         n_classes=cfg['data']['num_classes'], fix_len=fix_len)
@@ -103,6 +103,11 @@ def get_dataset_fields(
         dataset = create_tabular_dataset(csv_file, csv_dir, labelled_fields)
     else:
         dataset = create_tabular_dataset(csv_file, csv_dir, unlabelled_fields)
+
+    if truncate is not None:
+        for data in dataset.examples:
+            if len(data.text) > truncate:
+                data.text = data.text[:truncate]
 
     if target_train_portion is not None:
         dataset, test = split_dataset(dataset, split_size=0.7)
