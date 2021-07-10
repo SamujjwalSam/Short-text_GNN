@@ -49,14 +49,14 @@ if cuda.is_available():
     cuda.set_device(cfg['cuda']['cuda_devices'][plat][user])
 
 
-def train_disaster_classifier(
+def train_multi_classifier(
         model, dataloader: utils.data.dataloader.DataLoader,
         loss_func: nn.modules.loss.BCEWithLogitsLoss, optimizer,
         epoch: int = cfg['training']['num_epoch'],
         eval_dataloader: utils.data.dataloader.DataLoader = None,
         test_dataloader: utils.data.dataloader.DataLoader = None,
         class_names=cfg['data']['class_names'], model_name='Glove',
-        scheduler=None, clf_type='disaster', pad_token_id=1, embeds=None,
+        scheduler=None, clf_type='multi', pad_token_id=1, embeds=None,
         fix_len=None, run_eval=True):
     logger.info(f"Training {model_name} for {epoch} epoch: ")
     max_result = {'score': 0.0, 'epoch': 0}
@@ -122,7 +122,7 @@ def train_disaster_classifier(
                                    classifier_type=clf_type, embeds=embeds,
                                    fix_len=fix_len)
             if eval_dataloader is not None:
-                val_losses, val_result, val_output = eval_disaster_classifier(
+                val_losses, val_result, val_output = eval_multi_classifier(
                     model, loss_func=loss_func, dataloader=eval_dataloader,
                     classifier_type=clf_type, embeds=embeds)
                 logger.info(
@@ -171,15 +171,15 @@ def train_disaster_classifier(
 
     if run_eval:
         logger.warn(
-            f"{clf_type} Epoch {max_result['epoch']}, MAX Score "
-            f"[{max_result['score']:1.4}] MAX Model {model_name}")
+            f"{clf_type} Epoch {max_result['epoch']}, MAX Model {model_name}"
+            f" MAX Score [{max_result['score']:1.4}]")
     return model, train_epoch_losses, train_epoch_dict
 
 
-def eval_disaster_classifier(
+def eval_multi_classifier(
         model, loss_func, dataloader: utils.data.dataloader.DataLoader,
         class_names=cfg['data']['class_names'], pad_token_id=1,
-        classifier_type='disaster', embeds=None):
+        classifier_type='multi', embeds=None):
     # if use_saved:
     #     model = load_model_state(model, epoch)
     model.eval()
@@ -246,7 +246,7 @@ all_test_dataloaders = None
 
 
 def eval_all(model, loss_func, class_names=cfg['data']['class_names'],
-             test_files=cfg['data']['all_test_files'], classifier_type='disaster', embeds=None, fix_len=None):
+             test_files=cfg['data']['all_test_files'], classifier_type='multi', embeds=None, fix_len=None):
     global all_test_dataloaders
 
     if all_test_dataloaders is None:
@@ -263,7 +263,7 @@ def eval_all(model, loss_func, class_names=cfg['data']['class_names'],
 
     all_test_output = {}
     for tfile in test_files:
-        test_losses, test_result, test_output = eval_disaster_classifier(
+        test_losses, test_result, test_output = eval_multi_classifier(
             model, loss_func=loss_func, dataloader=all_test_dataloaders[tfile],
             class_names=class_names, classifier_type=classifier_type, embeds=embeds)
         all_test_output[tfile] = test_result['f1_weighted']
@@ -384,8 +384,8 @@ def train_lstm_examplecon(model, optimizer, neighbors_dataset,
 
 
 def get_kd_logits(model, dataloader, clf_type, loss_func=nn.BCEWithLogitsLoss(),
-                  dataname=cfg["data"]["train"], model_name='kd', embeds=None, epoch=None):
-    _, result, logits = eval_disaster_classifier(
+                  dataname=cfg["data"]["train"], model_name='kd', embeds=None):
+    _, result, logits = eval_multi_classifier(
         model, loss_func=loss_func, dataloader=dataloader,
         classifier_type=clf_type, embeds=embeds)
 
@@ -422,12 +422,12 @@ def get_kd_logits(model, dataloader, clf_type, loss_func=nn.BCEWithLogitsLoss(),
     return df
 
 
-def disaster_trainer(
+def multi_trainer(
         train_dataloader, val_dataloader, test_dataloader, vectors, classifier,
         clf_type, in_dim=300, hid_dim=128, epoch=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
         model_name=None, pretrain_dataloader=None, fix_len=None, pad_idx=1,
-        pretrain_epoch=cfg['training']['num_epoch'], examcon_pretrain=True,
+        pretrain_epoch=cfg['training']['num_epoch'], ecl_pretrain=True,
         init_vectors=True, multi_gpu=False, embeds=None, use_kd=True):
     model_name = clf_type + '_' + model_name
     model_config = load_json(filename=clf_type + '_config',
@@ -450,12 +450,14 @@ def disaster_trainer(
     if init_vectors:
         if clf_type == 'BiLSTMEmb':
             model.bilstm_embedding.embedding.weight.data.copy_(vectors)
-            logger.info(f'Initialized pretrained embedding of shape {model.bilstm_embedding.embedding.weight.shape}')
+            logger.info(f'Initialized pretrained embedding of shape '
+                        f'{model.bilstm_embedding.embedding.weight.shape}')
         elif clf_type == 'DPCNN':
             embeds.weight.data.copy_(vectors)
         else:
             model.embeddings.data.copy_(vectors)
-            logger.info(f'Initialized pretrained embedding of shape {model.embeddings.data.shape}')
+            logger.info(f'Initialized pretrained embedding of shape '
+                        f'{model.embeddings.data.shape}')
 
     if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
         model.to(cuda_device)
@@ -473,25 +475,25 @@ def disaster_trainer(
     model_name = model_name + '_' + str(lr)
 
     if pretrain_dataloader is not None:
-        if examcon_pretrain:
-            examcon_pretrain_epoch = cfg['pretrain']['epoch']
-            examcon_model = BiLSTM_Emb_repr(vocab_size=vectors.shape[0], in_dim=in_dim,
+        if ecl_pretrain:
+            ecl_pretrain_epoch = cfg['pretrain']['epoch']
+            ecl_model = BiLSTM_Emb_repr(vocab_size=vectors.shape[0], in_dim=in_dim,
                                             out_dim=hid_dim)
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-                examcon_model.to(cuda_device)
-            model_name = model_name + '_examcon_preepoch_' + str(examcon_pretrain_epoch)
-            # loss_func = nn.BCEWithLogitsLoss() examcon_pretrain
+                ecl_model.to(cuda_device)
+            model_name = model_name + '_ecl_preepoch_' + str(ecl_pretrain_epoch)
+            # loss_func = nn.BCEWithLogitsLoss() ecl_pretrain
             logger.info(f'Training classifier with all pretraining data with '
-                        f'contrastive task for pretrain_epoch {examcon_pretrain_epoch}')
-            examcon_model = train_lstm_examplecon(
-                examcon_model, optimizer, pretrain_dataloader[0], pretrain_dataloader[1],
+                        f'contrastive task for pretrain_epoch {ecl_pretrain_epoch}')
+            ecl_model = train_lstm_examplecon(
+                ecl_model, optimizer, pretrain_dataloader[0], pretrain_dataloader[1],
                 epochs=pretrain_epoch, model_name=model_name)
             ## Load pretrained state_dict to train model:
-            model.bilstm_embedding.load_state_dict(examcon_model.state_dict())
+            model.bilstm_embedding.load_state_dict(ecl_model.state_dict())
         model_name = model_name + '_aepoch_' + str(pretrain_epoch)
         logger.info(f'Training classifier with all pretraining data with '
                     f'classification task for pretrain_epoch {pretrain_epoch}')
-        model, _, _ = train_disaster_classifier(
+        model, _, _ = train_multi_classifier(
             model, pretrain_dataloader, loss_func=loss_func, optimizer=optimizer,
             epoch=pretrain_epoch, eval_dataloader=None, test_dataloader=None,
             model_name=model_name, scheduler=scheduler, clf_type=clf_type,
@@ -501,7 +503,7 @@ def disaster_trainer(
 
     # if not saved_model:
     logger.info(f'Model name: {model_name}')
-    model, epoch_losses, train_epochs_output_dict = train_disaster_classifier(
+    model, epoch_losses, train_epochs_output_dict = train_multi_classifier(
         model, train_dataloader, loss_func=loss_func, optimizer=optimizer,
         epoch=epoch, eval_dataloader=val_dataloader, test_dataloader=test_dataloader, model_name=model_name,
         scheduler=scheduler, clf_type=clf_type, embeds=embeds, fix_len=fix_len)
@@ -512,20 +514,20 @@ def disaster_trainer(
     # logger.info(dumps(test_output['result'], indent=4))
 
     df = get_kd_logits(model, train_dataloader, clf_type, model_name=model_name,
-                       embeds=embeds, epoch=epoch)
+                       embeds=embeds)
     return model, epoch_losses, train_epochs_output_dict, df
 
 
-def run_all_disaster(train_dataloader, val_dataloader, test_dataloader, vectors,
+def run_all_multi(train_dataloader, val_dataloader, test_dataloader, vectors,
                      in_dim=300, epoch=cfg['training']['num_epoch'],
                      model_name=None, pretrain_dataloader=None, init_vectors=True):
     classifiers = {
-        # 'DPCNN': DPCNN,
-        # 'BiLSTM_Emb': BiLSTM_Emb_Classifier,
-        'BiLSTM':     BiLSTM_Classifier,
-        'BOW_mean':   BOW_mean_Classifier,
-        'CNN':        CNN_Classifier,
-        'DenseCNN':   DenseCNN_Classifier,
+        # 'DPCNN':      DPCNN,
+        # 'BiLSTMEmb': BiLSTM_Emb_Classifier,
+        # 'BiLSTM':     BiLSTM_Classifier,
+        'BOWmean':   BOW_mean_Classifier,
+        'CNN':       CNN_Classifier,
+        # 'DenseCNN':  DenseCNN_Classifier,
         # 'FastText':   FastText_Classifier,
         # 'XMLCNN':    XMLCNN_Classifier,
     }
@@ -535,7 +537,7 @@ def run_all_disaster(train_dataloader, val_dataloader, test_dataloader, vectors,
         logger.info(f'Run for multiple LR {lrs}')
         for lr in lrs:
             logger.info(f'Current LR {lr}')
-            _, _, _, df = disaster_trainer(
+            _, _, _, df = multi_trainer(
                 train_dataloader, val_dataloader, test_dataloader, vectors,
                 classifier, classifier_type, in_dim=in_dim, epoch=epoch,
                 loss_func=nn.BCEWithLogitsLoss(), lr=lr, model_name=model_name,

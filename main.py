@@ -54,7 +54,7 @@ from Trainer.gat_trainer import GAT_BiLSTM_trainer
 from Trainer.bert_lstm_trainer import BERT_LSTM_trainer
 from Trainer.lstm_trainer import LSTM_trainer
 from Trainer.dpcnn_trainer import DPCNN_trainer
-from Trainer.disaster_trainer import disaster_trainer, run_all_disaster
+from Trainer.multi_trainer import multi_trainer, run_all_multi
 from Trainer.mlp_trainer import MLP_trainer
 from stf_classification.BERT_multilabel_classifier import BERT_multilabel_classifier
 from Text_Encoder.finetune_static_embeddings import glove2dict, get_oov_vecs,\
@@ -141,7 +141,7 @@ def main_glen(model_type='GLEN', glove_embs=None, train_name: str = cfg['data'][
         train_dataname=train_name, val_dataname=val_name,
         test_dataname=test_name)
 
-    if cfg['data']['use_all_data']:
+    if cfg['data']['zeroshot']:
         train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
         train_df = train_df.sample(frac=1)
     else:
@@ -182,7 +182,7 @@ def main_glen(model_type='GLEN', glove_embs=None, train_name: str = cfg['data'][
     logger.info("Execution complete.")
 
 
-def main_gcpd_normal(model_type=cfg['model']['type'], glove_embs=None,
+def main_gcpd_normal(model_type='multi', glove_embs=None,
                      train_name: str = cfg['data']['train'],
                      val_name: str = cfg['data']['val'],
                      test_name: str = cfg['data']['test']):
@@ -509,7 +509,7 @@ def main_gcpd_zeroshot(model_type='disaster', glove_embs=None, train_name=cfg['d
     #     train_df=train_df, val_df=val_df, test_df=test_df,
     #     exp_name=model_name)
 
-    examcon_dataset, examcon_dataloader = prepare_example_contrast_datasets(train_name)
+    # ecl_dataset, ecl_dataloader = prepare_example_contrast_datasets(train_name)
     logger.info('Read and prepare labelled data for Word level')
     train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
