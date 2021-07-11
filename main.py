@@ -473,43 +473,8 @@ def main_disaster_normal(
     logger.info("Execution complete.")
 
 
-def main_gcpd_zeroshot(model_type='disaster', glove_embs=None, train_name=cfg['data']['train'],
+def main_gcpd_zeroshot(model_type='multi', glove_embs=None, train_name=cfg['data']['train'],
                        val_name=cfg['data']['val'], test_name=cfg['data']['test']):
-    # if cfg['data']['zeroshot']:
-    #     train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
-    #     train_df = train_df.sample(frac=1)
-    # else:
-    #     train_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['train'])
-    #     train_df = train_df.sample(frac=1)
-    #     # train_df["labels"] = pd.to_numeric(train_df["labels"], downcast="float")
-    # val_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['val'])
-    # val_df = val_df.sample(frac=1)
-    # # val_df["labels"] = pd.to_numeric(val_df["labels"], downcast="float")
-    # test_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['test'])
-    # test_df = test_df.sample(frac=1)
-    # # test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
-
-    # train_dataset, train_dataloader = get_BERT_LSTM_dataloader(train_df)
-    # val_dataset, val_dataloader = get_BERT_LSTM_dataloader(val_df)
-    # test_dataset, test_dataloader = get_BERT_LSTM_dataloader(test_df)
-
-    # model_type = 'BERT_LSTM'
-    # logger.info('Run for multiple LR')
-    # lrs = cfg['model']['lrs']
-    # for lr in lrs:
-    #     model_name = f'BERT_LSTM_zeroshot_{model_type}_lr{str(lr)}'
-    #     logger.critical(f'BERT_LSTM ********** {model_name}')
-    #     classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
-    #                None, train_dataset, val_dataset, test_dataset,
-    #                train_name, glove_embs, lr, model_name=model_name)
-    #
-    # model_name = f'BERT_portion{str(0.9999)}'
-    # logger.info(f'Running BERT for model {model_name}')
-    # BERT_multilabel_classifier(
-    #     train_df=train_df, val_df=val_df, test_df=test_df,
-    #     exp_name=model_name)
-
-    # ecl_dataset, ecl_dataloader = prepare_example_contrast_datasets(train_name)
     logger.info('Read and prepare labelled data for Word level')
     train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
@@ -559,8 +524,7 @@ def main_gcpd_zeroshot(model_type='disaster', glove_embs=None, train_name=cfg['d
         if len(extra_pretrained_tokens) > 0:
             train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
 
-        model_name = f'GCPD_zeroshot_{model_type}_lr{str(lr)}_Pepoch'\
-                     f'{str(cfg["pretrain"]["epoch"])}'
+        model_name = f'GCPD_zeroshot_{model_type}_lr{str(lr)}'
         logger.critical(f'GCPD ********** {model_name}')
         classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
                    train_vocab, train_dataset, val_dataset, test_dataset,
@@ -802,7 +766,7 @@ def main_gcpd_ecl(model_type='LSTM', glove_embs=None, train_name=cfg['data']['tr
     logger.info("Execution complete.")
 
 
-def main_gcpd_alltrain(model_type="disaster", glove_embs=None,
+def main_gcpd_alltrain(model_type="multi", glove_embs=None,
                        train_name: str = cfg['data']['train'],
                        val_name: str = cfg['data']['val'],
                        test_name: str = cfg['data']['test'],
@@ -836,6 +800,8 @@ def main_gcpd_alltrain(model_type="disaster", glove_embs=None,
                train_vocab, train_dataset, val_dataset, test_dataset,
                train_name, glove_embs, model_name=model_name,
                pretrain_dataloader=alltrain_dataloader)
+
+    # ------------------------------------------------------------------
 
     tr_freq = train_vocab.vocab.freqs.keys()
     tr_v = train_vocab.vocab.itos

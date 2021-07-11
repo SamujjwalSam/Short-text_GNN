@@ -31,6 +31,7 @@ from Data_Handlers.create_datasets import prepare_single_dataset
 from Layers.bilstm_classifiers import BiLSTM_Emb_Classifier, BiLSTM_Emb_repr
 from Metrics.metrics import calculate_performance_sk as calculate_performance
 from Utils.utils import logit2label, count_parameters, save_model_state, load_model_state
+from File_Handlers.read_file import get_latest_filename, is_empty_dir
 from Logger.logger import logger
 from config import configuration as cfg, platform as plat, username as user,\
     dataset_dir, pretrain_dir, cuda_device
@@ -138,8 +139,8 @@ def train_lstm_classifier(
             scheduler.step()
 
     logger.info(
-        f"LSTM Epoch {max_result['epoch']}, MAX Score "
-        f"{max_result['score']:1.4} MAX Model {model_name}")
+        f"LSTM Epoch {max_result['epoch']}, MAX Model {model_name} MAX Score "
+        f"{max_result['score']:1.4} ")
     return model, train_epoch_losses, train_epoch_dict
 
 
@@ -180,15 +181,16 @@ def train_lstm_examplecon(model, optimizer, neighbors_dataset,
         train_epoch_losses.append(epoch_loss)
 
         if epoch in save_epochs:
-            save_name = model_name + str(epoch) + '_examcon'
+            save_name = model_name + str(epoch) + '_ecl'
 
             emb_save_name = save_name + '_embs'
-            save(model.embedding.weight.data, emb_save_name)
+            save(model.embedding.weight.data, join(dataset_dir, 'saved_models', emb_save_name))
             logger.info(f'Embeddings for epoch {epoch} saved at {emb_save_name}')
 
-            model_save_name = save_name + '_model'
-            save_model_state(model, model_save_name, optimizer)
-            logger.info(f'Model for epoch {epoch} saved at {model_save_name}')
+            # model_save_name = save_name + '_model'
+            # save_model_state(model, model_save_name, optimizer,
+            #                  model_dir=join(dataset_dir, 'saved_models'))
+            logger.info(f'Model {emb_save_name} for epoch {epoch} saved at {join(dataset_dir, "saved_models", emb_save_name)}')
 
     return model
 
@@ -292,7 +294,7 @@ def LSTM_trainer(
         hid_dim: int = 300, epoch=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
         model_name='Glove', pretrain_dataloader=None,
-        pretrain_epoch=cfg['pretrain']['epoch'], examcon_pretrain=True, init_vectors=True):
+        pretrain_epoch=cfg['pretrain']['epoch'], ecl_pretrain=True, init_vectors=True):
     # train_dataloader, test_dataloader = dataloaders
     model = BiLSTM_Emb_Classifier(vocab_size=vectors.shape[0], in_dim=in_dim,
                                   hid_dim=hid_dim, out_dim=cfg["data"]["num_classes"])
@@ -316,31 +318,38 @@ def LSTM_trainer(
     # saved_model = load_model_state(model, model_name=model_name + '_epoch' + str(epoch), optimizer=optimizer)
 
     if pretrain_dataloader is not None:
-        if examcon_pretrain:
-            examcon_model_name = model_name + 'examcon_emb_data.pt'
-            examcon_model_path = join(dataset_dir, examcon_model_name)
-            if exists(examcon_model_path):
-                examcon_emb_data = load(examcon_model_path)
+        if ecl_pretrain:
+            # ecl_model_name = model_name + '_ecl.pt'
+            ecl_model_dir = join(dataset_dir, 'saved_models')
+            if model_name.startswith('Glove'):
+                filename_start = 'Glove_ecl_*'
+            elif model_name.startswith('GCPD'):
+                filename_start = 'GCPD_ecl_*'
+            if not is_empty_dir(ecl_model_dir):
+                latest_ecl_model_path = get_latest_filename(ecl_model_dir, filename_start=filename_start)
+                logger.info(f'Loading ECL embeddings from [{latest_ecl_model_path}]')
+                ecl_emb_data = load(latest_ecl_model_path)
             else:
-                examcon_pretrain_epoch = cfg['pretrain']['epoch']
-                examcon_model = BiLSTM_Emb_repr(vocab_size=vectors.shape[0], in_dim=in_dim,
-                                                out_dim=hid_dim)
+                ecl_pretrain_epoch = cfg['pretrain']['epoch']
+                ecl_model = BiLSTM_Emb_repr(vocab_size=vectors.shape[0], in_dim=in_dim,
+                                            out_dim=hid_dim)
                 if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
-                    examcon_model.to(cuda_device)
-                model_name = model_name + '_examcon_preepoch_' + str(examcon_pretrain_epoch)
-                # loss_func = nn.BCEWithLogitsLoss() examcon_pretrain
+                    ecl_model.to(cuda_device)
+                model_name = model_name + '_ecl_epoch_' + str(ecl_pretrain_epoch)
+                # loss_func = nn.BCEWithLogitsLoss() ecl_pretrain
                 logger.info(f'Training classifier with all pretraining data'
                             f' with contrastive task for pretrain_epoch '
-                            f'{examcon_pretrain_epoch}')
-                examcon_model = train_lstm_examplecon(
-                    examcon_model, optimizer, pretrain_dataloader[0], pretrain_dataloader[1],
+                            f'{ecl_pretrain_epoch}')
+                ecl_model = train_lstm_examplecon(
+                    ecl_model, optimizer, pretrain_dataloader[0], pretrain_dataloader[1],
                     epochs=pretrain_epoch, model_name=model_name)
                 ## Load pretrained embeddings to current model:
-                examcon_emb_data = examcon_model.embedding.weight.data
-                save(examcon_emb_data, examcon_model_path)
+                ecl_emb_data = ecl_model.embedding.weight.data
+                ecl_model_path = join(ecl_model_dir, model_name)
+                save(ecl_emb_data, ecl_model_path)
 
-            model.bilstm_embedding.embedding.weight.data.copy_(examcon_emb_data)
-            # model.bilstm_embedding.load_state_dict(examcon_model.state_dict())
+            model.bilstm_embedding.embedding.weight.data.copy_(ecl_emb_data)
+            # model.bilstm_embedding.load_state_dict(ecl_model.state_dict())
         else:
             model_name = model_name + '_cls_preepoch_' + str(pretrain_epoch)
             logger.info(f'Training classifier with all pretraining data with '
@@ -359,7 +368,6 @@ def LSTM_trainer(
         model, train_dataloader, loss_func=loss_func, optimizer=optimizer,
         epoch=epoch, eval_dataloader=val_dataloader,
         test_dataloader=test_dataloader, model_name=model_name, scheduler=scheduler)
-
 
     # test_count = test_dataloader.dataset.__len__()
     # logger.info(f"Total inference time for [{test_count}] examples: [{test_time:2.4} sec]"

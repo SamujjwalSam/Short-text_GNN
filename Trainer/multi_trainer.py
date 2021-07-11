@@ -427,7 +427,7 @@ def multi_trainer(
         clf_type, in_dim=300, hid_dim=128, epoch=cfg['training']['num_epoch'],
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
         model_name=None, pretrain_dataloader=None, fix_len=None, pad_idx=1,
-        pretrain_epoch=cfg['training']['num_epoch'], ecl_pretrain=True,
+        pretrain_epoch=cfg['training']['num_epoch'], ecl_pretrain=False,
         init_vectors=True, multi_gpu=False, embeds=None, use_kd=True):
     model_name = clf_type + '_' + model_name
     model_config = load_json(filename=clf_type + '_config',

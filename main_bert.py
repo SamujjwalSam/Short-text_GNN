@@ -65,7 +65,10 @@ parser.add_argument("-c", "--use_cuda",
 
 args = parser.parse_args()
 
-if cfg['data']['use_all_data']:
+# pepochs = cfg['pretrain']['epoch']
+pepochs = [100, 50]
+# for pepoch in pepochs:
+if cfg['data']['zeroshot']:
     train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
     train_df = train_df.sample(frac=1)
     val_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['val'])
@@ -91,7 +94,7 @@ BERT_multilabel_classifier(
     use_cuda=args.use_cuda, exp_name='BERT_GCPD_zeroshot_' + str(cfg['pretrain']['epoch']),
     pretrain_embs=True, pepoch=cfg['pretrain']['epoch'], run_cross_tests=False)
 
-if cfg['data']['use_all_data']:
+if cfg['data']['zeroshot']:
     train_df = read_csvs(data_dir=pretrain_dir, filenames=cfg['pretrain']['files'])
     train_df = train_df.sample(frac=1)
     val_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['val'])
