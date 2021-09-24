@@ -33,8 +33,8 @@ from sklearn.preprocessing import MultiLabelBinarizer
 from Pretrainer.mlp_trainer import mlp_trainer
 from Pretrainer.gcn_trainer import gcn_trainer
 # from Trainer.lstm_trainer import LSTM_trainer
-from Utils.utils import load_graph, sp_coo2torch_coo, get_token2pretrained_embs, save_token2pretrained_embs,\
-    load_token2pretrained_embs
+from Utils.utils import load_graph, sp_coo2torch_coo, get_token2pretrained_embs
+    # save_token2pretrained_embs, load_token2pretrained_embs
 from File_Handlers.csv_handler import read_csv
 from File_Handlers.json_handler import save_json, read_json
 # from File_Handlers.pkl_handler import save_pickle, load_pickle
@@ -449,7 +449,7 @@ def get_graph_inputs(G, oov_embs, embs, joint_vocab, G_node_list=None, get_adj=T
         X = load(emb_filename)
     else:
         logger.info('Get node embeddings from graph')
-        X = G.get_node_embeddings(oov_embs, embs, joint_vocab['idx2str_map'], add_unk=True)
+        X = G.get_node_embeddings_from_dict(oov_embs, embs, joint_vocab['idx2str_map'], add_unk=True)
         # X = sp_coo2torch_coo(X)
         save(X, emb_filename)
 
@@ -470,9 +470,9 @@ def get_graph_inputs(G, oov_embs, embs, joint_vocab, G_node_list=None, get_adj=T
     return X
 
 
-def get_graph_and_dataset(limit_dataset=None):
+def get_graph_and_dataset(limit_dataset=None, min_freq=cfg['pretrain']['min_freq']):
     joint_vocab, joint_corpus_toks, joint_corpus_strs =\
-        get_subword_vocab_data(name='_subword_joint', min_freq=cfg['pretrain']['min_freq'], read_input=True)
+        get_subword_vocab_data(name='_subword_joint', min_freq=min_freq, read_input=True)
 
     G = Token_Dataset_nx(joint_corpus_toks, joint_vocab, dataset_name=joint_path[:-12],
                          graph_path=joint_path[:-12] + 'subword_token_nx.bin', window_size=3)
@@ -485,13 +485,13 @@ def get_graph_and_dataset(limit_dataset=None):
 
     ## Create G+:
     pos_vocab, pos_corpus_toks, pos_corpus_strs =\
-        get_subword_vocab_data(pos_path, name='_subword_pos', min_freq=cfg['pretrain']['min_freq'])
+        get_subword_vocab_data(pos_path, name='_subword_pos', min_freq=min_freq)
     G_pos = Token_Dataset_nx(pos_corpus_toks, pos_vocab, dataset_name=pos_path[:-4],
                              graph_path=pos_path[:-4] + 'subword_token_nx.bin', window_size=3)
 
     ## Create G-:
     neg_vocab, neg_corpus_toks, neg_corpus_strs =\
-        get_subword_vocab_data(neg_path, name='_subword_neg', min_freq=cfg['pretrain']['min_freq'])
+        get_subword_vocab_data(neg_path, name='_subword_neg', min_freq=min_freq)
     G_neg = Token_Dataset_nx(neg_corpus_toks, neg_vocab, dataset_name=neg_path[:-4],
                              graph_path=neg_path[:-4] + 'subword_token_nx.bin', window_size=3)
 

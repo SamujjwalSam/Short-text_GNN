@@ -33,8 +33,9 @@ from Logger.logger import logger
 class Token_Dataset_nx(Dataset):
     """ Token graph dataset in NX. """
 
-    def __init__(self, corpus_toks, C_vocab, dataset_name, S_vocab=None, T_vocab=None,
-                 data_dir: str = dataset_dir, graph_path=None, G=None, save_name_suffix='_token_nx.bin', window_size=2):
+    def __init__(self, corpus_toks, C_vocab, dataset_name, S_vocab=None,
+                 T_vocab=None, data_dir: str = dataset_dir, graph_path=None,
+                 G=None, save_name_suffix='_subword_nx.bin', window_size=2):
         super(Token_Dataset_nx, self).__init__()
         self.data_dir = data_dir
         self.dataset_name = dataset_name
@@ -48,7 +49,7 @@ class Token_Dataset_nx(Dataset):
                 self.G = self.load_graph(self.graph_path)
             else:
                 if S_vocab is not None and T_vocab is not None:
-                    self.G = self.create_token_graph(corpus_toks, C_vocab, S_vocab, T_vocab)
+                    self.G = self.token_graph_from_source_target_datasets(corpus_toks, C_vocab, S_vocab, T_vocab)
                 else:
                     self.G = self.create_token_graph_pretrain(corpus_toks, C_vocab, window_size=window_size)
                 self.save_graph(self.graph_path)
@@ -83,7 +84,7 @@ class Token_Dataset_nx(Dataset):
 
         return A
 
-    def get_node_embeddings(self, oov_embs: dict, embs: dict, i2s: list, pretrain_embs=None, add_unk=True):
+    def get_node_embeddings_from_dict(self, oov_embs: dict, embs: dict, i2s: list, pretrain_embs=None, add_unk=True):
         """ Generates embeddings in node_list order.
 
         :param pretrain_embs: Pretrained embeddings if exists.
@@ -142,7 +143,7 @@ class Token_Dataset_nx(Dataset):
 
         return X
 
-    def add_edge_weights(self, alpha: float = 0.5, clear_data=False):
+    def add_edge_weights_glen(self, alpha: float = 0.5, clear_data=False):
         """ Calculate edge weight from occurrence values in source and target.
 
         NOTE: Removes occurrence and other attributes.
@@ -285,7 +286,7 @@ class Token_Dataset_nx(Dataset):
         return A
 
     @staticmethod
-    def create_token_graph(datasets, c_vocab, s_vocab, t_vocab, window_size: int = 2):
+    def token_graph_from_source_target_datasets(datasets: [list, list], c_vocab, s_vocab, t_vocab, window_size: int = 2):
         """ Creates a nx graph from tokenized source and target dataset.
 
          Use source vocab [s_vocab] for text to id mapping if exists, else use
@@ -323,8 +324,11 @@ class Token_Dataset_nx(Dataset):
                     ## Add edges with attribute:
                     for token_pair, freq in occurrences.items():
                         ## Get token ids from source if exists else from target
-                        token1_id = c_vocab['str2idx_map'][token_pair[0]]
-                        token2_id = c_vocab['str2idx_map'][token_pair[1]]
+                        try:
+                            token1_id = c_vocab['str2idx_map'][token_pair[0]]
+                            token2_id = c_vocab['str2idx_map'][token_pair[1]]
+                        except KeyError as e:
+                            logger.error(f"one of {token_pair} not found.")
 
                         if i == 0:
                             if G.has_edge(token1_id, token2_id):

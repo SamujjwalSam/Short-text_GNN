@@ -428,7 +428,8 @@ def multi_trainer(
         loss_func=nn.BCEWithLogitsLoss(), lr=cfg["model"]["optimizer"]["lr"],
         model_name=None, pretrain_dataloader=None, fix_len=None, pad_idx=1,
         pretrain_epoch=cfg['training']['num_epoch'], ecl_pretrain=False,
-        init_vectors=True, multi_gpu=False, embeds=None, use_kd=True):
+        init_vectors=True, multi_gpu=False, embeds=None, use_kd=True,
+        kd_dataloader=None):
     model_name = clf_type + '_' + model_name
     model_config = load_json(filename=clf_type + '_config',
                              filepath='Disaster_Model_Configs')
@@ -478,7 +479,7 @@ def multi_trainer(
         if ecl_pretrain:
             ecl_pretrain_epoch = cfg['pretrain']['epoch']
             ecl_model = BiLSTM_Emb_repr(vocab_size=vectors.shape[0], in_dim=in_dim,
-                                            out_dim=hid_dim)
+                                        out_dim=hid_dim)
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
                 ecl_model.to(cuda_device)
             model_name = model_name + '_ecl_preepoch_' + str(ecl_pretrain_epoch)
@@ -513,23 +514,26 @@ def multi_trainer(
     #             f"\nPer example: [{test_time / test_count} sec]")
     # logger.info(dumps(test_output['result'], indent=4))
 
-    df = get_kd_logits(model, train_dataloader, clf_type, model_name=model_name,
+    if kd_dataloader is None:
+        kd_dataloader = test_dataloader
+    df = get_kd_logits(model, kd_dataloader, clf_type, model_name=model_name,
                        embeds=embeds)
     return model, epoch_losses, train_epochs_output_dict, df
 
 
 def run_all_multi(train_dataloader, val_dataloader, test_dataloader, vectors,
-                     in_dim=300, epoch=cfg['training']['num_epoch'],
-                     model_name=None, pretrain_dataloader=None, init_vectors=True):
+                  in_dim=300, epoch=cfg['training']['num_epoch'],
+                  model_name=None, pretrain_dataloader=None, init_vectors=True,
+                  kd_dataloader=None):
     classifiers = {
-        # 'DPCNN':      DPCNN,
-        # 'BiLSTMEmb': BiLSTM_Emb_Classifier,
+        'DPCNN':      DPCNN,
+        'BiLSTMEmb': BiLSTM_Emb_Classifier,
         # 'BiLSTM':     BiLSTM_Classifier,
-        'BOWmean':   BOW_mean_Classifier,
-        'CNN':       CNN_Classifier,
-        # 'DenseCNN':  DenseCNN_Classifier,
+        'BOWmean': BOW_mean_Classifier,
+        'CNN':     CNN_Classifier,
+        'DenseCNN':  DenseCNN_Classifier,
         # 'FastText':   FastText_Classifier,
-        # 'XMLCNN':    XMLCNN_Classifier,
+        'XMLCNN':    XMLCNN_Classifier,
     }
 
     for classifier_type, classifier in classifiers.items():
@@ -541,7 +545,7 @@ def run_all_multi(train_dataloader, val_dataloader, test_dataloader, vectors,
                 train_dataloader, val_dataloader, test_dataloader, vectors,
                 classifier, classifier_type, in_dim=in_dim, epoch=epoch,
                 loss_func=nn.BCEWithLogitsLoss(), lr=lr, model_name=model_name,
-                pretrain_dataloader=pretrain_dataloader, init_vectors=init_vectors)
+                pretrain_dataloader=pretrain_dataloader, init_vectors=init_vectors, kd_dataloader=kd_dataloader)
 
 
 def main():

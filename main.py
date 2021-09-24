@@ -66,6 +66,7 @@ from config import configuration as cfg, platform as plat, username as user,\
     dataset_dir, pretrain_dir, cuda_device, device_id
 from Logger.logger import logger
 
+data_dir = dataset_dir
 if cuda.is_available() and cfg['cuda']["use_cuda"][plat][user]:
     environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
     cuda.set_device(device_id)
@@ -846,12 +847,7 @@ def main_gcpd_alltrain(model_type="multi", glove_embs=None,
         train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
         logger.info(f'Added {len(extra_pretrained_tokens)} extra tokens to vocab')
 
-    model_name = f'GCPD_alltrain_glove_gcpd'
-
-    classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
-               train_vocab, train_dataset, val_dataset, test_dataset,
-               train_name, glove_embs, model_name=model_name,
-               pretrain_dataloader=alltrain_dataloader)
+    # ------------------------------------------------------------------
 
     train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
     train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
@@ -879,24 +875,7 @@ def main_gcpd_alltrain(model_type="multi", glove_embs=None,
                train_name, glove_embs, model_name=model_name,
                pretrain_dataloader=alltrain_dataloader)
 
-    train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
-    train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
-        stoi=token2idx_map, vectors=X, get_dataloader=True,
-        dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
-        train_dataname=train_name, val_dataname=val_name,
-        test_dataname=test_name, zeroshot=False, fix_len=fix_len)
-
-    alltrain_dataset, alltrain_vocab, alltrain_dataloader = prepare_single_dataset(
-        dataname=alltrain_datafile, fix_len=fix_len)
-
-    if use_alltrain_vocab:
-        train_vocab = alltrain_vocab
-
-    extra_pretrained_tokens = set(token2idx_map.keys()) - set(train_vocab_mod['str2idx_map'].keys())
-    logger.info(f'Add {len(extra_pretrained_tokens)} extra pretrained vectors to vocab')
-    if len(extra_pretrained_tokens) > 0:
-        train_vocab = add_pretrained2vocab(extra_pretrained_tokens, token2idx_map, X, train_vocab)
-        logger.info(f'Added {len(extra_pretrained_tokens)} extra tokens to vocab')
+    # ------------------------------------------------------------------
 
     model_name = f'GCPD_alltrain_gcpd_glove'
 
@@ -927,27 +906,7 @@ def main_gcpd_alltrain(model_type="multi", glove_embs=None,
                train_name, glove_embs, model_name=model_name,
                pretrain_dataloader=alltrain_dataloader)
 
-    # ====================================================================
-
-    token2idx_map, X = get_cnlp_embs(glove_embs)
-    train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab,\
-    train_dataloader, val_dataloader, test_dataloader = prepare_splitted_datasets(
-        stoi=token2idx_map, vectors=X, get_dataloader=True,
-        dim=cfg['embeddings']['emb_dim'], data_dir=dataset_dir,
-        train_dataname=train_name, val_dataname=val_name,
-        test_dataname=test_name, zeroshot=False, fix_len=fix_len)
-
-    alltrain_dataset, alltrain_vocab, alltrain_dataloader = prepare_single_dataset(
-        stoi=token2idx_map, vectors=X, dataname=alltrain_datafile, fix_len=fix_len)
-
-    if use_alltrain_vocab:
-        train_vocab = alltrain_vocab
-
-    model_name = f'cnlp_alltrain'
-    classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
-               train_vocab, train_dataset, val_dataset, test_dataset,
-               train_name, glove_embs, model_name=model_name,
-               pretrain_dataloader=alltrain_dataloader)
+    # ------------------------------------------------------------------
 
     logger.info("Execution complete.")
 
@@ -1176,7 +1135,7 @@ def classifier(model_type, train_dataloader, val_dataloader, test_dataloader,
             X = load(emb_filename)
         else:
             logger.info('Get node embeddings from token graph:')
-            X = g_ob.get_node_embeddings(oov_embs, glove_embs, C_vocab['idx2str_map'])
+            X = g_ob.get_node_embeddings_from_dict(oov_embs, glove_embs, C_vocab['idx2str_map'])
             # X = sp_coo2torch_coo(X)
             save(X, emb_filename)
 
@@ -1321,7 +1280,7 @@ def classify(train_df=None, test_df=None, stoi=None, vectors=None,
     ## Prepare labelled target data:
     logger.info('Prepare labelled target data')
     if test_df is None:
-        test_df = read_labelled_json(data_dir, test_filename)
+        test_df = read_labelled_json(test_filename, data_dir)
     test_dataname = test_filename + "_4class.csv"
     test_df.to_csv(join(data_dir, test_dataname))
     test_dataset, (test_vocab, test_label) = get_dataset_fields(
@@ -1414,38 +1373,27 @@ def get_supervised_result(model, train_iterator, val_iterator, test_iterator,
 
 
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser()
-    #
-    # ## Required parameters
-    # parser.add_argument("-d", "--dataset_name",
-    #                     default=cfg['data']['source']['labelled'], type=str)
-    # parser.add_argument("-m", "--model_name",
-    #                     default=cfg['model']['model_name'], type=str)
-    # parser.add_argument("-mt", "--model_type",
-    #                     default=cfg['model']['model_type'], type=str)
-    # parser.add_argument("-ne", "--num_train_epochs",
-    #                     default=cfg['training']['num_epoch'], type=int)
-    # parser.add_argument("-c", "--use_cuda",
-    #                     default=cfg['cuda']['use_cuda'], action='store_true')
-    #
-    # args = parser.parse_args()
+    import argparse
 
-    data_dir = dataset_dir
+    parser = argparse.ArgumentParser()
+
+    ## Required parameters
+    parser.add_argument("-exp_type", "--experiment_type",
+                        default='gcpd_normal', type=str, choices=['gcpd_normal',
+                                                                  'gcpd_ecl',
+                                                                  'gcpd_zeroshot',
+                                                                  'gcpd_alltrain'],
+                        help="Use 'gcpd_normal' for normal results;\n"
+                             "'gcpd_ecl' for Example-Level Contrastive Learning"
+                             " (ECL)\n'gcpd_zeroshot' for Zero-Shot experiments;"
+                             "\n'gcpd_alltrain' for Related-task Data "
+                             "Fine-tuning (RDF).")
+    parser.add_argument("-c", "--use_cuda", default=cfg['cuda']['use_cuda'],
+                        type=bool)
+
+    args = parser.parse_args()
 
     glove_embs = glove2dict()
-
-    # logger.info('Running GLEN.')
-    # train_portions = cfg['data']['train_portions']
-    # seed_num = 3
-    # seed_start = 0
-    # logger.info(f'Run for [{seed_num}] SEEDS')
-    # for train_portion in train_portions:
-    #     clean_dataset_dir()
-    #     logger.info(f'Run for train_portion: [{train_portion}]')
-    #     for seed in range(seed_start, seed_start+seed_num+1):
-    #         logger.info(f'Setting SEED [{seed}]')
-    #         set_all_seeds(seed)
-    #         main_glen(glove_embs=glove_embs, train_portion=train_portion)
 
     logger.info('Running GCPD.')
     seed_count = cfg['training']['seed_count']
@@ -1454,6 +1402,20 @@ if __name__ == "__main__":
     for seed in range(seed_start, seed_start + seed_count):
         logger.info(f'Setting SEED [{seed}]')
         set_all_seeds(seed)
-        main_disaster_normal(glove_embs=glove_embs)
+        if args.exp_type == 'gcpd_normal':
+            main_gcpd_normal(glove_embs=glove_embs)
+
+        elif args.exp_type == 'gcpd_ecl':
+            main_gcpd_ecl(glove_embs=glove_embs)
+
+        elif args.exp_type == 'gcpd_zeroshot':
+            main_gcpd_zeroshot(glove_embs=glove_embs)
+
+        elif args.exp_type == 'gcpd_alltrain':
+            main_gcpd_alltrain(glove_embs=glove_embs)
+        else:
+            raise NotImplementedError(f"Experiment Type {args.exp_type} not "
+                                      f"supported.\n Please use ['gcpd_normal',"
+                                      f" 'gcpd_ecl', 'gcpd_zeroshot', 'gcpd_alltrain']")
 
     logger.info(f"Execution complete for {seed_count} SEEDs.")

@@ -74,14 +74,14 @@ def macro_f1(labels, preds, threshold=0.5):
     -------
 
     """
-    np.savetxt(join(cfg['paths']['dataset_root'][plat][user],
-                    cfg['data']['train'] + "_" +
-                    cfg['transformer']['model_type'] + '_labels.txt'),
-               labels)
-    np.savetxt(join(cfg['paths']['dataset_root'][plat][user],
-                    cfg['data']['train'] + "_" +
-                    cfg['transformer']['model_type'] + '_preds.txt'),
-               preds)
+    # np.savetxt(join(cfg['paths']['dataset_root'][plat][user],
+    #                 cfg['data']['name'] + "_" +
+    #                 cfg['transformer']['model_type'] + '_labels.txt'),
+    #            labels)
+    # np.savetxt(join(cfg['paths']['dataset_root'][plat][user],
+    #                 cfg['data']['name'] + "_" +
+    #                 cfg['transformer']['model_type'] + '_preds.txt'),
+    #            preds)
     preds[preds > threshold] = 1
     preds[preds <= threshold] = 0
 
@@ -127,7 +127,7 @@ def replace_bert_init_embs(model: ClassificationModel, pepoch=cfg['pretrain']['e
 def BERT_multilabel_classifier(
         train_df: pd.core.frame.DataFrame, val_df: pd.core.frame.DataFrame,
         test_df: pd.core.frame.DataFrame, n_classes: int = cfg['data']['num_classes'],
-        dataset_name: str = cfg['data']['train'],
+        dataset_name: str = cfg['data']['name'],
         model_name: str = cfg['transformer']['model_name'],
         model_type: str = cfg['transformer']['model_type'],
         num_epoch: int = cfg['transformer']['num_epoch'],
@@ -240,9 +240,9 @@ def BERT_multilabel_classifier(
         logger.warning(f'Replaced BERT embs with pepoch {pepoch}')
 
     # # Evaluate the model
-    # result, _, _ = model.eval_model(test_df, macro_f1=macro_f1)
+    # result, _, _ = model.eval_model(test_df, weighted_f1=weighted_f1)
     # logger.info(f'BERT for experiment {exp_name+"_NOTRAIN"} Test W-F1:'
-    #             f' {result["macro_f1"]:1.4} with Train {train_df.shape}, '
+    #             f' {result["weighted_f1"]:1.4} with Train {train_df.shape}, '
     #             f'Val {val_df.shape}, Test {test_df.shape}')
 
     ## Train the model
@@ -251,9 +251,9 @@ def BERT_multilabel_classifier(
     train_time = timeit.default_timer() - start_time
 
     # Evaluate the model
-    # result, _, _ = model.eval_model(test_df, macro_f1=macro_f1)
+    # result, _, _ = model.eval_model(test_df, weighted_f1=weighted_f1)
     # logger.info(f'BERT for experiment {exp_name+"_TRAINED"} Test W-F1:'
-    #             f' {result["macro_f1"]:1.4} with Train {train_df.shape}, '
+    #             f' {result["weighted_f1"]:1.4} with Train {train_df.shape}, '
     #             f'Val {val_df.shape}, Test {test_df.shape}')
     if run_cross_tests:
         for test_data in cfg['data']['all_test_files']:
@@ -264,14 +264,14 @@ def BERT_multilabel_classifier(
             if format_input:
                 test_df = format_df_cls(test_df)
             r, _, _ = model.eval_model(test_df, macro_f1=macro_f1)
-            logger.info(f'BERT Data: {test_data} Cross W-F1: {r["macro_f1"]:1.4} size {test_df.shape}')
+            logger.info(f'BERT Data: {test_data} Cross W-F1: {r["weighted_f1"]:1.4} size {test_df.shape}')
 
     # ## Evaluate the model
     # start_time = timeit.default_timer()
     # result, model_outputs, wrong_predictions = model.eval_model(
-    #     test_df, macro_f1=macro_f1)
+    #     test_df, weighted_f1=weighted_f1)
     # prediction_time = timeit.default_timer() - start_time
-    # logger.info(f'BERT Test W-F1: {result["macro_f1"]:1.4}')
+    # logger.info(f'BERT Test W-F1: {result["weighted_f1"]:1.4}')
     # logger.info(f'Running BERT for experiment {exp_name} with Train {train_df.shape}, Val {val_df.shape},
     # Test {test_df.shape}')
 
@@ -294,7 +294,7 @@ def BERT_multilabel_classifier(
 
     # logger.info(dumps(result, indent=4))
     # with open(join(cfg['paths']['dataset_root'][plat][user],
-    #                cfg['data']['train'] + "_" + model_name +
+    #                cfg['data']['name'] + "_" + model_name +
     #                '_result.json'), 'w') as f:
     #     dump(result, f)
 

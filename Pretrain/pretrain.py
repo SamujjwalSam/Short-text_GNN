@@ -33,12 +33,12 @@ from Text_Encoder.TextEncoder import train_w2v, load_word2vec
 from Pretrainer.mlp_trainer import mlp_trainer
 from Pretrainer.gcn_trainer import gcn_trainer
 # from Trainer.lstm_trainer import LSTM_trainer
-from Utils.utils import load_graph, sp_coo2torch_coo, get_token2pretrained_embs, save_token2pretrained_embs,\
-    load_token2pretrained_embs
+from Utils.utils import load_graph, sp_coo2torch_coo, get_token2pretrained_embs
+    # save_token2pretrained_embs, load_token2pretrained_embs
 from File_Handlers.csv_handler import read_csv
 from File_Handlers.json_handler import save_json, read_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
-from Text_Processesor.tokenizer import BERT_tokenizer
+# from Text_Processesor.tokenizer import BERT_tokenizer
 from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from Text_Processesor.tweet_normalizer import normalizeTweet
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
@@ -461,7 +461,7 @@ def get_graph_inputs(G, oov_embs, joint_vocab, G_node_list=None, glove_embs=None
         logger.info('Get node embeddings from graph')
         if glove_embs is None:
             glove_embs = glove2dict()
-        X = G.get_node_embeddings(oov_embs, glove_embs, joint_vocab['idx2str_map'])
+        X = G.get_node_embeddings_from_dict(oov_embs, glove_embs, joint_vocab['idx2str_map'])
         # X = sp_coo2torch_coo(X)
         save(X, emb_filename)
 

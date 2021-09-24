@@ -20,12 +20,50 @@ __license__     : "This source code is licensed under the MIT-style license
 import torch
 import numpy as np
 import pandas as pd
+from os.path import join
 from json import dumps
 # from pytorch_lightning.metrics.functional import f1_score as f1_pl, precision, recall, accuracy as accuracy_pl
 from sklearn.metrics import accuracy_score, recall_score, precision_score,\
     f1_score, precision_recall_fscore_support, classification_report
 
 from Logger.logger import logger
+from config import configuration as cfg, platform as plat, username as user,\
+    dataset_dir, pretrain_dir, cuda_device, device_id
+
+
+def weighted_f1(labels, preds, threshold=0.5):
+    """ Converts probabilities to labels
+
+     using the [threshold] and calculates metrics.
+
+    Parameters
+    ----------
+    labels
+    preds
+    threshold
+
+    Returns
+    -------
+
+    """
+    # np.savetxt(join(cfg['paths']['dataset_root'][plat][user],
+    #                 cfg['data']['name'] + "_" +
+    #                 cfg['transformer']['model_type'] + '_labels.txt'),
+    #            labels)
+    # np.savetxt(join(cfg['paths']['dataset_root'][plat][user],
+    #                 cfg['data']['name'] + "_" +
+    #                 cfg['transformer']['model_type'] + '_preds.txt'),
+    #            preds)
+    preds[preds > threshold] = 1
+    preds[preds <= threshold] = 0
+
+    scores = calculate_performance_bin_sk(labels, preds)
+    scores['dataset'] = cfg['data']['name']
+    scores['epoch'] = cfg['transformer']['num_epoch']
+    logger.info(f"Scores: [{threshold}]:\n[{dumps(scores, indent=4)}]")
+    logger.info(f"Epoch {scores['epoch']} Test W-F1 {scores['f1_weighted'].item():1.4} Model BERT")
+
+    return scores['f1_weighted']
 
 
 def calculate_performance_sk(true: (np.ndarray, torch.tensor), pred: (np.ndarray, torch.tensor), print_result=False) -> dict:
