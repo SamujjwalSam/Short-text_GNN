@@ -21,8 +21,9 @@ import torch
 import pandas as pd
 import numpy as np
 import scipy.sparse as sp
+from random import seed
 from functools import partial
-from os import mkdir, makedirs, remove
+from os import mkdir, makedirs, remove, environ
 from os.path import join, exists
 from collections import OrderedDict, Counter
 from sklearn.model_selection import train_test_split
@@ -35,6 +36,16 @@ from config import configuration as cfg, dataset_dir, pretrain_dir, platform as 
 from File_Handlers.json_handler import read_labelled_json, read_json
 from Text_Processesor.tweet_normalizer import normalizeTweet
 from Logger.logger import logger
+
+
+def set_all_seeds(val=0):
+    seed(val)
+    environ['PYTHONHASHSEED'] = str(val)
+    np.random.seed(val)
+    torch.manual_seed(val)
+    torch.cuda.manual_seed(val)
+    ## Setting deterministic=True slows down GPU:
+    # torch.backends.cudnn.deterministic = True
 
 
 def dot(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -78,7 +89,7 @@ def iterative_train_test_split(X, y, test_size, order=2, random_state=None):
     return X_train, y_train, X_test, y_test
 
 
-def split_target(df=None, data_dir=dataset_dir, labelled_dataname=cfg['data']['test'],
+def split_target(df=None, data_dir=dataset_dir, labelled_dataname=cfg['data']['name'],
                  test_size=0.999, train_size=None, n_classes=cfg['data']['num_classes'], stratified=False):
     """ Splits labelled target data to train and test set.
 
@@ -92,7 +103,7 @@ def split_target(df=None, data_dir=dataset_dir, labelled_dataname=cfg['data']['t
     logger.info('Splits labelled target data to train and test set.')
     ## Read target data
     if df is None:
-        df = read_labelled_json(data_dir, labelled_dataname)
+        df = read_labelled_json(labelled_dataname, data_dir)
     df, t_lab_test_df = split_df(df, test_size=test_size, stratified=stratified,
                                  order=2, n_classes=n_classes)
 
@@ -595,7 +606,7 @@ def load_token2pretrained_embs(
     return X, token2pretrained_embs
 
 
-def clean_dataset_dir(dataset_dir=dataset_dir, dataset_name=cfg['data']['train']):
+def clean_dataset_dir(dataset_dir=dataset_dir, dataset_name=cfg['data']['name']):
     extra_filenames = ['_token_nx.bin', 'joint_vocab.json', 'C_vocab.json', 'labelled_token2vec_map.json',
                        'T_vocab.json', 'T_corpus.json', 'T_corpus_toks.json', 'T_high_oov.json',
                        'S_vocab.json', 'S_corpus.json', 'S_corpus_toks.json', 'S_high_oov.json',

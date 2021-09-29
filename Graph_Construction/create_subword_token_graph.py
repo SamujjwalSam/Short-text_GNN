@@ -16,7 +16,8 @@ from Logger.logger import logger
 
 
 def get_subword_vocab(data_filename, data_dir=dataset_dir, tokenizer=BERT_tokenizer(),
-                      min_freq=cfg['pretrain']['min_freq'], get_clean_corpus=False, low_oov_ignored=None):
+                      min_freq=cfg['pretrain']['min_freq'], get_clean_corpus=False,
+                      low_oov_ignored=None):
     """ Creates cleaned corpus and finds oov subword tokens for BERT.
 
     :param read_input:
@@ -127,7 +128,7 @@ def get_node_vectors(G, s2i, X):
     return node_txt2embs
 
 
-def construct_token_graph(init_embs, vocab, labelled_source_name, unlabelled_source_name,
+def construct_token_graph(init_embs, s2i, labelled_source_name, unlabelled_source_name,
                           unlabelled_target_name, train_df=None, tokenizer=BERT_tokenizer(),
                           data_dir=dataset_dir, use_lpa=False):
     # if exists(labelled_source_path + 'S_vocab.json')\
@@ -216,7 +217,7 @@ def construct_token_graph(init_embs, vocab, labelled_source_name, unlabelled_sou
         X = load(emb_filename)
     else:
         # init_embs_dict = get_token2pretrained_embs(init_embs, node_list, vocab)
-        init_embs_dict = get_node_vectors(g_ob.G, vocab, init_embs)
+        init_embs_dict = get_node_vectors(g_ob.G, s2i, init_embs)
         ## Use initial BERT embeddings as token graph node representation:
         logger.info('Get node vectors from token graph:')
         X = g_ob.get_node_embeddings_from_dict(init_embs_dict, init_embs_dict,

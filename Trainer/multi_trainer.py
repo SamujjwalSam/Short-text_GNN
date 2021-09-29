@@ -478,7 +478,7 @@ def multi_trainer(
         if ecl_pretrain:
             ecl_pretrain_epoch = cfg['pretrain']['epoch']
             ecl_model = BiLSTM_Emb_repr(vocab_size=vectors.shape[0], in_dim=in_dim,
-                                            out_dim=hid_dim)
+                                        out_dim=hid_dim)
             if cfg['cuda']['use_cuda'][plat][user] and cuda.is_available():
                 ecl_model.to(cuda_device)
             model_name = model_name + '_ecl_preepoch_' + str(ecl_pretrain_epoch)
@@ -522,14 +522,14 @@ def run_all_multi(train_dataloader, val_dataloader, test_dataloader, vectors,
                      in_dim=300, epoch=cfg['training']['num_epoch'],
                      model_name=None, pretrain_dataloader=None, init_vectors=True):
     classifiers = {
-        # 'DPCNN':      DPCNN,
-        # 'BiLSTMEmb': BiLSTM_Emb_Classifier,
+        'DPCNN':      DPCNN,
+        'BiLSTMEmb': BiLSTM_Emb_Classifier,
         # 'BiLSTM':     BiLSTM_Classifier,
-        'BOWmean':   BOW_mean_Classifier,
-        'CNN':       CNN_Classifier,
-        # 'DenseCNN':  DenseCNN_Classifier,
+        'BOWmean': BOW_mean_Classifier,
+        'CNN':     CNN_Classifier,
+        'DenseCNN':  DenseCNN_Classifier,
         # 'FastText':   FastText_Classifier,
-        # 'XMLCNN':    XMLCNN_Classifier,
+        'XMLCNN':    XMLCNN_Classifier,
     }
 
     for classifier_type, classifier in classifiers.items():

@@ -449,8 +449,8 @@ class TransformerPretrain():
         #             param.requires_grad = False
         #         logger.info(f"Froze Layer: {layer_idx}")
 
-    def read_data(self, data_dir=dataset_dir, filename=cfg['data']['train']):
-        new_df = read_labelled_json(data_dir, filename)
+    def read_data(self, data_dir=dataset_dir, filename=cfg['data']['name']):
+        new_df = read_labelled_json(filename, data_dir)
         new_df = format_df_cls(new_df)
         return new_df
 

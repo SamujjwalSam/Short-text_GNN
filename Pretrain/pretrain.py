@@ -33,12 +33,10 @@ from Text_Encoder.TextEncoder import train_w2v, load_word2vec
 from Pretrainer.mlp_trainer import mlp_trainer
 from Pretrainer.gcn_trainer import gcn_trainer
 # from Trainer.lstm_trainer import LSTM_trainer
-from Utils.utils import load_graph, sp_coo2torch_coo, get_token2pretrained_embs, save_token2pretrained_embs,\
-    load_token2pretrained_embs
+from Utils.utils import load_graph, sp_coo2torch_coo, get_token2pretrained_embs
 from File_Handlers.csv_handler import read_csv
 from File_Handlers.json_handler import save_json, read_json
 from File_Handlers.pkl_handler import save_pickle, load_pickle
-from Text_Processesor.tokenizer import BERT_tokenizer
 from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from Text_Processesor.tweet_normalizer import normalizeTweet
 from Data_Handlers.token_handler_nx import Token_Dataset_nx
@@ -461,7 +459,7 @@ def get_graph_inputs(G, oov_embs, joint_vocab, G_node_list=None, glove_embs=None
         logger.info('Get node embeddings from graph')
         if glove_embs is None:
             glove_embs = glove2dict()
-        X = G.get_node_embeddings(oov_embs, glove_embs, joint_vocab['idx2str_map'])
+        X = G.get_node_embeddings_from_dict(oov_embs, glove_embs, joint_vocab['idx2str_map'])
         # X = sp_coo2torch_coo(X)
         save(X, emb_filename)
 
@@ -507,7 +505,7 @@ def get_graph_and_dataset(glove_embs=None, limit_dataset=None):
 
     G = Token_Dataset_nx(joint_corpus_toks, joint_vocab, dataset_name=joint_path[:-12])
 
-    G.add_edge_weights_pretrain()
+    G.add_gcpt_edge_weights()
     # num_tokens = G.num_tokens
     G_node_list = list(G.G.nodes)
     logger.info(f"Number of nodes {len(G_node_list)} and edges {len(G.G.edges)} in joint token graph")
@@ -544,12 +542,12 @@ def get_graph_and_dataset(glove_embs=None, limit_dataset=None):
     # Check what portion of pos and neg vocab are actual english and OOV.
     # Need to remove OOV tokens from sentences?
 
-    G_pos.add_edge_weights_pretrain()
+    G_pos.add_gcpt_edge_weights()
     # pos_num_tokens = G_pos.num_tokens
     pos_node_list = list(G_pos.G.nodes)
     logger.info(f"Number of nodes {len(pos_node_list)} and edges {len(G_pos.G.edges)} in POS token graph")
 
-    G_neg.add_edge_weights_pretrain()
+    G_neg.add_gcpt_edge_weights()
     # neg_num_tokens = G_neg.num_tokens
     neg_node_list = list(G_neg.G.nodes)
     logger.info(f"Number of nodes {len(neg_node_list)} and edges {len(G_neg.G.edges)} in NEG token graph")

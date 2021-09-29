@@ -98,9 +98,9 @@ def train_gcn(model, A, X, optimizer, dataloader: utils.data.dataloader.DataLoad
             if x.dim() == 1:
                 x = x.unsqueeze(1).T
             loss += supervised_contrastive_loss(x, x_pos, x_neg)
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        optimizer.zero_grad()
         epoch_train_time = timeit.default_timer() - epoch_start_time
         epoch_loss = loss.item()
         logger.info(f'Epoch {epoch}, Time: {epoch_train_time / 60:6.3} mins, Loss: {epoch_loss}')

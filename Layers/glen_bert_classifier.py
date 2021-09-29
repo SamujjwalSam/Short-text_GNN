@@ -78,11 +78,11 @@ class BertForGLEN(BertPreTrainedModel):
                             position_ids=position_ids, head_mask=head_mask)
         # Complains if input_embeds is kept
 
-        # pooled_output = outputs.pooler_output
+        outputs.pooler_output = self.dropout(outputs.pooler_output)
 
-        output = self.dropout(outputs.last_hidden_state)
+        outputs.last_hidden_state = self.dropout(outputs.last_hidden_state)
 
-        return output
+        return outputs
 
 
 class GLEN_BERT_Classifier(BertPreTrainedModel):

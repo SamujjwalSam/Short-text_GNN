@@ -169,7 +169,7 @@ def prepare_datasets(
         if train_filename.startswith('fire16'):
             train_df = load_fire16()
         else:
-            train_df = read_labelled_json(data_dir, train_filename)
+            train_df = read_labelled_json(train_filename, data_dir)
 
     train_dataname = train_filename + "_4class.csv"
     train_df.to_csv(join(data_dir, train_dataname))
@@ -202,7 +202,8 @@ def prepare_datasets(
         if test_filename.startswith('smerp17'):
             test_df = load_smerp17()
         else:
-            test_df = read_labelled_json(data_dir, test_filename, data_set='test')
+            test_df = read_labelled_json(test_filename, data_dir,
+                                         data_set='test')
 
         if split_test:
             test_extra_df, test_df = split_target(df=test_df, test_size=0.4)
@@ -242,7 +243,7 @@ def prepare_splitted_datasets(
         data_dir=dataset_dir, train_dataname=cfg["data"]["train"],
         val_dataname=cfg["data"]["val"], test_dataname=cfg["data"]["test"],
         zeroshot=False, min_freq=cfg["data"]["min_freq"], train_portion=None,
-        fix_len=None, test_count=1, truncate=None):
+        fix_len=None, test_count=None, truncate=None):
     """ Creates train and test dataset from df and returns data loader.
 
     :param fix_len: Sequence length during batches (None = variable)
@@ -267,6 +268,7 @@ def prepare_splitted_datasets(
     #     train_dataname, val_dataname, test_dataname))
     # logger.info(f"Train {train_df.shape}, Val {test_df.shape}, Test {val_df.shape}.")
     # assert zeroshot and train_portion is not None, 'Either zeroshot or train_portion should be provided'
+    df = None
     train_datafile = train_dataname + ".csv"
     if train_portion is not None:
         train_df = read_csv(data_dir=dataset_dir, data_file=train_dataname)
@@ -275,6 +277,8 @@ def prepare_splitted_datasets(
         train_datafile = train_dataname + str(train_portion) + ".csv"
         logger.warning(f'New train data size {train_df.shape} for train_portion {train_portion}')
         train_df.to_csv(join(data_dir, train_datafile))
+    else:
+        train_df = read_csv(data_dir=dataset_dir, data_file=train_dataname)
 
     if zeroshot:
         train_datafile = "zeroshot_" + train_dataname + str(len(cfg['pretrain']['files'])) + ".csv"
@@ -323,7 +327,7 @@ def prepare_splitted_datasets(
     test_datafile = test_dataname + ".csv"
     if test_count is not None:
         test_df = read_csv(data_dir=dataset_dir, data_file=test_dataname)
-        test_df = test_df.sample(n=1)
+        test_df = test_df.sample(frac=1)
         test_datafile = test_dataname + f"_n{str(test_count)}.csv"
         logger.warning(f'New TEST data size {test_df.shape}')
         test_df.to_csv(join(data_dir, test_datafile))
@@ -354,9 +358,9 @@ def prepare_splitted_datasets(
                 train_batch_size, val_batch_size, test_batch_size))
 
         return train_dataset, val_dataset, test_dataset, train_vocab,\
-               val_vocab, test_vocab, train_dataloader, val_dataloader, test_dataloader
+               val_vocab, test_vocab, train_dataloader, val_dataloader, test_dataloader, df, train_df
 
-    return train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab
+    return train_dataset, val_dataset, test_dataset, train_vocab, val_vocab, test_vocab, df, train_df
 
 
 def prepare_alltrain_datasets(

@@ -121,6 +121,7 @@ def create_tabular_dataset(csv_file: str, data_dir: str, fields=None,
         skip_header=skip_header)
 
     logger.debug(vars(dataset.examples[0]))
+    logger.debug(f"Number of examples: {len(dataset.examples)}")
     return dataset
 
 

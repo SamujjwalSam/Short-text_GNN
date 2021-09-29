@@ -152,7 +152,7 @@ def save_json(data, filename, file_path=dataset_dir, overwrite=False, indent=2,
 mlb = MultiLabelBinarizer()
 
 
-def read_labelled_json(data_dir=dataset_dir, filename=cfg['data']['test'],
+def read_labelled_json(filename, data_dir=dataset_dir,
                        data_keys=['text', 'classes'], data_set='train',
                        # rename_cols={"parsed_tweet": "text"},
                        ):

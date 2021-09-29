@@ -342,24 +342,57 @@ def plot_heatmap(data, vmin=-1., vmax=1., save_name='heatmap.pdf'):
     plt.show()
 
 
+from os.path import exists
+from torch import load
+from Utils.utils import get_token2pretrained_embs
+from File_Handlers.json_handler import save_json, read_json
+
+
+def gcpt_heatmap_glove_vs_gcpt(pretrainedX_path, token_embs_path, vocab_path):
+
+    if exists(pretrainedX_path):
+        logger.info(f'Loading Pretraining Artifacts from [{token_embs_path}]')
+        vocab = read_json(vocab_path)
+
+        X = load(pretrainedX_path)
+
+        if exists(token_embs_path):
+            token2pretrained_embs = load(token_embs_path)
+        else:
+            token2pretrained_embs = get_token2pretrained_embs(
+                X, list(vocab['str2idx_map'].keys()), vocab['idx2str_map'])
+
+
 def test_plot_heatmap(token_embs_path=join(pretrain_dir, 'pretrained', 'token2pretrained_' + str(80) + '.pt')):
     from Text_Encoder.finetune_static_embeddings import glove2dict
 
-    token2pretrained_embs = torch.load(token_embs_path)
+    token2pretrained_embs = load(token_embs_path)
     glove_embs = glove2dict()
 
     common = []
     # common = ['common', 'works', 'fear', 'system', 'honestly', 'such', 'trapped', 'technology', 'collect', 'thoughts',
     #           'rise', 'hours', 'dollars']
     # common.extend(common)
+    dataset_tokens_set = set(token2pretrained_embs.keys())
+    glove_tokens_set = set(glove_embs.keys())
+    common = dataset_tokens_set.intersection(glove_tokens_set)
 
-    pos_exp = ['corporation', 'unclear', 'filling', 'additional', 'pledges', 'slide', 'reversing',
-               'particularly', 'cared', 'miraculously', 'properly', 'recovering']
-    common.extend(pos_exp)
+    dataset_name = pretrain_dir.split("/")[-1]
+    joint_vocab = read_json(join(pretrain_dir, dataset_name+'_joint_vocab'))
+    pos_vocab = read_json(join(pretrain_dir, dataset_name+'_pos_vocab'))
+    neg_vocab = read_json(join(pretrain_dir, dataset_name+'_neg_vocab'))
 
-    neg_exp = ['successful', 'sounding', 'equally', 'antique', 'beautifully', 'stink', 'sauce', 'homecoming',
-               'emotions', 'lick', 'atheist', 'fancy', 'coconut']
-    common.extend(neg_exp)
+    selected = ['corporation', 'unclear', 'filling', 'additional', 'pledges',
+                'slide', 'reversing', 'particularly', 'cared', 'miraculously',
+                'properly', 'recovering']
+
+    # pos_exp = ['corporation', 'unclear', 'filling', 'additional', 'pledges', 'slide', 'reversing',
+    #            'particularly', 'cared', 'miraculously', 'properly', 'recovering']
+    # common.extend(pos_exp)
+    #
+    # neg_exp = ['successful', 'sounding', 'equally', 'antique', 'beautifully', 'stink', 'sauce', 'homecoming',
+    #            'emotions', 'lick', 'atheist', 'fancy', 'coconut']
+    # common.extend(neg_exp)
 
     # glove_tensor = {word: glove_embs[word] for word in common}
     # gcn_tensor = {word: token2pretrained_embs[word] for word in common}
@@ -368,7 +401,7 @@ def test_plot_heatmap(token_embs_path=join(pretrain_dir, 'pretrained', 'token2pr
     gcn_tensor = []
     words = []
 
-    for word in common:
+    for word in selected:
         if word in glove_embs and word in token2pretrained_embs:
             glove_tensor += [glove_embs[word].tolist()]
             gcn_tensor += [token2pretrained_embs[word].tolist()]
@@ -385,16 +418,16 @@ def test_plot_heatmap(token_embs_path=join(pretrain_dir, 'pretrained', 'token2pr
 
     # gcn_sigm = torch.sigmoid(torch.from_numpy(gcn_normed)).numpy()
     gcn_df = pd.DataFrame(gcn_sim, index=words, columns=words)
-    gcn_df.to_csv('gcn_sim_df.csv')
-    plot_heatmap(data=gcn_df, save_name='gcn_heatmap.pdf')
+    gcn_df.to_csv('gcpt_sim_df.csv')
+    plot_heatmap(data=gcn_df, save_name='gcpt_heatmap.pdf')
 
     # glove_sigm = torch.sigmoid(torch.from_numpy(glove_normed)).numpy()
     glove_df = pd.DataFrame(glove_sim, index=words, columns=words)
     glove_df.to_csv('glove_sim_df.csv')
     plot_heatmap(data=glove_df, save_name='glove_heatmap.pdf')
 
-    torch.save(torch.Tensor(gcn_sim), 'gcn_cosine_sim.pt')
-    torch.save(torch.Tensor(glove_sim), 'glove_cosine_sim.pt')
+    save(Tensor(gcn_sim), 'gcpt_cosine_sim.pt')
+    save(Tensor(glove_sim), 'glove_cosine_sim.pt')
 
 
 if __name__ == '__main__':

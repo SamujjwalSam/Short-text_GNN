@@ -37,111 +37,32 @@ seed = 0
 
 global configuration
 configuration = {
-    "data":             {
-        # 'name':       'fire16_smerp17',
-        # 'train':      'fire16_train',
-        # 'val':        'fire16_val',
-        # 'test':       'smerp17_test',
-        # "source":     {
-        #     'labelled':   'fire16_labeled',
-        #     'unlabelled': 'fire16_unlabeled'
-        # },
-        # "target":     {
-        #     'labelled':   'smerp17_labeled',
-        #     'unlabelled': 'smerp17_unlabeled'},
+    "data":         {
+        # 'name': 'fire16_smerp17', 'num_classes': 4, 'multi_label': True, # 'source_name': 'fire16', 'target_name': 'smerp17',
+        'name': 'smerp17_fire16','num_classes': 4, 'multi_label': True, # 'source_name': 'smerp17', 'target_name': 'fire16',
 
-        # 'name':       'fire16_smerp17_source',
-        # 'train':      'fire16_train',
-        # 'val':        'fire16_val',
-        # 'test':       'smerp17_test',
-        # "source":     {
-        #     'labelled':   'fire16_labeled',
-        #     'unlabelled': 'fire16_unlabeled'
-        # },
-        # "target":     {
-        #     'labelled':   'smerp17_labeled',
-        #     'unlabelled': 'fire16_unlabeled'},
+        # 'name': 'NEQ_QFL', 'num_classes': 1, 'multi_label': False, # 'source_name': 'NEQ', 'target_name': 'QFL',
+        # 'name': 'QFL_NEQ', 'num_classes': 1, 'multi_label': False, # 'source_name': 'QFL', 'target_name': 'NEQ',
 
-        # 'name':        'smerp17_fire16',
-        # 'train':       'smerp17_train',
-        # 'val':         'smerp17_train',
-        # 'test':        'fire16_test',
-        # "source":      {
-        #     'labelled':   'smerp17_labeled',
-        #     'unlabelled': 'smerp17_unlabeled'
-        # },
-        # "target":      {
-        #     'labelled':   'fire16_labeled',
-        #     'unlabelled': 'fire16_unlabeled'},
-
-        # 'name':       'smerp17_fire16_small',
-        # 'train':      'smerp17_train_75',
-        # 'val':        'smerp17_val',
-        # 'test':       'fire16_test',
-        # "source":     {
-        #     'labelled':   'smerp17_labeled',
-        #     'unlabelled': 'smerp17_unlabeled'
-        # },
-        # "target":     {
-        #     'labelled':   'fire16_labeled',
-        #     'unlabelled': 'fire16_unlabeled'},
-
-        # 'name':       'smerp17_fire16_target',
-        # 'train':      'smerp17_train',
-        # 'val':        'smerp17_val',
-        # 'test':       'fire16_test',
-        # "source":     {
-        #     'labelled':   'smerp17_labeled',
-        #     'unlabelled': 'fire16_unlabeled'
-        # },
-        # "target":     {
-        #     'labelled':   'smerp17_labeled',
-        #     'unlabelled': 'fire16_unlabeled'},
-
-        # 'name':       'fire16_fire16',
-        # 'train':      'fire16_train',
-        # 'val':        'fire16_val',
-        # 'test':       'fire16_test',
-        # "source":     {
-        #     'labelled':   'fire16_labeled',
-        #     'unlabelled': 'fire16_unlabeled'
-        # },
-        # "target":     {
-        #     'labelled':   'fire16_labeled',
-        #     'unlabelled': 'fire16_unlabeled'},
-
-        # 'name':       'smerp17_smerp17',
-        # 'train':      'smerp17_train',
-        # 'val':        'smerp17_val',
-        # 'test':       'smerp17_test',
-        # "source":     {
-        #     'labelled':   'smerp17_labeled',
-        #     'unlabelled': 'smerp17_unlabeled'
-        # },
-        # "target":     {
-        #     'labelled':   'smerp17_labeled',
-        #     'unlabelled': 'smerp17_unlabeled'},
-
-        # 'num_classes': 4,
+        # 'class_names':    ('0'),
         # 'class_names': ('0', '1', '2', '3'),
         'min_freq':       3,
-        'train_portions': [0.9999],
+        'train_portions': [1.0, 0.5, 0.25, 0.1],
 
-        # 'num_classes':  4,
-        # 'class_names':  ('0', '1', '2', '3'),
-        'num_classes':    1,
-        'class_names':    ('0'),
-
-        'use_all_data':   False,
+        'zeroshot':       False,
         'all_test_files': [
-            'AF13_test',
-            'BB13_test',
-            'Kaggle_test',
-            'NEQ15_test',
-            'OT13_test',
-            'QFL13_test',
-            'SH12_test',
-            'WTE13_test'
+
+            'fire16_test',
+            'smerp17_test'
+
+            # 'AF13_test',
+            # 'BB13_test',
+            # 'Kaggle_test',
+            # 'NEQ15_test',
+            # 'OT13_test',
+            # 'QFL13_test',
+            # 'SH12_test',
+            # 'WTE13_test'
 
             # 'books_test',
             # 'dvd_test',
@@ -311,12 +232,7 @@ configuration = {
         # 'name': 'OT13', 'train': 'OT13_train', 'val': 'OT13_val', 'test': 'OT13_test',
         # 'name': 'QFL13', 'train': 'QFL13_train', 'val': 'QFL13_val', 'test': 'QFL13_test',
         # 'name': 'SH12', 'train': 'SH12_train', 'val': 'SH12_val', 'test': 'SH12_test',
-        'name': 'WTE13', 'train': 'WTE13_train', 'val': 'WTE13_val', 'test': 'WTE13_test',
-
-        # 'name':       'Amazon_Reviews_Sentiment_books',
-        # 'train':      'books_train',
-        # 'val':        'books_val',
-        # 'test':       'books_test',
+        # 'name': 'WTE13', 'train': 'WTE13_train', 'val': 'WTE13_val', 'test': 'WTE13_test',
 
         # 'name': 'Amazon_Reviews_Sentiment_books', 'train': 'books_train', 'val': 'books_val', 'test': 'books_test',
         # 'name': 'Amazon_Reviews_Sentiment_dvd', 'train': 'dvd_train', 'val': 'dvd_val', 'test': 'dvd_test',
@@ -324,10 +240,10 @@ configuration = {
         # 'name': 'Amazon_Reviews_Sentiment_kitchen', 'train': 'kitchen_train', 'val': 'kitchen_val', 'test': 'kitchen_test',
         # 'name': 'Amazon_Reviews_Sentiment_video', 'train': 'video_train', 'val': 'video_val', 'test': 'video_test',
     },
-    'pretrain':         {
+    'pretrain':     {
         'epoch':       80,
         'model_type':  'GCN',
-        'save_epochs': [1, 3, 10, 50, 100],
+        'save_epochs': [1, 3, 10, 50, 80],
         'min_freq':    3,
         'lr':          8e-4,
         # 'name':        'disaster_binary_pretrain',
@@ -336,6 +252,7 @@ configuration = {
         # 'name':        'Amazon_Reviews_Sentiment_electronics',
         # 'name':        'Amazon_Reviews_Sentiment_kitchen',
         # 'name':        'Amazon_Reviews_Sentiment_video',
+
         # 'name':        'pretrain_AF',
         # 'name':        'pretrain_BB',
         # 'name':        'pretrain_KL',
@@ -364,13 +281,13 @@ configuration = {
             # 'video_train', 'video_val',
         ],
     },
-    'examcon_pretrain': {
+    'ecl_pretrain': {
         'epoch':       50,
         'save_epochs': [1, 3, 5, 10, 50],
         'lr':          0.005,
     },
 
-    "paths":            {
+    "paths":        {
         "result_dir":    "results",
         "log_dir":       "logs",
         "cache_dir":     "cache",
@@ -401,7 +318,7 @@ configuration = {
         }
     },
 
-    'cuda':             {
+    'cuda':         {
         "use_cuda":     {
             "Windows": False,
             "OSX":     False,
@@ -426,13 +343,16 @@ configuration = {
         },
     },
 
-    "transformer":      {
-        "num_epoch":                   5,
+    "transformer":  {
+        "num_epoch":                   50,
+        'lrs':                         [1e-3, 1e-4, 1e-5, 1e-6],
         "train_batch_size":            32,
-        "eval_batch_size":             128,
-        "model_type":                  "bert",
+        "eval_batch_size":             64,
+        "model_type":                  "glen_bert",
         "model_name":                  "bert-base-uncased",
-        "max_seq_len":                 100,
+        # "model_type":                  "glen_xlmroberta",
+        # "model_name":                  "xlm-roberta-base",
+        "max_seq_len":                 64,
         'gradient_accumulation_steps': 1,
         "max_vec_len":                 5000,
         "dropout":                     0.1,
@@ -465,7 +385,7 @@ configuration = {
         "view_train_precision":        True
     },
 
-    "model":            {
+    "model":        {
         'type':                 'LSTM',
         'lrs':                  [1e-4, 1e-2],
         'mittens_iter':         100,
@@ -494,12 +414,12 @@ configuration = {
         "view_train_precision": True
     },
 
-    "embeddings":       {
+    "embeddings":   {
         'embedding_file': 'glove.6B.300d',
         'emb_dim':        300,
     },
 
-    "lstm_params":      {
+    "lstm_params":  {
         "num_layers":  2,
         "bias":        True,
         "batch_first": True,
@@ -507,7 +427,7 @@ configuration = {
         "hid_size":    64,
     },
 
-    "gnn_params":       {
+    "gnn_params":   {
         "hid_dim":     300,
         "num_heads":   2,
         "padding":     1,
@@ -516,7 +436,7 @@ configuration = {
         "bias":        True,
     },
 
-    "training":         {
+    "training":     {
         "seed_count":          3,
         "seed_start":          0,
         "num_epoch":           10,
@@ -525,7 +445,7 @@ configuration = {
         "eval_batch_size":     256,
     },
 
-    "prep_vecs":        {
+    "prep_vecs":    {
         "max_nb_words":   20000,
         "min_word_count": 1,
         "window":         7,
@@ -535,7 +455,7 @@ configuration = {
         "idf":            True
     },
 
-    "text_process":     {
+    "text_process": {
         "encoding":         'latin-1',
         "sents_chunk_mode": "word_avg",
         "workers":          5

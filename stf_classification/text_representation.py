@@ -56,7 +56,7 @@ def get_token_representations(
         train_df: pd.core.frame.DataFrame,
         # val_df: pd.core.frame.DataFrame, test_df: pd.core.frame.DataFrame,
         # n_classes: int = cfg['data']['num_classes'],
-        # dataset_name: str = cfg['data']['train'],
+        # dataset_name: str = cfg['data']['name'],
         model_name: str = cfg['transformer']['model_name'],
         model_type: str = cfg['transformer']['model_type'],
         # num_epoch: int = cfg['transformer']['num_epoch'],
