@@ -19,7 +19,6 @@ __license__     : "This source code is licensed under the MIT-style license
 
 import numpy as np
 import networkx as nx
-# from scipy.spatial.distance import cosine
 from os.path import join, exists
 from torch import from_numpy, Tensor, sparse, sqrt, diag, stack
 from torch.utils.data import Dataset

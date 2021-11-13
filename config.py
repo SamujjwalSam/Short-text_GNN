@@ -38,11 +38,15 @@ seed = 0
 global configuration
 configuration = {
     "data":         {
-        # 'name': 'fire16_smerp17', 'num_classes': 4, 'multi_label': True, # 'source_name': 'fire16', 'target_name': 'smerp17',
-        'name': 'smerp17_fire16','num_classes': 4, 'multi_label': True, # 'source_name': 'smerp17', 'target_name': 'fire16',
+        # 'name': 'fire16-smerp17', 'num_classes': 4, 'multi_label': True, # 'source_name': 'fire16', 'target_name': 'smerp17',
+        # 'name': 'smerp17-fire16','num_classes': 4, 'multi_label': True, # 'source_name': 'smerp17', 'target_name': 'fire16',
 
-        # 'name': 'NEQ_QFL', 'num_classes': 1, 'multi_label': False, # 'source_name': 'NEQ', 'target_name': 'QFL',
-        # 'name': 'QFL_NEQ', 'num_classes': 1, 'multi_label': False, # 'source_name': 'QFL', 'target_name': 'NEQ',
+        # 'name': 'mKaggle-mKaggle', 'num_classes': 37, 'multi_label': True, # 'source_name': 'NEQ', 'target_name': 'QFL',
+        'name': 'mixup-mixup', 'num_classes': 5, 'multi_label': False, # 'source_name': 'NEQ', 'target_name': 'QFL',
+        # 'name': 'ecuador_en-ecuador_es', 'num_classes': 1, 'multi_label': False, # 'source_name': 'NEQ', 'target_name': 'QFL',
+
+        # 'name': 'NEQ-QFL', 'num_classes': 1, 'multi_label': False, # 'source_name': 'NEQ', 'target_name': 'QFL',
+        # 'name': 'QFL-NEQ', 'num_classes': 1, 'multi_label': False, # 'source_name': 'QFL', 'target_name': 'NEQ',
 
         # 'class_names':    ('0'),
         # 'class_names': ('0', '1', '2', '3'),

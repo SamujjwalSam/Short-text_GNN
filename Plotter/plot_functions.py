@@ -17,7 +17,7 @@ __license__     : "This source code is licensed under the MIT-style license
                    source tree."
 """
 
-import torch
+# import torch
 # import umap
 import statistics
 import numpy as np
@@ -28,6 +28,7 @@ from os.path import join
 from matplotlib import pyplot as plt
 from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import cosine_similarity
+from torch import load, save, Tensor
 
 from config import dataset_dir, pretrain_dir
 from Logger.logger import logger

@@ -77,7 +77,7 @@ if cfg['data']['zeroshot']:
     test_df = test_df.sample(frac=1)
     # test_df["labels"] = pd.to_numeric(test_df["labels"], downcast="float")
 else:
-    train_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['train'])
+    train_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['name'])
     train_df = train_df.sample(frac=1)
     # train_df["labels"] = pd.to_numeric(train_df["labels"], downcast="float")
     val_df = read_csv(data_dir=dataset_dir, data_file=cfg['data']['val'])
