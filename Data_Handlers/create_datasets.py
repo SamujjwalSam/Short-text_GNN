@@ -149,7 +149,7 @@ def prepare_example_contrast_datasets(
 def prepare_datasets(
         train_df=None, test_df=None, stoi=None, vectors=None,
         dim=cfg['embeddings']['emb_dim'], split_test=False, get_dataloader=False,
-        data_dir=dataset_dir, train_filename=cfg['data']['train'],
+        data_dir=dataset_dir, train_filename=cfg['data']['name'],
         test_filename=cfg['data']['test']):
     """ Creates train and test dataset from df and returns data loader.
 
@@ -522,7 +522,7 @@ def prepare_BERT_splitted_datasets(
 
 def create_unlabeled_datasets(
         s_lab_df=None, data_dir: str = dataset_dir, labelled_source_name: str
-        = cfg['data']['train'],
+        = cfg['data']['name'],
         unlabelled_source_name: str = None, unlabelled_target_name: str = None):
     """ creates vocab and other info.
 
@@ -634,10 +634,10 @@ def create_unlabeled_datasets(
 
 
 def split_csv_dataset(dataset_name="smerp17", dataset_dir=dataset_dir, frac=0.565):
-    logger.warning('Creating')
+    logger.info(f'Splitting dataset with frac [{frac}].')
     smerp = pd.read_csv(join(dataset_dir, dataset_name + '.csv'), header=0, index_col=0)
-    smerp = smerp.sample(frac=1.)
-    smerp_sel = smerp.sample(frac=frac, random_state=677)
+    smerp_sel = smerp.sample(frac=1.)
+    # smerp_sel = smerp.sample(frac=frac, random_state=677)
 
     smerp_train = smerp_sel.sample(frac=0.6)
     logger.info(smerp_train.shape)

@@ -248,6 +248,41 @@ class BiLSTM_Classifier(torch.nn.Module):
         return logits
 
 
+class Linear_Sigmoid(torch.nn.Module):
+    """ BiLSTM for classification (without Embedding layer) """
+
+    # define all the layers used in model
+    def __init__(self, in_dim, out_dim=1, num_layer=2):
+        super(Linear_Sigmoid, self).__init__()
+        self.linear_layers = []
+        for _ in range(num_layer - 1):
+            self.linear_layers.append(torch.nn.Linear(in_dim, in_dim))
+
+        self.linear_layers = torch.nn.ModuleList(self.linear_layers)
+        self.fc = torch.nn.Linear(in_dim, out_dim)
+
+        # self.sig = torch.nn.Sigmoid()
+        self.tanh = torch.nn.Tanh()
+
+    def forward(self, local_input, global_input):
+        """ Concatenates local and global vectors to predict importance of global component.
+
+        Args:
+            local_input: batch size, input dim
+            global_input: batch size, input dim
+
+        Returns:
+
+        """
+        combined_input = torch.cat([local_input, global_input], dim=1)
+        for layer in self.linear_layers:
+            combined_input = layer(combined_input)
+        logit = self.fc(combined_input)
+        logit = self.tanh(logit)
+
+        return logit
+
+
 def main():
     """
     Main module to start code

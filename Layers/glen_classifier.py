@@ -64,7 +64,7 @@ class GLEN_Classifier(torch.nn.Module):
         :param save_gcn_embs:
         :param instance_batch_local_token_ids: local node ids for a instance graph to repeat the node embeddings.
         :param node_counts: As batching graphs lose information about the number of nodes in each instance graph,
-        node_counts is a list of nodes (unique) in each instance graph.
+        :node_counts is a list of nodes (unique) in each instance graph.
         :param combine: How to combine two embeddings (Default: concatenate)
         :param instance_batch_global_token_ids: Ordered set of token ids present in the current instance batch
         :param instance_batch_embs: Embeddings from instance GAT

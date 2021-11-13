@@ -19,6 +19,7 @@ __license__     : "This source code is licensed under the MIT-style license
 
 from __future__ import absolute_import, division, print_function
 
+import ast
 import logging
 import math
 # import os
@@ -33,7 +34,8 @@ from os import environ, makedirs, listdir
 from os.path import join, exists
 from pathlib import Path
 from torch import cuda, save, load, nn, no_grad, tensor, long, set_num_threads,\
-    manual_seed, device, Tensor, qint8, quantization, mean, cat, stack
+    manual_seed, device, Tensor, qint8, quantization, mean, cat, stack, mm,\
+    triu, sigmoid, argmax, softmax as t_softmax
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 
 from collections import Counter
@@ -172,8 +174,9 @@ from config import configuration as cfg, platform as plat, username as user,\
 # from Text_Processesor.build_corpus_vocab import get_dataset_fields
 from Graph_Construction.create_subword_token_graph import construct_token_graph
 from Layers.glen_bert_classifier import GLEN_BERT_Classifier, BertForGLEN
+from Layers.glen_xlmroberta_classifier import XLMRobertaForGLEN
 from Layers.gcn_classifiers import GCN
-from Layers.bilstm_classifiers import BiLSTM_Classifier
+from Layers.bilstm_classifiers import BiLSTM_Classifier, Linear_Sigmoid
 from Metrics.metrics import weighted_f1
 from File_Handlers.csv_handler import read_csv, read_csvs
 from Utils.utils import set_all_seeds
@@ -195,7 +198,7 @@ MODELS_WITHOUT_CLASS_WEIGHTS_SUPPORT = ["squeezebert", "deberta", "mpnet"]
 MODELS_WITH_EXTRA_SEP_TOKEN = [
     "roberta",
     "camembert",
-    "xlmroberta",
+    "xlmroberta", "glen_xlmroberta",
     "longformer",
     "mpnet",
 ]
@@ -203,7 +206,7 @@ MODELS_WITH_EXTRA_SEP_TOKEN = [
 MODELS_WITH_ADD_PREFIX_SPACE = [
     "roberta",
     "camembert",
-    "xlmroberta",
+    "xlmroberta", "glen_xlmroberta",
     "longformer",
     "mpnet",
 ]
@@ -212,7 +215,7 @@ MODELS_WITHOUT_SLIDING_WINDOW_SUPPORT = ["squeezebert"]
 
 
 class ClassificationModel:
-    def __init__(self, model_type="glen_bert", model_name="bert-base-uncased",
+    def __init__(self, model_type="glen_xlmroberta", model_name="roberta-base",
                  tokenizer_type=None, tokenizer_name=None, num_labels=None,
                  weight=None, args=None, use_cuda=True, cuda_device=-1,
                  onnx_execution_provider=None, exp_name="GLEN_BERT", **kwargs):
@@ -243,11 +246,11 @@ class ClassificationModel:
         """  # noqa: ignore flake8"
 
         MODEL_CLASSES = {
-            "albert":      (AlbertConfig, AlbertForSequenceClassification, AlbertTokenizer),
-            "auto":        (AutoConfig, AutoModelForSequenceClassification, AutoTokenizer),
-            "bert":        (BertConfig, BertForSequenceClassification, BertTokenizerFast),
-            "glen_bert":   (BertConfig, BertForGLEN, BertTokenizerFast),
-            "bertweet":    (
+            "albert":          (AlbertConfig, AlbertForSequenceClassification, AlbertTokenizer),
+            "auto":            (AutoConfig, AutoModelForSequenceClassification, AutoTokenizer),
+            "bert":            (BertConfig, BertForSequenceClassification, BertTokenizerFast),
+            "glen_bert":       (BertConfig, BertForGLEN, BertTokenizerFast),
+            "bertweet":        (
                 RobertaConfig,
                 RobertaForSequenceClassification,
                 BertweetTokenizer,
@@ -257,17 +260,17 @@ class ClassificationModel:
             #     BigBirdForSequenceClassification,
             #     BigBirdTokenizer,
             # ),
-            "camembert":   (
+            "camembert":       (
                 CamembertConfig,
                 CamembertForSequenceClassification,
                 CamembertTokenizerFast,
             ),
-            "deberta":     (
+            "deberta":         (
                 DebertaConfig,
                 DebertaForSequenceClassification,
                 DebertaTokenizer,
             ),
-            "distilbert":  (
+            "distilbert":      (
                 DistilBertConfig,
                 DistilBertForSequenceClassification,
                 DistilBertTokenizerFast,
@@ -277,47 +280,55 @@ class ClassificationModel:
             #     ElectraForSequenceClassification,
             #     ElectraTokenizerFast,
             # ),
-            "flaubert":    (
+            "flaubert":        (
                 FlaubertConfig,
                 FlaubertForSequenceClassification,
                 FlaubertTokenizer,
             ),
-            "layoutlm":    (
+            "layoutlm":        (
                 LayoutLMConfig,
                 LayoutLMForSequenceClassification,
                 LayoutLMTokenizerFast,
             ),
-            "longformer":  (
+            "longformer":      (
                 LongformerConfig,
                 LongformerForSequenceClassification,
                 LongformerTokenizerFast,
             ),
-            "mobilebert":  (
+            "mobilebert":      (
                 MobileBertConfig,
                 MobileBertForSequenceClassification,
                 MobileBertTokenizerFast,
             ),
-            "mpnet":       (MPNetConfig, MPNetForSequenceClassification, MPNetTokenizerFast),
-            "roberta":     (
+            "mpnet":           (MPNetConfig, MPNetForSequenceClassification, MPNetTokenizerFast),
+            "roberta":         (
                 RobertaConfig,
                 RobertaForSequenceClassification,
                 RobertaTokenizerFast,
             ),
-            "squeezebert": (
+            "squeezebert":     (
                 SqueezeBertConfig,
                 SqueezeBertForSequenceClassification,
                 SqueezeBertTokenizerFast,
             ),
-            "xlm":         (XLMConfig, XLMForSequenceClassification, XLMTokenizer),
-            "xlmroberta":  (
+            "xlm":             (XLMConfig, XLMForSequenceClassification, XLMTokenizer),
+            "xlmroberta":      (
                 XLMRobertaConfig,
                 XLMRobertaForSequenceClassification,
                 XLMRobertaTokenizerFast,
             ),
-            "xlnet":       (XLNetConfig, XLNetForSequenceClassification, XLNetTokenizerFast),
+            "glen_xlmroberta": (
+                XLMRobertaConfig,
+                XLMRobertaForGLEN,
+                XLMRobertaTokenizerFast,
+            ),
+            "xlnet":           (XLNetConfig, XLNetForSequenceClassification, XLNetTokenizerFast),
         }
 
         self.combine = 'concat'
+        self.model_type = model_type
+        self.model_name = model_name
+        self.estimate_global_importance = False
 
         self.args = self._load_model_args(model_name)
 
@@ -435,25 +446,25 @@ class ClassificationModel:
 
             if self.args.dynamic_quantize:
                 model_path = quantize(Path(join(model_name, "onnx_model.onnx")))
-                self.bert_model = InferenceSession(
+                self.model = InferenceSession(
                     model_path.as_posix(), options, providers=[onnx_execution_provider]
                 )
             else:
                 model_path = join(model_name, "onnx_model.onnx")
-                self.bert_model = InferenceSession(
+                self.model = InferenceSession(
                     model_path, options, providers=[onnx_execution_provider]
                 )
         else:
             if not self.args.quantized_model:
                 if self.weight:
-                    self.bert_model = model_class.from_pretrained(
+                    self.model = model_class.from_pretrained(
                         model_name,
                         config=self.config,
                         weight=Tensor(self.weight).to(self.device),
                         **kwargs,
                     )
                 else:
-                    self.bert_model = model_class.from_pretrained(
+                    self.model = model_class.from_pretrained(
                         model_name, config=self.config, **kwargs
                     )
             else:
@@ -461,23 +472,23 @@ class ClassificationModel:
                     join(model_name, "pytorch_model.bin")
                 )
                 if self.weight:
-                    self.bert_model = model_class.from_pretrained(
+                    self.model = model_class.from_pretrained(
                         None,
                         config=self.config,
                         state_dict=quantized_weights,
                         weight=Tensor(self.weight).to(self.device),
                     )
                 else:
-                    self.bert_model = model_class.from_pretrained(
+                    self.model = model_class.from_pretrained(
                         None, config=self.config, state_dict=quantized_weights
                     )
 
             if self.args.dynamic_quantize:
-                self.bert_model = quantization.quantize_dynamic(
-                    self.bert_model, {nn.Linear}, dtype=qint8
+                self.model = quantization.quantize_dynamic(
+                    self.model, {nn.Linear}, dtype=qint8
                 )
             if self.args.quantized_model:
-                self.bert_model.load_state_dict(quantized_weights)
+                self.model.load_state_dict(quantized_weights)
             if self.args.dynamic_quantize:
                 self.args.quantized_model = True
 
@@ -517,14 +528,14 @@ class ClassificationModel:
             self.tokenizer.add_tokens(
                 self.args.special_tokens_list, special_tokens=True
             )
-            self.bert_model.resize_token_embeddings(len(self.tokenizer))
+            self.model.resize_token_embeddings(len(self.tokenizer))
 
         self.args.model_name = model_name
         self.args.model_type = model_type
         self.args.tokenizer_name = tokenizer_name
         self.args.tokenizer_type = tokenizer_type
 
-        if model_type in ["camembert", "xlmroberta"]:
+        if model_type in ["camembert", "xlmroberta", "glen_xlmroberta"]:
             warnings.warn(
                 f"use_multiprocessing automatically disabled as {model_type}"
                 " fails when using multiprocessing for feature conversion."
@@ -549,26 +560,51 @@ class ClassificationModel:
                                       f' [{self.combine}] provided.')
         self.bilstm_classifier = BiLSTM_Classifier(final_dim, num_labels)
 
-    def forward(self, inputs):
+        # self.global_readout = mean()
+        self.global_importance_estimator = Linear_Sigmoid(final_dim, 1)
+
+    def forward(self, inputs, estimate_global_importance=False):
         # self.bert2gcn_id_map = get_bert2gcn_token_map(self.tokenizer.vocab,
         #                                               self.joint_vocab['str2idx_map'])
         gcn_ids = get_bert2gcn_id_mapped_examples(
-            inputs['input_ids'], self.tokenizer.bert_vocab_i2s, self.joint_vocab['str2idx_map'],
+            inputs['input_ids'], self.tokenizer.bert_vocab_i2s,
+            self.joint_vocab['str2idx_map'],
             special_ids=self.tokenizer.all_special_ids)
 
-        # bert_outputs = self.bert_model(**inputs)
-        bert_outputs = self.bert_model(input_ids=inputs['input_ids'],
-                                       attention_mask=inputs['attention_mask'],
-                                       token_type_ids=inputs['token_type_ids'])
+        # outputs = self.bert_model(**inputs)
+        token_type_ids = None
+        if 'token_type_ids' in inputs:
+            token_type_ids = inputs['token_type_ids']
+        outputs = self.model(
+            input_ids=inputs['input_ids'],
+            attention_mask=inputs['attention_mask'],
+            token_type_ids=token_type_ids)
+
+        local_output = outputs.last_hidden_state
+        local_pooled = outputs.pooler_output
+
         X = self.token_gcn(self.A, self.X)
 
+        global_output = X[gcn_ids]
+
+        ## Use readout over global embeddings:
+        global_pooled = mean(global_output, dim=1)
+        # global_pooled = self.global_readout(global_output)
+
+        ## Estimate global emp importance using neural network:
+        if estimate_global_importance:
+            logger.info('Estimating importance')
+            alpha = self.global_importance_estimator(local_pooled, global_pooled)
+            global_output = alpha.unsqueeze(1) * global_output
+
         if self.combine == 'concat':
-            combined_emb = cat([X[gcn_ids], bert_outputs], dim=2)
+            combined_emb = cat([local_output, global_output], dim=2)
         elif self.combine == 'avg':
-            combined_emb = mean(stack([X[gcn_ids], bert_outputs]), dim=0)
+            combined_emb = mean(stack([local_output, global_output]), dim=0)
         else:
             raise NotImplementedError(f'combine supports either concat or avg.'
                                       f' [{self.combine}] provided.')
+
         logits = self.bilstm_classifier(combined_emb)
 
         labels = inputs['labels']
@@ -593,15 +629,17 @@ class ClassificationModel:
                 else:
                     weight = None
                 loss_fct = CrossEntropyLoss(weight=weight)
-                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
-            # outputs = (loss,) + bert_outputs
+                if labels.shape[-1] > 1:
+                    ce_labels = argmax(labels, dim=1).long()
+                loss = loss_fct(logits.view(-1, self.num_labels), ce_labels.view(-1))
+            # outputs = (loss,) + outputs
 
-            return loss, logits, bert_outputs
-        return None, logits, bert_outputs
+            return loss, logits, outputs
+        return None, logits, outputs
 
-    def train_model(self, train_df, multi_label=cfg['data']['multi_label'], output_dir=None,
-                    show_running_loss=True, args=None, eval_dfs=None,
-                    verbose=True, **kwargs):
+    def train_model(self, train_df, multi_label=cfg['data']['multi_label'],
+                    output_dir=None, show_running_loss=True, args=None,
+                    eval_dfs=None, verbose=True, **kwargs):
         """
         Trains the model using 'train_df'
 
@@ -763,7 +801,7 @@ class ClassificationModel:
         # model_to_save.save_pretrained(output_dir)
         # self.tokenizer.save_pretrained(output_dir)
         # save(self.args, join(output_dir, "training_args.bin"))
-        self.save_model(model=self.bert_model)
+        self.save_model(model=self.model)
 
         if verbose:
             logger.info(
@@ -783,7 +821,7 @@ class ClassificationModel:
         Utility function to be used by the train_model() method. Not intended to be used directly.
         """
 
-        model = self.bert_model
+        model = self.model
         args = self.args
 
         tb_writer = SummaryWriter(logdir=args.tensorboard_dir)
@@ -866,6 +904,12 @@ class ClassificationModel:
         lstm_group["params"] = [p for n, p in self.bilstm_classifier.named_parameters()]
         optimizer_grouped_parameters.append(lstm_group)
 
+        ## Add Global Importance Estimator params:
+        gie_group = {}
+        # gie_group["lr"] = 0.001
+        gie_group["params"] = [p for n, p in self.global_importance_estimator.named_parameters()]
+        optimizer_grouped_parameters.append(gie_group)
+
         warmup_steps = math.ceil(t_total * args.warmup_ratio)
         args.warmup_steps = (
             warmup_steps if args.warmup_steps == 0 else args.warmup_steps
@@ -945,6 +989,9 @@ class ClassificationModel:
             model = nn.DataParallel(model)
             self.token_gcn = nn.DataParallel(self.token_gcn)
             self.bilstm_classifier = nn.DataParallel(self.bilstm_classifier)
+            # self.global_readout = nn.DataParallel(self.global_readout)
+            self.global_importance_estimator = nn.DataParallel(
+                self.global_importance_estimator)
 
         global_step = 0
         training_progress_scores = None
@@ -1001,7 +1048,7 @@ class ClassificationModel:
                     config={**asdict(args), "repo": "simpletransformers"},
                     **args.wandb_kwargs,
                 )
-            wandb.watch(self.bert_model)
+            wandb.watch(self.model)
 
         if self.args.fp16:
             from torch.cuda import amp
@@ -1480,7 +1527,7 @@ class ClassificationModel:
         Utility function to be used by the eval_model() method. Not intended to be used directly.
         """
 
-        model = self.bert_model
+        model = self.model
         args = self.args
         eval_output_dir = output_dir
 
@@ -1603,6 +1650,8 @@ class ClassificationModel:
 
                 if multi_label:
                     logits = logits.sigmoid()
+                elif inputs["labels"].shape[-1] > 1:
+                    logits = t_softmax(logits, dim=-1)
                 if self.args.n_gpu > 1:
                     tmp_eval_loss = tmp_eval_loss.mean()
                 eval_loss += tmp_eval_loss.item()
@@ -1617,7 +1666,7 @@ class ClassificationModel:
             )
             preds[start_index:end_index] = logits.detach().cpu().numpy()
             out_label_ids[start_index:end_index] = (
-                inputs["labels"].detach().cpu().numpy()
+                argmax(inputs["labels"].detach(), dim=-1).cpu().numpy()
             )
 
             # if preds is None:
@@ -1964,7 +2013,7 @@ class ClassificationModel:
 
         # mcc = 0.0
         mcc = matthews_corrcoef(labels, preds)
-        if self.bert_model.num_labels == 2:
+        if self.model.num_labels == 2:
             tn, fp, fn, tp = confusion_matrix(labels, preds, labels=[0, 1]).ravel()
             if self.args.sliding_window:
                 return (
@@ -2009,7 +2058,7 @@ class ClassificationModel:
             model_outputs: A python list of the raw model outputs for each text.
         """
 
-        model = self.bert_model
+        model = self.model
         args = self.args
 
         eval_loss = 0.0
@@ -2033,7 +2082,7 @@ class ClassificationModel:
                 inputs_onnx = {"input_ids": input_ids, "attention_mask": attention_mask}
 
                 # Run the model (None = get all the outputs)
-                output = self.bert_model.run(None, inputs_onnx)
+                output = self.model.run(None, inputs_onnx)
 
                 preds[i] = output[0]
                 # if preds is None:
@@ -2285,7 +2334,7 @@ class ClassificationModel:
         onnx_model_name = join(output_dir, "onnx_model.onnx")
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            self.save_model(output_dir=temp_dir, model=self.bert_model)
+            self.save_model(output_dir=temp_dir, model=self.model)
 
             convert(
                 framework="pt",
@@ -2307,9 +2356,11 @@ class ClassificationModel:
         return 0
 
     def _move_model_to_device(self):
-        self.bert_model.to(self.device)
+        self.model.to(self.device)
         self.token_gcn.to(self.device)
         self.bilstm_classifier.to(self.device)
+        # self.global_readout.to(self.device)
+        self.global_importance_estimator.to(self.device)
 
     def _get_inputs_dict(self, batch, no_hf=False):
         if self.args.use_hf_datasets and not no_hf:
@@ -2355,7 +2406,7 @@ class ClassificationModel:
                 **extra_metrics,
             }
         else:
-            if self.bert_model.num_labels == 2:
+            if self.model.num_labels == 2:
                 if self.args.sliding_window:
                     training_progress_scores = {
                         "global_step": [],
@@ -2382,7 +2433,7 @@ class ClassificationModel:
                         "auprc":       [],
                         **extra_metrics,
                     }
-            elif self.bert_model.num_labels == 1:
+            elif self.model.num_labels == 1:
                 training_progress_scores = {
                     "global_step": [],
                     "train_loss":  [],
@@ -2439,14 +2490,14 @@ class ClassificationModel:
         return args
 
     def get_named_parameters(self):
-        return [n for n, p in self.bert_model.named_parameters()]
+        return [n for n, p in self.model.named_parameters()]
 
 
 def format_df_cls(df: pd.core.frame.DataFrame):
-    """ Converts the input to proper format for simpletransformer.
-
-    """
+    """ Converts input to proper format for simpletransformer. """
+    ## Consolidate labels:
     df['labels'] = df[df.columns[1:]].values.tolist()
+    ## Keep required columns only:
     df = df[['text', 'labels']].copy()
     return df
 
@@ -2476,11 +2527,18 @@ def read_data(train_name, val_name, test_name, data_dir=pretrain_dir,
 
     logger.info(f'Data shapes:\nTrain {train_df.shape},\nVal {val_df.shape},'
                 f'\nTest {test_df.shape}')
-    if format_input:
-        logger.info(f"Formatting data for simpletransformers.")
-        train_df = format_df_cls(train_df)
-        val_df = format_df_cls(val_df)
-        test_df = format_df_cls(test_df)
+
+    ## Check if labels are in str format: train_name.startswith('mKaggle') and
+    if type(train_df.labels.iloc[0]) == str:
+        train_df['labels'] = train_df['labels'].map(ast.literal_eval)
+        val_df['labels'] = val_df['labels'].map(ast.literal_eval)
+        test_df['labels'] = test_df['labels'].map(ast.literal_eval)
+    else:
+        if format_input:
+            logger.info(f"Formatting data for simpletransformers.")
+            train_df = format_df_cls(train_df)
+            val_df = format_df_cls(val_df)
+            test_df = format_df_cls(test_df)
 
     return train_df, val_df, test_df
 
@@ -2552,16 +2610,27 @@ def set_model_args(n_classes, num_epoch, in_dim,
     return model_args
 
 
+datanames = {
+    'mKaggle': ['mKaggle_train', 'mKaggle_val', 'mKaggle_test', 'mKaggle_source', 'mKaggle_target'],
+    'ecuador': ['ecuador_train', 'ecuador_val', 'ecuador_test', 'ecuador_source', 'ecuador_target'],
+    'NEQ':     ['NEQ_train', 'NEQ_val', 'NEQ_test', 'NEQ_source', 'NEQ_target'],
+    'QFL':     ['QFL_train', 'QFL_val', 'QFL_test', 'QFL_source', 'QFL_target'],
+    'fire16':  ['fire16_train', 'fire16_val', 'fire16_test', 'fire16_source', 'fire16_target'],
+    'smerp17': ['smerp17_train', 'smerp17_val', 'smerp17_test', 'smerp17_source', 'smerp17_target'],
+}
+
+
 def get_input_file_paths(data_name=cfg['data']['name'], data_dir=dataset_dir):
-    source_name, target_name = data_name.split("_")
+    # train_name, val_name, test_name, source_name, target_name = datanames[data_name]
+    source_name, target_name = data_name.split("-")
     logger.info(f"Data name [{data_name}] with source [{source_name}] and"
                 f" target [{target_name}]")
 
     train_name = source_name + "_train"
     val_name = source_name + "_val"
     test_name = target_name + "_test"
-    unlabelled_source_name = source_name + "_unlabeled"
-    unlabelled_target_name = target_name + "_unlabeled"
+    unlabelled_source_name = source_name + "_train"
+    unlabelled_target_name = target_name + "_train"
 
     logger.info(f"\nTrain [{train_name}] \nVal [{val_name}] \nTest "
                 f"[{test_name}] \nSource Unlabelled ["
@@ -2580,7 +2649,7 @@ def get_input_file_paths(data_name=cfg['data']['name'], data_dir=dataset_dir):
                 f"[{unlabelled_target_path}]")
 
     return train_name, val_name, test_name, train_path, val_path, test_path,\
-           unlabelled_source_name, unlabelled_target_name, unlabelled_source_path, unlabelled_target_path, \
+           unlabelled_source_name, unlabelled_target_name, unlabelled_source_path, unlabelled_target_path,\
            source_name, target_name
 
 
@@ -2621,6 +2690,29 @@ def get_bert2gcn_id_mapped_examples(bert_examples_ids, bert_vocab_i2s, gcn_vocab
     return stack(mapped_examples)
 
 
+def pairwise_cosine_sim_torch(x1, x2=None, eps=1e-8):
+    x2 = x1 if x2 is None else x2
+    w1 = x1.norm(p=2, dim=1, keepdim=True)
+    w2 = w1 if x2 is x1 else x2.norm(p=2, dim=1, keepdim=True)
+    return mm(x1, x2.t()) / (w1 * w2.t()).clamp(min=eps)
+
+
+def get_embs_adj(X, threshold=0.8, to_sparse=True):
+    embs_adj = pairwise_cosine_sim_torch(X)
+    if threshold is not None:
+        embs_adj[embs_adj <= threshold] = 0.
+
+    ## Consider upper diagonal portion only
+    ## diagonal=1 considers values above diagonal
+    # embs_adj = triu(embs_adj, diagonal=1)
+
+    ## Convert to sparse format:
+    if to_sparse:
+        embs_adj = embs_adj.to_sparse()
+
+    return embs_adj
+
+
 def main(args, multi_label=cfg['data']['multi_label']):
     train_name, val_name, test_name, train_path, val_path, test_path,\
     unlabelled_source_name, unlabelled_target_name, unlabelled_source_path,\
@@ -2632,10 +2724,12 @@ def main(args, multi_label=cfg['data']['multi_label']):
         data_dir=dataset_dir, train_portion=args.train_portion,
         format_input=multi_label)
 
-    if multi_label:
-        num_classes = len(train_df.labels.to_list()[0])
-    else:
-        num_classes = 1
+    num_classes = len(train_df.labels.to_list()[0])
+
+    # if multi_label:
+    #     num_classes = len(train_df.labels.to_list()[0])
+    # else:
+    #     num_classes = 1
     model_args = set_model_args(n_classes=num_classes, lr=args.lr,
                                 num_epoch=args.num_train_epochs, in_dim=768,
                                 train_all_bert=True)
@@ -2647,12 +2741,24 @@ def main(args, multi_label=cfg['data']['multi_label']):
         num_labels=num_classes, args=model_args, exp_name=args.exp_name,
         use_cuda=args.use_cuda, cuda_device=cuda_device)
 
-    init_embs = clf.bert_model.bert.embeddings.word_embeddings.weight.data
+    if args.model_type == 'bert' or args.model_type == 'mbert' or\
+            args.model_type == 'glen_bert':
+        init_embs = clf.model.bert.embeddings.word_embeddings.weight.data
+    elif args.model_type == 'roberta' or args.model_type == 'glen_roberta':
+        init_embs = clf.model.roberta.embeddings.word_embeddings.weight.data
+    elif args.model_type == 'xlmroberta' or args.model_type == 'glen_xlmroberta':
+        init_embs = clf.model.roberta.embeddings.word_embeddings.weight.data
+    else:
+        raise NotImplementedError(f"Model type [{args.model_type}] is not supported.")
 
     global_token_graph, A, X, joint_vocab = construct_token_graph(
         init_embs, clf.tokenizer.vocab, train_name, unlabelled_source_name,
         unlabelled_target_name, train_df=train_df, tokenizer=clf.tokenizer,
         data_dir=dataset_dir)
+
+    if args.multilingual:
+        A_embs = get_embs_adj(X, threshold=0.8, to_sparse=True)
+        A = A + (A * A_embs)
 
     clf.tokenizer.bert_vocab_i2s = dict((value, key) for key, value in
                                         clf.tokenizer.vocab.items())
@@ -2672,8 +2778,11 @@ def main(args, multi_label=cfg['data']['multi_label']):
     extra_names = [source_name + "_test", ]
     for extra_name in extra_names:
         eval_df = read_csv(data_dir=dataset_dir, data_file=extra_name)
+
         if multi_label:
             eval_df = format_df_cls(eval_df)
+        elif type(eval_df.labels.iloc[0]) == str:
+            eval_df.labels = eval_df.labels.map(ast.literal_eval)
         eval_dicts[extra_name] = eval_df
 
     logger.info(clf.train_model(train_df, eval_dfs=eval_dicts,
@@ -2693,7 +2802,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     ## Required parameters
-    parser.add_argument("-n", "--exp_name", default='glen_bert', type=str,
+    parser.add_argument("-n", "--exp_name", default='glen_xlmroberta', type=str,
                         help="Use 'gcpd_normal' for normal results;\n"
                              "'gcpd_ecl' for Example-Level Contrastive Learning"
                              " (ECL)\n'gcpd_zeroshot' for Zero-Shot experiments;"
@@ -2701,9 +2810,10 @@ if __name__ == "__main__":
                              "Fine-tuning (RDF).")
     parser.add_argument("-c", "--use_cuda", default=cfg['cuda']['use_cuda'], type=bool)
     parser.add_argument("-m", "--model_name", default=cfg['transformer']['model_name'], type=str)
-    parser.add_argument("-mt", "--model_type", default='glen_bert', type=str)
+    parser.add_argument("-mt", "--model_type", default=cfg['transformer']['model_type'], type=str)
     parser.add_argument("-e", "--num_train_epochs", default=cfg['transformer']['num_epoch'], type=int)
     parser.add_argument("-d", "--dataset_name", default=cfg['data']['name'], type=str)
+    parser.add_argument("-ml", "--multilingual", default=True, type=bool)
     # parser.add_argument("-s", "--source_name", default=cfg['data']['source_name'], type=str)
     # parser.add_argument("-t", "--target_name", default=cfg['data']['target_name'], type=str)
     parser.add_argument("-p", "--train_portion", default=None, type=float)
@@ -2723,17 +2833,27 @@ if __name__ == "__main__":
             main(args, multi_label=cfg['data']['multi_label'])
 
 
-    lrs = cfg['transformer']['lrs']
+    exp_name = 'test'
     train_portions = cfg['data']['train_portions']
-    for lr in lrs:
-        args.lr = lr
-        exp_name = 'lr_[' + str(args.lr) + ']_'
-        logger.info(f'Run for lr: [{args.lr}]')
-        for t_portion in train_portions:
-            args.train_portion = t_portion
-            args.exp_name = exp_name + 'train_portion_[' + \
-                            str(args.train_portion) + ']_'
-            logger.info(f'Run for TRAIN portion: [{args.train_portion}]')
-            run_main()
+    for t_portion in train_portions:
+        args.train_portion = t_portion
+        args.exp_name = exp_name + 'train_portion_[' +\
+                        str(args.train_portion) + ']_'
+        logger.info(f'Run for TRAIN portion: [{args.train_portion}]')
+        run_main()
+
+
+    # lrs = cfg['transformer']['lrs']
+    # train_portions = cfg['data']['train_portions']
+    # for lr in lrs:
+    #     args.lr = lr
+    #     exp_name = 'lr_[' + str(args.lr) + ']_'
+    #     logger.info(f'Run for lr: [{args.lr}]')
+    #     for t_portion in train_portions:
+    #         args.train_portion = t_portion
+    #         args.exp_name = exp_name + 'train_portion_[' +\
+    #                         str(args.train_portion) + ']_'
+    #         logger.info(f'Run for TRAIN portion: [{args.train_portion}]')
+    #         run_main()
 
     logger.info(f"Execution completed for {args.seed_count} SEEDs.")
