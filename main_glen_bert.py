@@ -629,7 +629,7 @@ class ClassificationModel:
                 else:
                     weight = None
                 loss_fct = CrossEntropyLoss(weight=weight)
-                if labels.shape[-1] > 1:
+                if labels.shape[-1] > 1 and len(inputs["labels"].shape) > 1:
                     ce_labels = argmax(labels, dim=1).long()
                 loss = loss_fct(logits.view(-1, self.num_labels), ce_labels.view(-1))
             # outputs = (loss,) + outputs
@@ -904,11 +904,12 @@ class ClassificationModel:
         lstm_group["params"] = [p for n, p in self.bilstm_classifier.named_parameters()]
         optimizer_grouped_parameters.append(lstm_group)
 
-        ## Add Global Importance Estimator params:
-        gie_group = {}
-        # gie_group["lr"] = 0.001
-        gie_group["params"] = [p for n, p in self.global_importance_estimator.named_parameters()]
-        optimizer_grouped_parameters.append(gie_group)
+        if self.estimate_global_importance:
+            ## Add Global Importance Estimator params:
+            gie_group = {}
+            # gie_group["lr"] = 0.001
+            gie_group["params"] = [p for n, p in self.global_importance_estimator.named_parameters()]
+            optimizer_grouped_parameters.append(gie_group)
 
         warmup_steps = math.ceil(t_total * args.warmup_ratio)
         args.warmup_steps = (
@@ -990,8 +991,9 @@ class ClassificationModel:
             self.token_gcn = nn.DataParallel(self.token_gcn)
             self.bilstm_classifier = nn.DataParallel(self.bilstm_classifier)
             # self.global_readout = nn.DataParallel(self.global_readout)
-            self.global_importance_estimator = nn.DataParallel(
-                self.global_importance_estimator)
+            if self.estimate_global_importance:
+                self.global_importance_estimator = nn.DataParallel(
+                    self.global_importance_estimator)
 
         global_step = 0
         training_progress_scores = None
@@ -1650,7 +1652,7 @@ class ClassificationModel:
 
                 if multi_label:
                     logits = logits.sigmoid()
-                elif inputs["labels"].shape[-1] > 1:
+                elif inputs["labels"].shape[-1] > 1  and len(inputs["labels"].shape)  > 1:
                     logits = t_softmax(logits, dim=-1)
                 if self.args.n_gpu > 1:
                     tmp_eval_loss = tmp_eval_loss.mean()
@@ -1665,9 +1667,15 @@ class ClassificationModel:
                 else len(eval_dataset)
             )
             preds[start_index:end_index] = logits.detach().cpu().numpy()
-            out_label_ids[start_index:end_index] = (
-                argmax(inputs["labels"].detach(), dim=-1).cpu().numpy()
-            )
+            ## Only take class index in case of multi-class:
+            if inputs["labels"].shape[-1] > 1 and len(inputs["labels"].shape) > 1 and not multi_label:
+                out_label_ids[start_index:end_index] = (
+                    argmax(inputs["labels"].detach(), dim=-1).cpu().numpy()
+                )
+            else:
+                out_label_ids[start_index:end_index] = (
+                    inputs["labels"].detach().cpu().numpy()
+                )
 
             # if preds is None:
             #     preds = logits.detach().cpu().numpy()
@@ -2360,7 +2368,9 @@ class ClassificationModel:
         self.token_gcn.to(self.device)
         self.bilstm_classifier.to(self.device)
         # self.global_readout.to(self.device)
-        self.global_importance_estimator.to(self.device)
+
+        if self.estimate_global_importance:
+            self.global_importance_estimator.to(self.device)
 
     def _get_inputs_dict(self, batch, no_hf=False):
         if self.args.use_hf_datasets and not no_hf:
@@ -2724,12 +2734,13 @@ def main(args, multi_label=cfg['data']['multi_label']):
         data_dir=dataset_dir, train_portion=args.train_portion,
         format_input=multi_label)
 
-    num_classes = len(train_df.labels.to_list()[0])
-
-    # if multi_label:
-    #     num_classes = len(train_df.labels.to_list()[0])
-    # else:
-    #     num_classes = 1
+    if multi_label:
+        num_classes = len(train_df.labels.to_list()[0])
+    else:
+        if type(train_df.labels.to_list()[0]) is list:
+            num_classes = len(train_df.labels.to_list()[0])
+        else:
+            num_classes = 1
     model_args = set_model_args(n_classes=num_classes, lr=args.lr,
                                 num_epoch=args.num_train_epochs, in_dim=768,
                                 train_all_bert=True)
@@ -2802,7 +2813,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     ## Required parameters
-    parser.add_argument("-n", "--exp_name", default='glen_xlmroberta', type=str,
+    parser.add_argument("-n", "--exp_name", default='glen_bert', type=str,
                         help="Use 'gcpd_normal' for normal results;\n"
                              "'gcpd_ecl' for Example-Level Contrastive Learning"
                              " (ECL)\n'gcpd_zeroshot' for Zero-Shot experiments;"
@@ -2813,7 +2824,7 @@ if __name__ == "__main__":
     parser.add_argument("-mt", "--model_type", default=cfg['transformer']['model_type'], type=str)
     parser.add_argument("-e", "--num_train_epochs", default=cfg['transformer']['num_epoch'], type=int)
     parser.add_argument("-d", "--dataset_name", default=cfg['data']['name'], type=str)
-    parser.add_argument("-ml", "--multilingual", default=True, type=bool)
+    parser.add_argument("-ml", "--multilingual", default=False, type=bool)
     # parser.add_argument("-s", "--source_name", default=cfg['data']['source_name'], type=str)
     # parser.add_argument("-t", "--target_name", default=cfg['data']['target_name'], type=str)
     parser.add_argument("-p", "--train_portion", default=None, type=float)
