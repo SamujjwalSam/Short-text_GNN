@@ -21,15 +21,15 @@ import json
 import logging
 import linecache
 import os
-import sys
+# import sys
 from collections import Counter
 from io import open
 from multiprocessing import Pool, cpu_count
 
 import torch
 import torch.nn as nn
-from scipy.stats import pearsonr, spearmanr
-from sklearn.metrics import f1_score, matthews_corrcoef
+# from scipy.stats import pearsonr, spearmanr
+# from sklearn.metrics import f1_score, matthews_corrcoef
 
 from torch.utils.data import Dataset
 # from datasets import load_dataset
@@ -45,7 +45,7 @@ try:
 except ImportError:
     torchvision_available = False
 
-from copy import deepcopy
+# from copy import deepcopy
 
 csv.field_size_limit(2147483647)
 
