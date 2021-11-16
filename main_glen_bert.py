@@ -2512,6 +2512,63 @@ def format_df_cls(df: pd.core.frame.DataFrame):
     return df
 
 
+def process_mkaggle_data(kl_name, process_labels=False):
+    kl = pd.read_csv(kl_name, index_col='id')
+
+    ## Copy English texts for empty (NAN) values:
+    kl['original'] = np.where(kl['original'].isnull(), kl['message'], kl['original'])
+
+    ## Drop unnecessary columns:
+    kl = kl.drop(columns=['split', 'genre', 'message'])
+
+    ## Rename columns:
+    kl.rename(columns={'original': 'text'}, inplace=True)
+
+    if process_labels:
+        kl = format_df_cls(kl)
+
+    return kl
+
+
+def process_mkaggle_datas():
+    filenames = ['mKaggle_train', 'mKaggle_val', 'mKaggle_test']
+
+    for filename in filenames:
+        kl = process_mkaggle_data(join(dataset_dir, filename + '.csv'))
+        kl.to_csv(join(dataset_dir, filename + '_processed.csv'))
+
+
+def process_ecuador_data(ec_name):
+    ec = pd.read_csv(ec_name, index_col='id')
+
+    ec.drop(columns=['screen_name', 'url', 'timestamp', 'choose_one_category',
+                     'choose_one_category_a1', 'choose_one_category_a2', 'choose_one_category_a3'], inplace=True)
+
+    ec.crisis_related.replace(to_replace=['no', 'yes'], value=[0, 1], inplace=True)
+
+    ec.rename(columns={'crisis_related': 'labels'}, inplace=True)
+
+    return ec
+
+
+from Data_Handlers.create_datasets import split_csv_dataset
+
+
+def process_ecuador_datas():
+    filenames = ['ecuador-en', 'ecuador-es']
+
+    for filename in filenames:
+        ec = process_ecuador_data(join(dataset_dir, filename + '.csv'))
+        new_name = join(dataset_dir, filename + '_processed.csv')
+        ec.to_csv(new_name)
+
+        ec_train, ec_val, ec_test = split_csv_dataset(dataset_name=filename + '_processed.csv',
+                                                      dataset_dir=dataset_dir, frac=0.6)
+        ec_train.to_csv(join(dataset_dir, filename + '_train.csv'))
+        ec_val.to_csv(join(dataset_dir, filename + '_val.csv'))
+        ec_test.to_csv(join(dataset_dir, filename + '_test.csv'))
+
+
 def read_data(train_name, val_name, test_name, data_dir=pretrain_dir,
               format_input=True, zeroshot=cfg['data']['zeroshot'],
               zeroshot_train_names=cfg['pretrain']['files'],
