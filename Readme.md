@@ -45,41 +45,40 @@ As this repo was created before the name **GNoM**, we use the prefix `glen_bert`
 
 ## GLEN Data Flow:
 1. Preprocess the token graph to generate domain invariant token representation
-    1.1. Forward pass via GCN: `H(t+1) = Sigmoid(D-1/2 A D-1/2 H(t))`
-    1.2. `H(t)` represents node features 
-    1.3. `H(t+1)` will contain information from tokens of both domains, i.e. domain invariant 
+    1. Forward pass via GCN: `H(t+1) = Sigmoid(D-1/2 A D-1/2 H(t))`
+    2. `H(t)` represents node features 
+    3. `H(t+1)` will contain information from tokens of both domains, i.e. domain invariant 
 2. Obtain sample text graph:
-    2.1. Fetch k-hop neighbor induced subgraph from token graph for token in the sample text
-    2.2. If nodes are disconnected in induced subgraph, connect consecutive token present in sample text with edge
+    1. Fetch k-hop neighbor induced subgraph from token graph for token in the sample text
+    2. If nodes are disconnected in induced subgraph, connect consecutive token present in sample text with edge
      weight `e`
 3. Architecture: 
-    3.1. Pass individual sample text graphs through GNNs to generate new token representations
-    3.2. Foreach text graph (`G_i`), use `Xi` and `Ai` to get aggregate sample representation: `Xi’ = GNN(Xi, Ai)`
-    3.3. Concatenate `Xi” = Xi’ + Xi`
-    3.4. Pass Xi” through LSTM: `Xi’” = LSTM(Xi”)`
-    3.4. Forward Xi”' to a classifier `result = C(Xi’”)`
+    1. Pass individual sample text graphs through GNNs to generate new token representations
+    2. Foreach text graph (`G_i`), use `Xi` and `Ai` to get aggregate sample representation: `Xi’ = GNN(Xi, Ai)`
+    3. Concatenate `Xi” = Xi’ + Xi`
+    4. Pass Xi” through LSTM: `Xi’” = LSTM(Xi”)`
+    5. Forward Xi”' to a classifier `result = C(Xi’”)`
 
-## GLEN Motivation:
+## GLEN Motivations and Ideas:
 
-1. Construct a joint token graph (G) using S and T data with domain information
-    1.1. Calculate edge weights
-    1.2. Generate token embeddings
-    1.3. Fine-tune token embeddings
+1. Construct a joint token graph (`G`) using `S` and `T` data with domain information
+    1. Calculate edge weights
+    2. Generate token embeddings
+    3. Fine-tune token embeddings
 2. Preprocess G such that node representations are domain-invariant (Using GNN)
-    2.1. Forward pass through a GNN (possibly GCN)
-    2.2. Verify if processed embeddings are domain invariant by classification
-        2.2.1. Train classifier using S
-        2.2.2. Test trained classifier on T
-        2.2.3. Do previous steps for normal and processed embeddings; processed should work better 
-3. Construct subgraph $H_i$ by following:
-    3.1. Construct a single sample graph (H1) by connecting nodes of adjacent tokens
-    3.2. Fetch n-hop neighbor subgraph of H's nodes from G to construct H2.
-    3.3. Merge H1 and H2 by merging the neighbors from H2 to H1.
-    3.4. H1 now represents sample graph with domain invariant feature
-4. Pass H1 through GNN followed by LSTM such that linguistic features are captured to get f(H1)
-5. Pass f(H1) through an aggregate network g() to 
-6. Use Domain Specific vectorizer: If a token occurs with high freq in S and not in T or vice versa, That token
- is informative. Treat domain as class and use class specific features.
+    1. Forward pass through a GNN (possibly GCN)
+    2. Verify if processed embeddings are domain invariant by classification
+        1. Train classifier using `S`
+        2. Test trained classifier on `T`
+        3. Do previous steps for normal and processed embeddings; processed should work better 
+3. Construct subgraph `H_i` by following:
+    1. Construct a single sample graph (`H1`) by connecting nodes of adjacent tokens
+    2. Fetch n-hop neighbor subgraph of `H`'s nodes from `G` to construct `H2`.
+    3. Merge `H1` and `H2` by merging the neighbors from `H2` to `H1`.
+    4. `H1` now represents sample graph with domain invariant feature
+4. Pass `H1` through GNN followed by LSTM such that linguistic features are captured to get `f(H1)`
+5. Pass `f(H1)` through an aggregate network `g()` to 
+6. Use Domain Specific vectorizer: If a token occurs with high freq in `S` and not in `T` or vice versa, That token is informative. Treat domain as class and use class specific features.
 
 
 ## Requirements
